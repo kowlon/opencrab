@@ -14,6 +14,7 @@ import os
 import sys
 import shutil
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules
 
 # Project root directory
 PROJECT_ROOT = Path(SPECPATH).parent
@@ -217,9 +218,21 @@ hidden_imports_core = [
     "telegram.request",         # HTTPXRequest (自定义超时配置)
     "telegram.constants",       # Telegram API 常量
     "telegram.error",           # Telegram 异常类
-    "lark_oapi",                # Feishu/Lark (~3MB)
-    "lark_oapi.ws",             # Feishu WebSocket
-    "lark_oapi.ws.client",      # Feishu WebSocket 客户端
+    # lark_oapi: 10K+ 自动生成的 API 文件，hidden_imports 无法完整收集
+    # (wildcard imports: from .api import * 等)。改为在 datas 中直接复制整包目录，
+    # 确保飞书 IM 通道开箱即用，不再依赖运行时自动安装。
+    "requests",                 # lark_oapi 依赖: HTTP 客户端
+    "requests.adapters",
+    "requests.auth",
+    "requests.cookies",
+    "requests.exceptions",
+    "requests.models",
+    "requests.sessions",
+    "requests.structures",
+    "requests.utils",
+    "requests_toolbelt",        # lark_oapi 依赖: multipart 上传等
+    "urllib3",                  # requests 依赖: HTTP 连接池 (可能已由 httpx 间接引入)
+    "charset_normalizer",       # requests 依赖: 编码检测
     "dingtalk_stream",          # DingTalk Stream (~2MB)
     "Crypto",                   # pycryptodome for WeWork (~3MB)
     "Crypto.Cipher",
@@ -296,7 +309,7 @@ hidden_imports_core = [
     "portalocker",              # bubus 依赖: 文件锁
     "uuid7",                    # bubus 依赖: UUID v7
     "uuid_extensions",          # uuid7 运行时依赖
-    "simplejson",               # browser-use JSON 序列化
+    *collect_submodules("simplejson"),  # browser-use JSON 序列化 (需要完整收集子模块，否则 requests 会因缺少 simplejson.errors 而崩溃)
     "cloudpickle",              # browser-use 序列化
     "backoff",                  # posthog 依赖: 重试
     "monotonic",                # posthog 依赖: 单调时钟
@@ -505,6 +518,27 @@ if _pyproject_path.exists():
     _version_file = PROJECT_ROOT / "build" / "_bundled_version.txt"
     _version_file.write_text(f"{_pyproject_version}+{_git_hash}", encoding="utf-8")
     datas.append((str(_version_file), "openakita"))
+
+# lark_oapi (飞书 SDK): 10K+ 自动生成的 API 文件，PyInstaller hidden_imports 无法
+# 完整收集 (wildcard imports: from .api import *)。直接复制整包目录作为 data files，
+# 确保飞书 IM 通道开箱即用，不再依赖运行时自动安装 (运行时安装需要独立 Python
+# 解释器，在打包环境中不可靠)。
+try:
+    import lark_oapi as _lark
+    _lark_dir = str(Path(_lark.__file__).parent)
+    datas.append((_lark_dir, "lark_oapi"))
+    print(f"[spec] Bundling lark_oapi: {_lark_dir}")
+except ImportError:
+    print("[spec] WARNING: lark_oapi not installed, feishu channel will need runtime install")
+
+# requests_toolbelt (lark_oapi 依赖): 同样直接复制，避免 PyInstaller 遗漏
+try:
+    import requests_toolbelt as _rt
+    _rt_dir = str(Path(_rt.__file__).parent)
+    datas.append((_rt_dir, "requests_toolbelt"))
+    print(f"[spec] Bundling requests_toolbelt: {_rt_dir}")
+except ImportError:
+    print("[spec] WARNING: requests_toolbelt not installed")
 
 # Built-in Python interpreter + pip (bundled mode can install optional modules without host Python)
 # Bundle system python.exe and pip module to _internal/, Rust side discovers via find_pip_python

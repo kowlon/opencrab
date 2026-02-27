@@ -1073,7 +1073,7 @@ function MessageBubble({
 
         {/* Main content (markdown) */}
         {msg.content && (
-          <div className="chatMdContent">
+          <div className={isUser ? "chatMdContent chatMdContentUser" : "chatMdContent"}>
             <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
               {msg.content}
             </ReactMarkdown>
@@ -1717,6 +1717,22 @@ export function ChatView({
 
   // ── 持久化消息（流式中由 StreamContext 管理，finally 一次性写入） ──
   const saveMessagesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestMessagesRef = useRef<ChatMessage[]>(messages);
+  const latestActiveConvIdRef = useRef<string | null>(activeConvId);
+  useEffect(() => { latestMessagesRef.current = messages; }, [messages]);
+  useEffect(() => { latestActiveConvIdRef.current = activeConvId; }, [activeConvId]);
+
+  const flushCurrentConversationToStorage = useCallback(() => {
+    const convId = latestActiveConvIdRef.current;
+    if (!convId) return;
+    try {
+      const toSave = latestMessagesRef.current.map(({ streaming, ...rest }) => rest);
+      localStorage.setItem(STORAGE_KEY_MSGS_PREFIX + convId, JSON.stringify(toSave));
+    } catch {
+      // ignore sync flush failures
+    }
+  }, [STORAGE_KEY_MSGS_PREFIX]);
+
   useEffect(() => {
     if (!activeConvId) return;
     if (streamContexts.current.get(activeConvId)?.isStreaming) return;
@@ -1740,57 +1756,112 @@ export function ChatView({
 
   // (messagesSnapshotRef / liveMessagesCache removed — StreamContext manages live messages)
 
-  // ── 切换对话时加载对应消息 ──
-  const prevConvIdRef = useRef<string | null>(activeConvId);
-  const skipConvLoadRef = useRef(false);
+  // 页面隐藏/关闭时立即落盘，降低"当天消息未及时写入 localStorage"的概率
   useEffect(() => {
-    if (activeConvId && activeConvId !== prevConvIdRef.current) {
-      if (skipConvLoadRef.current) {
-        skipConvLoadRef.current = false;
-      } else {
-        const ctx = streamContexts.current.get(activeConvId);
-        if (ctx?.isStreaming) {
-          setMessages(ctx.messages);
-          setDisplayActiveSubAgents(ctx.activeSubAgents);
-          setDisplaySubAgentTasks(ctx.subAgentTasks);
-        } else {
-          try {
-            const raw = localStorage.getItem(STORAGE_KEY_MSGS_PREFIX + activeConvId);
-            if (raw) {
-              setMessages(JSON.parse(raw));
-            } else {
-              setMessages([]);
-              if (serviceRunning) {
-                const convId = activeConvId;
-                fetch(`${apiBaseUrl}/api/sessions/${encodeURIComponent(convId)}/history`)
-                  .then((r) => r.ok ? r.json() : null)
-                  .then((data) => {
-                    if (!data?.messages?.length) return;
-                    const restored: ChatMessage[] = data.messages.map((m: { id: string; role: string; content: string; timestamp: number; chain_summary?: ChainSummaryItem[] }) => ({
-                      id: m.id,
-                      role: m.role as "user" | "assistant" | "system",
-                      content: m.content,
-                      timestamp: m.timestamp,
-                      ...(m.chain_summary?.length ? { thinkingChain: buildChainFromSummary(m.chain_summary) } : {}),
-                    }));
-                    setMessages(restored);
-                  })
-                  .catch(() => {});
-              }
-            }
-          } catch { setMessages([]); }
-          setDisplayActiveSubAgents([]);
-          setDisplaySubAgentTasks([]);
+    const flushNow = () => {
+      if (saveMessagesTimerRef.current) {
+        clearTimeout(saveMessagesTimerRef.current);
+        saveMessagesTimerRef.current = null;
+      }
+      flushCurrentConversationToStorage();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushNow();
+    };
+    window.addEventListener("beforeunload", flushNow);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", flushNow);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [flushCurrentConversationToStorage]);
+
+  // ── 切换对话时加载对应消息 ──
+  const skipConvLoadRef = useRef(false);
+  const hydrateSeqRef = useRef(0);
+
+  const mapBackendHistoryToMessages = useCallback(
+    (rows: { id: string; role: string; content: string; timestamp: number; chain_summary?: ChainSummaryItem[] }[]): ChatMessage[] => {
+      return rows.map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant" | "system",
+        content: m.content,
+        timestamp: m.timestamp,
+        ...(m.chain_summary?.length ? { thinkingChain: buildChainFromSummary(m.chain_summary) } : {}),
+      }));
+    },
+    [],
+  );
+
+  const hydrateConversationMessages = useCallback(async (convId: string, expectedCount = 0) => {
+    const seq = ++hydrateSeqRef.current;
+    let localMsgs: ChatMessage[] = [];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_MSGS_PREFIX + convId);
+      localMsgs = raw ? JSON.parse(raw) : [];
+    } catch {
+      localMsgs = [];
+    }
+
+    const localCount = Array.isArray(localMsgs) ? localMsgs.length : 0;
+    const shouldSyncBackend = serviceRunning && (localCount === 0 || (expectedCount > 0 && localCount < expectedCount));
+
+    if (!shouldSyncBackend) {
+      if (seq === hydrateSeqRef.current) setMessages(localMsgs);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/api/sessions/${encodeURIComponent(convId)}/history`);
+      const data = res.ok ? await res.json() : null;
+      const backendMsgs = Array.isArray(data?.messages) ? mapBackendHistoryToMessages(data.messages) : [];
+
+      const chosen = backendMsgs.length >= localCount ? backendMsgs : localMsgs;
+      if (seq === hydrateSeqRef.current) setMessages(chosen);
+
+      if (backendMsgs.length >= localCount) {
+        try {
+          const toSave = backendMsgs.map(({ streaming, ...rest }) => rest);
+          localStorage.setItem(STORAGE_KEY_MSGS_PREFIX + convId, JSON.stringify(toSave));
+        } catch {
+          // ignore localStorage write failures
         }
       }
-      isInitialScrollRef.current = true;
-      if (multiAgentEnabled) {
-        const conv = conversations.find((c) => c.id === activeConvId);
-        if (conv?.agentProfileId) setSelectedAgent(conv.agentProfileId);
-      }
+    } catch {
+      if (seq === hydrateSeqRef.current) setMessages(localMsgs);
     }
-    prevConvIdRef.current = activeConvId;
-  }, [activeConvId, serviceRunning, apiBaseUrl, multiAgentEnabled, conversations]);
+  }, [serviceRunning, apiBaseUrl, mapBackendHistoryToMessages, STORAGE_KEY_MSGS_PREFIX]);
+
+  useEffect(() => {
+    if (!activeConvId) {
+      setMessages([]);
+      return;
+    }
+    if (skipConvLoadRef.current) {
+      skipConvLoadRef.current = false;
+      return;
+    }
+
+    // If a StreamContext is actively streaming for this conv, restore its state directly
+    const ctx = streamContexts.current.get(activeConvId);
+    if (ctx?.isStreaming) {
+      setMessages(ctx.messages);
+      setDisplayActiveSubAgents(ctx.activeSubAgents);
+      setDisplaySubAgentTasks(ctx.subAgentTasks);
+    } else {
+      const activeMeta = conversations.find((c) => c.id === activeConvId);
+      const expectedCount = activeMeta?.messageCount || 0;
+      void hydrateConversationMessages(activeConvId, expectedCount);
+      setDisplayActiveSubAgents([]);
+      setDisplaySubAgentTasks([]);
+    }
+
+    isInitialScrollRef.current = true;
+    if (multiAgentEnabled) {
+      const conv = conversations.find((c) => c.id === activeConvId);
+      if (conv?.agentProfileId) setSelectedAgent(conv.agentProfileId);
+    }
+  }, [activeConvId, conversations, hydrateConversationMessages, multiAgentEnabled]);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const isInitialScrollRef = useRef(true); // first scroll should be instant, not smooth
@@ -1854,11 +1925,12 @@ export function ChatView({
   }, [agentMenuOpen]);
 
   // Restore conversations from backend when localStorage is empty (e.g. after Tauri restart)
+
+  // 启动后后台对账会话列表：本地先展示，后端异步增量合并，避免"今天新会话缺失"
   const sessionRestoreAttempted = useRef(false);
   useEffect(() => {
     if (!serviceRunning || sessionRestoreAttempted.current) return;
     sessionRestoreAttempted.current = true;
-    if (conversations.length > 0) return;
 
     let cancelled = false;
     (async () => {
@@ -1877,29 +1949,33 @@ export function ChatView({
           messageCount: s.messageCount || 0,
           agentProfileId: s.agentProfileId,
         }));
-        setConversations(restoredConvs);
 
-        const firstConvId = restoredConvs[0].id;
-        setActiveConvId(firstConvId);
+        setConversations((prev) => {
+          const prevMap = new Map(prev.map((c) => [c.id, c]));
+          const mergedFromBackend: ChatConversation[] = restoredConvs.map((b) => {
+            const local = prevMap.get(b.id);
+            if (!local) return b;
+            return {
+              ...local,
+              title: local.titleGenerated ? local.title : (b.title || local.title || "对话"),
+              lastMessage: b.lastMessage || local.lastMessage,
+              timestamp: Math.max(local.timestamp || 0, b.timestamp || 0),
+              messageCount: Math.max(local.messageCount || 0, b.messageCount || 0),
+            };
+          });
+          const backendIds = new Set(restoredConvs.map((c) => c.id));
+          const localOnly = prev.filter((c) => !backendIds.has(c.id));
+          return [...mergedFromBackend, ...localOnly];
+        });
 
-        const histRes = await fetch(`${apiBaseUrl}/api/sessions/${encodeURIComponent(firstConvId)}/history`);
-        if (!histRes.ok || cancelled) return;
-        const histData = await histRes.json();
-        const restoredMsgs: ChatMessage[] = (histData.messages || []).map((m: { id: string; role: string; content: string; timestamp: number; chain_summary?: ChainSummaryItem[] }) => ({
-          id: m.id,
-          role: m.role as "user" | "assistant" | "system",
-          content: m.content,
-          timestamp: m.timestamp,
-          ...(m.chain_summary?.length ? { thinkingChain: buildChainFromSummary(m.chain_summary) } : {}),
-        }));
-        if (restoredMsgs.length > 0) {
-          skipConvLoadRef.current = true;
-          setMessages(restoredMsgs);
+        // 没有活跃会话时，默认打开后端最新会话
+        if (!activeConvId) {
+          setActiveConvId(restoredConvs[0].id);
         }
       } catch { /* backend not available yet, ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [serviceRunning, apiBaseUrl, conversations.length]);
+  }, [serviceRunning, apiBaseUrl, activeConvId]);
 
   // ── 消息补全：用后端数据修复 localStorage 中不完整的消息（中断的流式传输等）──
   const patchedConvsRef = useRef<Set<string>>(new Set());
@@ -2883,8 +2959,15 @@ export function ChatView({
         ));
       } else {
         const errMsg = e instanceof Error ? e.message : String(e);
-        updateMessages((prev) => prev.map((m) =>
-          m.id === assistantMsg.id ? { ...m, content: `连接失败：${errMsg}\n\n请确认后台服务（openakita serve）已启动，且 HTTP API 端口（18900）可访问。`, streaming: false } : m
+        let guidance = t("chat.backendServiceHint");
+        try {
+          const healthRes = await fetch(`${apiBase}/api/health`, { signal: AbortSignal.timeout(2000) });
+          if (healthRes.ok) {
+            guidance = t("chat.backendOnlineUpstreamHint");
+          }
+        } catch { /* health probe failed -> keep backend guidance */ }
+        setMessages((prev) => prev.map((m) =>
+          m.id === assistantMsg.id ? { ...m, content: `连接失败：${errMsg}\n\n${guidance}`, streaming: false } : m
         ));
       }
     } finally {
@@ -2938,7 +3021,7 @@ export function ChatView({
         return updated;
       });
     }
-  }, [inputText, pendingAttachments, isCurrentConvStreaming, activeConvId, planMode, selectedEndpoint, apiBase, slashCommands, thinkingMode, thinkingDepth]);
+  }, [inputText, pendingAttachments, isCurrentConvStreaming, activeConvId, planMode, selectedEndpoint, apiBase, slashCommands, thinkingMode, thinkingDepth, t]);
 
   // ── 处理用户回答 (ask_user) ──
   const handleAskAnswer = useCallback((msgId: string, answer: string) => {
@@ -3705,7 +3788,7 @@ export function ChatView({
 
         {/* 附件预览栏 */}
         {pendingAttachments.length > 0 && (
-          <div style={{ padding: "12px 16px 8px", borderTop: "1px solid var(--line)", display: "flex", flexWrap: "wrap", gap: 12, background: "var(--panel)" }}>
+          <div style={{ padding: "12px 16px 8px", borderTop: "1px solid var(--line)", display: "flex", flexWrap: "wrap", gap: 12, background: "var(--panel)", maxHeight: 140, overflowY: "auto" }}>
             {pendingAttachments.map((att, idx) => (
               <AttachmentPreview
                 key={`${att.name}-${att.type}-${idx}`}

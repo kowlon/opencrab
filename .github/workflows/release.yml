@@ -236,7 +236,9 @@ jobs:
           if [ "${{ matrix.build_mode }}" = "full" ]; then
             pip install -e ".[all]"
           else
-            pip install -e "."
+            # Core + all IM channels + desktop automation
+            # These are listed in hidden_imports/datas and must be installed for PyInstaller to bundle them
+            pip install -e ".[feishu,dingtalk,wework,onebot,qqbot,windows]"
           fi
           pip install "pyinstaller>=6.18.0"
 

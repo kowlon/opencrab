@@ -191,10 +191,15 @@ def main():
 
     # ── downloads: 网站下载页使用（无需 .sig，直接链接安装包） ──
     DOWNLOAD_PATTERNS = {
-        "windows": {
+        "windows-core": {
             "extensions": [".exe"],
             "keywords": ["core"],
             "exclude": ["full", "uninstall"],
+        },
+        "windows-full": {
+            "extensions": [".exe"],
+            "keywords": ["full"],
+            "exclude": ["core", "uninstall"],
         },
         "macos-arm64": {
             "extensions": [".dmg"],
@@ -226,6 +231,22 @@ def main():
             "keywords": ["ubuntu24-arm64"],
             "exclude": [],
         },
+        "linux-appimage-x64": {
+            "extensions": [".AppImage", ".appimage"],
+            "keywords": ["x86_64", "amd64"],
+            "exclude": ["arm64", "aarch64"],
+        },
+    }
+    DOWNLOAD_NICKNAMES = {
+        "windows-core": "Windows 10/11",
+        "windows-full": "Windows 10/11 完整版",
+        "macos-arm64": "macOS Apple Silicon (.dmg)",
+        "macos-x64": "macOS Intel (.dmg)",
+        "linux-appimage-x64": "Linux AppImage x64",
+        "linux-deb-ubuntu22-amd64": "Ubuntu 22 x64 (.deb)",
+        "linux-deb-ubuntu22-arm64": "Ubuntu 22 ARM64 (.deb)",
+        "linux-deb-ubuntu24-amd64": "Ubuntu 24 x64 (.deb)",
+        "linux-deb-ubuntu24-arm64": "Ubuntu 24 ARM64 (.deb)",
     }
     downloads = {}
     for dl_key, dl_config in DOWNLOAD_PATTERNS.items():
@@ -234,6 +255,7 @@ def main():
             github_url = asset["browser_download_url"]
             download_url = rewrite_url_to_cdn(github_url, cdn_base, tag) if cdn_base else github_url
             dl_entry: dict = {
+                "nickname": DOWNLOAD_NICKNAMES.get(dl_key, dl_key),
                 "name": asset["name"],
                 "url": download_url,
                 "size": asset.get("size", 0),
@@ -242,12 +264,6 @@ def main():
                 dl_entry["github_url"] = github_url
             downloads[dl_key] = dl_entry
             print(f"  download.{dl_key}: {asset['name']} → {download_url} ✓")
-
-    # Backward compatibility: keep generic "macos" key pointing to arm64 first.
-    if "macos-arm64" in downloads:
-        downloads["macos"] = downloads["macos-arm64"]
-    elif "macos-x64" in downloads:
-        downloads["macos"] = downloads["macos-x64"]
 
     manifest = {
         "version": version,

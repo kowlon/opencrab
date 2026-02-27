@@ -224,16 +224,16 @@ export function MemoryView({ serviceRunning }: Props) {
       {/* Stats bar */}
       {stats && (
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${2 + Object.keys(stats.by_type).length}, 1fr)`, gap: 10 }}>
-          <div className="card" style={{ padding: "10px 12px", textAlign: "center" }}>
+          <div className="card" style={{ margin: 0, padding: "10px 12px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center" }}>
             <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>{stats.total}</div>
             <div style={{ fontSize: 11, color: "var(--muted)" }}>总记忆数</div>
           </div>
-          <div className="card" style={{ padding: "10px 12px", textAlign: "center" }}>
+          <div className="card" style={{ margin: 0, padding: "10px 12px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center" }}>
             <div style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>{stats.avg_score}</div>
             <div style={{ fontSize: 11, color: "var(--muted)" }}>平均分数</div>
           </div>
           {Object.entries(stats.by_type).map(([t, c]) => (
-            <div key={t} className="card" style={{ padding: "10px 12px", textAlign: "center" }}>
+            <div key={t} className="card" style={{ margin: 0, padding: "10px 12px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center" }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: TYPE_COLORS[t] || "var(--text)" }}>{c}</div>
               <div style={{ fontSize: 11, color: "var(--muted)" }}>{TYPE_LABELS[t] || t}</div>
             </div>

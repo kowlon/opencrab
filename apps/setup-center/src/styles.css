@@ -442,8 +442,8 @@ a:hover {
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--nav-hover);
@@ -707,7 +707,7 @@ button:disabled {
 .chatMdContent {
   font-size: 14px;
   line-height: 1.7;
-  color: var(--text);
+  color: inherit;
 }
 
 .chatMdContent p {
@@ -852,6 +852,48 @@ button:disabled {
 .chatMdContent th {
   background: var(--bg1);
   font-weight: 700;
+}
+
+/* User bubble overrides — white text on brand background */
+.chatMdContentUser {
+  color: #fff;
+}
+
+.chatMdContentUser a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chatMdContentUser code {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.chatMdContentUser pre {
+  background: rgba(0, 0, 0, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.chatMdContentUser pre code {
+  background: none;
+  color: inherit;
+}
+
+.chatMdContentUser blockquote {
+  border-left-color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.chatMdContentUser th,
+.chatMdContentUser td {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.chatMdContentUser th {
+  background: rgba(0, 0, 0, 0.12);
 }
 
 /* Bouncing dots animation */

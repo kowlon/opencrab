@@ -53,6 +53,29 @@
   !insertmacro _OpenAkita_KillServicePidsIn $R0
 !macroend
 
+!macro NSIS_HOOK_PREINSTALL
+  ; 安装前（Section Install 入口处）：强制杀掉所有旧进程，防止文件锁定导致覆盖失败
+  ; 即使 PageLeaveEnvCheck 中已执行过，这里再次确保（覆盖进程可能在页面间重启）
+
+  ; 1) 杀掉 Setup Center（托盘常驻）
+  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "Get-Process -Name openakita-setup-center -ErrorAction SilentlyContinue | Stop-Process -Force"' $0
+  ${If} $0 != 0
+    ExecWait 'taskkill /IM openakita-setup-center.exe /T /F' $0
+  ${EndIf}
+
+  ; 2) 杀掉 openakita-server（PyInstaller 打包的后端）
+  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "Get-Process -Name openakita-server -ErrorAction SilentlyContinue | Stop-Process -Force"' $0
+  ${If} $0 != 0
+    ExecWait 'taskkill /IM openakita-server.exe /T /F' $0
+  ${EndIf}
+
+  ; 3) 杀掉 PID 文件追踪的服务进程（python 方式启动的后端）
+  !insertmacro _OpenAkita_KillAllServicePids
+
+  ; 4) 等待进程完全退出释放文件锁
+  Sleep 2000
+!macroend
+
 !macro NSIS_HOOK_PREUNINSTALL
   ; 卸载前：强制杀掉残留进程；优先 PowerShell 不弹窗，失败则兜底 taskkill（会闪黑框）
   ; 1) 杀掉 Setup Center（可能在托盘常驻）
@@ -61,8 +84,16 @@
     ExecWait 'taskkill /IM openakita-setup-center.exe /T /F' $0
   ${EndIf}
 
-  ; 2) 杀掉 OpenAkita serve（按 pid 文件枚举）
+  ; 2) 杀掉 openakita-server（PyInstaller 打包的后端）
+  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "Get-Process -Name openakita-server -ErrorAction SilentlyContinue | Stop-Process -Force"' $0
+  ${If} $0 != 0
+    ExecWait 'taskkill /IM openakita-server.exe /T /F' $0
+  ${EndIf}
+
+  ; 3) 杀掉 PID 文件追踪的服务进程
   !insertmacro _OpenAkita_KillAllServicePids
+
+  Sleep 2000
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL

@@ -785,10 +785,10 @@ export function SkillManager({
           {t("skills.marketplace")}
         </button>
         <div style={{ flex: 1 }} />
-        {serviceRunning && (
-          <button
-            onClick={async () => {
-              setError(null);
+        <button
+          onClick={async () => {
+            setError(null);
+            if (serviceRunning) {
               try {
                 const res = await fetch(`${apiBaseUrl}/api/skills/reload`, {
                   method: "POST",
@@ -798,20 +798,13 @@ export function SkillManager({
                 });
                 const data = await res.json();
                 if (data.error) { setError(data.error); return; }
-                await loadSkills();
               } catch (e) { setError(String(e)); }
-            }}
-            disabled={loading}
-            style={{ fontSize: 12, padding: "6px 14px", borderRadius: 8, border: "1px solid var(--line)", cursor: "pointer" }}
-            title={t("skills.reloadHint") || "让后端重新扫描加载所有技能"}
-          >
-            {t("skills.reload") || "热重载"}
-          </button>
-        )}
-        <button
-          onClick={loadSkills}
+            }
+            await loadSkills();
+          }}
           disabled={loading}
           style={{ fontSize: 12, padding: "6px 14px", borderRadius: 8, border: "1px solid var(--line)", cursor: "pointer" }}
+          title={t("skills.reloadHint")}
         >
           {loading ? t("common.loading") : t("topbar.refresh")}
         </button>
