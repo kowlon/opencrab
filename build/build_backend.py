@@ -102,10 +102,11 @@ def ensure_playwright_chromium():
         run_cmd([sys.executable, "-m", "playwright", "install", "chromium"])
 
 
-def build_backend(mode: str):
+def build_backend(mode: str, fast: bool = False):
     """Execute PyInstaller packaging"""
+    label = f"{mode.upper()}" + (" [FAST]" if fast else "")
     print(f"\n{'='*60}")
-    print(f"  OpenAkita Backend Build - Mode: {mode.upper()}")
+    print(f"  OpenAkita Backend Build - Mode: {label}")
     print(f"{'='*60}\n")
 
     print("[1/5] Checking dependencies...")
@@ -119,18 +120,20 @@ def build_backend(mode: str):
 
     print("\n[4/5] Running PyInstaller...")
     env = {"OPENAKITA_BUILD_MODE": mode}
-    
-    run_cmd(
-        [
-            sys.executable, "-m", "PyInstaller",
-            str(SPEC_FILE),
-            "--distpath", str(DIST_DIR),
-            "--workpath", str(PROJECT_ROOT / "build" / "pyinstaller_work"),
-            "--noconfirm",
-            "--clean",  # Force clean build to avoid symlink conflicts on macOS
-        ],
-        env=env,
-    )
+    if fast:
+        env["OPENAKITA_NO_UPX"] = "1"
+
+    cmd = [
+        sys.executable, "-m", "PyInstaller",
+        str(SPEC_FILE),
+        "--distpath", str(DIST_DIR),
+        "--workpath", str(PROJECT_ROOT / "build" / "pyinstaller_work"),
+        "--noconfirm",
+    ]
+    if not fast:
+        cmd.append("--clean")
+
+    run_cmd(cmd, env=env)
 
     print("\n[5/5] Verifying build output...")
     
@@ -194,8 +197,13 @@ def main():
         default="core",
         help="Build mode: core=minimal(exclude heavy deps), full=complete(all deps)",
     )
+    parser.add_argument(
+        "--fast",
+        action="store_true",
+        help="Fast build: skip UPX compression and incremental build (no --clean)",
+    )
     args = parser.parse_args()
-    build_backend(args.mode)
+    build_backend(args.mode, fast=args.fast)
 
 
 if __name__ == "__main__":

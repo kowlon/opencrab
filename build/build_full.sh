@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # OpenAkita Full Package Build Script (Linux/macOS)
 # Output: Installer with all dependencies and models (~1GB)
+# Usage: build_full.sh [--fast]
 
 set -euo pipefail
 
@@ -9,14 +10,22 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SETUP_CENTER_DIR="$PROJECT_ROOT/apps/setup-center"
 RESOURCE_DIR="$SETUP_CENTER_DIR/src-tauri/resources"
 
-echo "============================================"
-echo "  OpenAkita Full Package Build"
-echo "============================================"
+FAST_FLAG=""
+if [[ "${1:-}" == "--fast" ]]; then
+    FAST_FLAG="--fast"
+    echo "============================================"
+    echo "  OpenAkita Full Package Build [FAST MODE]"
+    echo "============================================"
+else
+    echo "============================================"
+    echo "  OpenAkita Full Package Build"
+    echo "============================================"
+fi
 
 # Step 1: Package Python backend (full mode)
 echo ""
 echo "[1/4] Packaging Python backend (full mode)..."
-python3 "$SCRIPT_DIR/build_backend.py" --mode full
+python3 "$SCRIPT_DIR/build_backend.py" --mode full $FAST_FLAG
 
 # Step 2: Pre-bundle optional modules
 echo ""

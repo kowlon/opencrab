@@ -678,6 +678,9 @@ if _sys.platform == "darwin":
     # build_backend.py will move it to the expected directory structure
 else:
     # Windows/Linux: use onedir mode with COLLECT
+    # UPX 压缩控制：设置环境变量 OPENAKITA_NO_UPX=1 可跳过 UPX 压缩以加速打包
+    _use_upx = os.environ.get("OPENAKITA_NO_UPX", "") not in ("1", "true", "yes")
+
     exe = EXE(
         pyz,
         a.scripts,
@@ -687,7 +690,7 @@ else:
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
-        upx=True,
+        upx=_use_upx,
         console=True,
         disable_windowed_traceback=False,
         argv_emulation=False,
@@ -701,7 +704,7 @@ else:
         a.binaries,
         a.datas,
         strip=False,
-        upx=True,
+        upx=_use_upx,
         upx_exclude=[],
         name="openakita-server",
     )

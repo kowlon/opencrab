@@ -1,5 +1,10 @@
 # OpenAkita Core Package Build Script (Windows PowerShell)
 # Output: Installer with core dependencies only (~180MB)
+# Usage: .\build_core.ps1 [-Fast]
+
+param(
+    [switch]$Fast
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -8,13 +13,21 @@ $ProjectRoot = Split-Path -Parent $ScriptDir
 $SetupCenterDir = Join-Path $ProjectRoot "apps\setup-center"
 $ResourceDir = Join-Path $SetupCenterDir "src-tauri\resources"
 
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  OpenAkita Core Package Build" -ForegroundColor Cyan
-Write-Host "============================================" -ForegroundColor Cyan
+if ($Fast) {
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host "  OpenAkita Core Package Build [FAST MODE]" -ForegroundColor Cyan
+    Write-Host "============================================" -ForegroundColor Cyan
+} else {
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host "  OpenAkita Core Package Build" -ForegroundColor Cyan
+    Write-Host "============================================" -ForegroundColor Cyan
+}
 
 # Step 1: Package Python backend (core mode)
 Write-Host "`n[1/3] Packaging Python backend (core mode)..." -ForegroundColor Yellow
-python "$ScriptDir\build_backend.py" --mode core
+$backendArgs = @("$ScriptDir\build_backend.py", "--mode", "core")
+if ($Fast) { $backendArgs += "--fast" }
+python @backendArgs
 if ($LASTEXITCODE -ne 0) { throw "Python backend packaging failed" }
 
 # Step 2: Copy package result to Tauri resources

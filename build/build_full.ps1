@@ -1,5 +1,10 @@
 # OpenAkita Full Package Build Script (Windows PowerShell)
 # Output: Installer with all dependencies and models (~1GB)
+# Usage: .\build_full.ps1 [-Fast]
+
+param(
+    [switch]$Fast
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -8,13 +13,21 @@ $ProjectRoot = Split-Path -Parent $ScriptDir
 $SetupCenterDir = Join-Path $ProjectRoot "apps\setup-center"
 $ResourceDir = Join-Path $SetupCenterDir "src-tauri\resources"
 
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  OpenAkita Full Package Build" -ForegroundColor Cyan
-Write-Host "============================================" -ForegroundColor Cyan
+if ($Fast) {
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host "  OpenAkita Full Package Build [FAST MODE]" -ForegroundColor Cyan
+    Write-Host "============================================" -ForegroundColor Cyan
+} else {
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host "  OpenAkita Full Package Build" -ForegroundColor Cyan
+    Write-Host "============================================" -ForegroundColor Cyan
+}
 
 # Step 1: Package Python backend (full mode)
 Write-Host "`n[1/4] Packaging Python backend (full mode)..." -ForegroundColor Yellow
-python "$ScriptDir\build_backend.py" --mode full
+$backendArgs = @("$ScriptDir\build_backend.py", "--mode", "full")
+if ($Fast) { $backendArgs += "--fast" }
+python @backendArgs
 if ($LASTEXITCODE -ne 0) { throw "Python backend packaging failed" }
 
 # Step 2: Pre-bundle optional modules
