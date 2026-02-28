@@ -1289,13 +1289,16 @@ def _reset_globals():
 
 
 @app.command()
-def serve():
+def serve(
+    dev: bool = typer.Option(False, "--dev", help="开发模式：监控 src/ 目录的 .py 文件变化，自动重启服务"),
+):
     """
     启动服务模式 (无 CLI，只运行 IM 通道)
 
     用于后台运行，只处理 IM 消息。
     支持单 Agent 和多 Agent 协同模式。
     支持通过 /api/config/restart 触发优雅重启。
+    使用 --dev 启用文件监控热加载（开发模式）。
     """
     import json
     import signal
@@ -1454,7 +1457,38 @@ def serve():
             shutdown_event.set()
 
         console.print()
-        console.print("[bold]服务运行中...[/bold] 按 Ctrl+C 停止")
+        if dev:
+            console.print("[bold]服务运行中 [cyan](dev 模式)[/cyan]...[/bold] 文件变化时自动重启，按 Ctrl+C 停止")
+        else:
+            console.print("[bold]服务运行中...[/bold] 按 Ctrl+C 停止")
+
+        # ── dev 模式：文件监控自动重启 ──
+        _watch_task = None
+        if dev:
+            async def _file_watcher():
+                try:
+                    from watchfiles import awatch, Change
+                    src_dir = Path(__file__).resolve().parent  # src/openakita/
+                    console.print(f"[dim]📂 监控目录: {src_dir}[/dim]")
+                    async for changes in awatch(
+                        src_dir,
+                        watch_filter=lambda change, path: path.endswith(".py"),
+                        debounce=1000,
+                        step=500,
+                    ):
+                        changed_files = [Path(p).name for _, p in changes]
+                        console.print(f"\n[cyan]🔄 检测到文件变化: {', '.join(changed_files)}，正在重启...[/cyan]")
+                        cfg._restart_requested = True
+                        shutdown_event.set()
+                        return
+                except ImportError:
+                    console.print("[yellow]⚠ watchfiles 未安装，dev 模式文件监控不可用[/yellow]")
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.debug(f"File watcher error: {e}")
+
+            _watch_task = asyncio.create_task(_file_watcher())
 
         # 保持运行，使用 Event 来优雅关闭
         try:
@@ -1462,6 +1496,8 @@ def serve():
         except asyncio.CancelledError:
             pass
         finally:
+            if _watch_task and not _watch_task.done():
+                _watch_task.cancel()
             if not shutdown_triggered:
                 shutdown_triggered = True
                 is_restart = cfg._restart_requested
