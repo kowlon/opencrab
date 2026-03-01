@@ -986,6 +986,7 @@ class Agent:
                 "install_skill",
                 "load_skill",
                 "reload_skill",
+                "manage_skill_enabled",
             ],
         )
 
@@ -1109,10 +1110,28 @@ class Agent:
                 break
 
     def _update_skill_tools(self) -> None:
-        """更新工具列表，添加技能相关工具"""
-        # 基础工具已在 BASE_TOOLS 中定义
-        # 这里可以添加动态生成的技能工具
-        pass
+        """更新工具列表，确保系统技能的 tool_name 映射到正确的 handler。
+
+        技能加载后，系统技能（system: true）可能定义了 tool_name 和 handler 字段。
+        这些映射需要同步到 handler_registry，否则 LLM 调用对应工具时会返回 "Tool not found"。
+
+        仅补充尚未注册的映射，不覆盖 _init_handlers() 中已有的映射。
+        """
+        for skill in self.skill_registry.list_system_skills():
+            tool_name = skill.tool_name
+            handler_name = skill.handler
+            if not tool_name or not handler_name:
+                continue
+            if self.handler_registry.has_tool(tool_name):
+                continue
+            if not self.handler_registry.has_handler(handler_name):
+                logger.debug(
+                    f"Skipping skill tool mapping {tool_name} -> {handler_name}: "
+                    f"handler '{handler_name}' not registered"
+                )
+                continue
+            self.handler_registry.map_tool_to_handler(tool_name, handler_name)
+            logger.info(f"Mapped skill tool: {tool_name} -> {handler_name}")
 
     async def _install_skill(
         self,
@@ -1460,7 +1479,7 @@ class Agent:
                 transport = server.transport or "stdio"
                 if transport == "stdio" and not server.command:
                     continue
-                if transport == "streamable_http" and not server.url:
+                if transport in ("streamable_http", "sse") and not server.url:
                     continue
                 self.mcp_client.add_server(
                     MCPServerConfig(
@@ -1476,40 +1495,46 @@ class Agent:
         except Exception as e:
             logger.warning(f"Failed to register MCP servers into MCPClient: {e}")
 
-        # 启动内置 MCP 服务器
+        # 启动内置浏览器服务
         await self._start_builtin_mcp_servers()
 
+        # 始终生成 catalog（即使服务器暂无工具也应列出，方便 AI 发现并连接）
+        self._mcp_catalog_text = self.mcp_catalog.generate_catalog()
         if total_count > 0:
-            self._mcp_catalog_text = self.mcp_catalog.generate_catalog()
             logger.info(f"Total MCP servers: {total_count}")
         else:
-            self._mcp_catalog_text = ""
             logger.info("No MCP servers configured")
 
-        # 按 per-server autoConnect 标志自动连接
-        auto_connect_ids = {
-            s.identifier for s in self.mcp_catalog.servers if s.auto_connect
-        }
+        # 自动连接：全局开关 → 连接所有；否则 → 按 per-server autoConnect 标志
+        all_server_names = set(self.mcp_client.list_servers())
+        if settings.mcp_auto_connect:
+            auto_connect_ids = all_server_names
+        else:
+            auto_connect_ids = {
+                s.identifier for s in self.mcp_catalog.servers if s.auto_connect
+            } & all_server_names
+
         if auto_connect_ids:
             synced_any = False
-            for server_name in self.mcp_client.list_servers():
-                if server_name not in auto_connect_ids:
-                    continue
+            for server_name in auto_connect_ids:
                 try:
-                    await self.mcp_client.connect(server_name)
-                    logger.info(f"Auto-connected MCP server: {server_name}")
-                    runtime_tools = self.mcp_client.list_tools(server_name)
-                    if runtime_tools:
-                        tool_dicts = [
-                            {"name": t.name, "description": t.description,
-                             "input_schema": t.input_schema}
-                            for t in runtime_tools
-                        ]
-                        count = self.mcp_catalog.sync_tools_from_client(
-                            server_name, tool_dicts,
-                        )
-                        if count > 0:
-                            synced_any = True
+                    result = await self.mcp_client.connect(server_name)
+                    if result.success:
+                        logger.info(f"Auto-connected MCP server: {server_name} ({result.tool_count} tools)")
+                        runtime_tools = self.mcp_client.list_tools(server_name)
+                        if runtime_tools:
+                            tool_dicts = [
+                                {"name": t.name, "description": t.description,
+                                 "input_schema": t.input_schema}
+                                for t in runtime_tools
+                            ]
+                            count = self.mcp_catalog.sync_tools_from_client(
+                                server_name, tool_dicts, force=True,
+                            )
+                            if count > 0:
+                                synced_any = True
+                    else:
+                        logger.warning(f"Auto-connect to MCP server {server_name} failed: {result.error}")
                 except Exception as e:
                     logger.warning(f"Auto-connect to MCP server {server_name} failed: {e}")
 
@@ -1560,6 +1585,10 @@ class Agent:
 
             # 注册内置系统任务（每日记忆整理 + 每日自检）
             await self._register_system_tasks()
+
+            # 发布为全局单例，供多 Agent 模式下的 pool agent 共享
+            from ..scheduler import set_active_scheduler
+            set_active_scheduler(self.task_scheduler, self._task_executor)
 
             stats = self.task_scheduler.get_stats()
             logger.info(f"TaskScheduler started with {stats['total_tasks']} tasks")
@@ -2256,6 +2285,7 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
 4. 如果委派失败或超时，告知用户并尝试自己处理
 5. **有依赖的任务串行委派**（B 需要 A 的结果 → 先 A 再 B）
 6. **独立任务必须用 `delegate_parallel` 并行**，不要逐个串行浪费时间
+7. 对话历史中可能包含你之前委派给子Agent的**工作总结**（以 [执行摘要] 形式出现）。你必须仔细阅读这些总结，把它们当作已发生的事实。不要否认已完成的任务，不要说"我没有做过"，不要重复执行已经成功完成的工作。当用户提到相关产出（文件、报告、分析结果）时，直接引用历史总结中的信息。
 
 ### 协作行为准则
 
@@ -4099,6 +4129,10 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
             pass
         return summary
 
+    _DELEGATION_TOOLS = frozenset({
+        "delegate_to_agent", "delegate_parallel", "spawn_agent",
+    })
+
     def build_tool_trace_summary(self) -> str:
         """
         从最新的 react_trace 生成工具执行摘要文本。
@@ -4108,13 +4142,22 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
           - tool_name({key: val}) → result_hint...
 
         供 session 保存 assistant 消息时追加，确保下一轮 LLM 能看到上一轮做了什么。
+
+        对委派类工具（delegate_to_agent / delegate_parallel / spawn_agent），
+        优先使用 sub_agent_records 中的结构化 work_summary 而非粗暴截断，
+        保证子 Agent 的任务、状态、交付物、关键结果能完整保留到对话历史中。
+
         空字符串表示无工具调用。
         """
         trace = getattr(self, "_last_finalized_trace", None) or \
             getattr(self.reasoning_engine, "_last_react_trace", None) or []
         if not trace:
             return ""
+
+        work_summaries = self._collect_work_summaries()
+
         lines: list[str] = []
+        _ws_idx = 0
         for it in trace:
             for tc in it.get("tool_calls", []):
                 name = tc.get("name", "")
@@ -4128,14 +4171,24 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
                         for k, v in list(tc_input.items())[:3]
                     }
                     param_hint = str(kv) if kv else ""
+
                 result_hint = ""
-                for tr in it.get("tool_results", []):
-                    if tr.get("tool_use_id") == tc.get("id", ""):
-                        raw = str(tr.get("result_content", tr.get("result_preview", "")))
-                        result_hint = raw[:120].replace("\n", " ")
-                        if len(raw) > 120:
-                            result_hint += "..."
-                        break
+                if name in self._DELEGATION_TOOLS and _ws_idx < len(work_summaries):
+                    result_hint = work_summaries[_ws_idx]
+                    _ws_idx += 1
+                else:
+                    for tr in it.get("tool_results", []):
+                        if tr.get("tool_use_id") == tc.get("id", ""):
+                            raw = str(tr.get("result_content", tr.get("result_preview", "")))
+                            if name in self._DELEGATION_TOOLS:
+                                max_len = 800
+                            else:
+                                max_len = 120
+                            result_hint = raw[:max_len].replace("\n", " ")
+                            if len(raw) > max_len:
+                                result_hint += "..."
+                            break
+
                 line = f"- {name}"
                 if param_hint:
                     line += f"({param_hint})"
@@ -4145,6 +4198,16 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
         if not lines:
             return ""
         return "\n\n[执行摘要]\n" + "\n".join(lines)
+
+    def _collect_work_summaries(self) -> list[str]:
+        """Collect work_summary strings from sub_agent_records for the current session."""
+        session = self._current_session
+        if not session:
+            return []
+        records = getattr(getattr(session, "context", None), "sub_agent_records", None)
+        if not records:
+            return []
+        return [r.get("work_summary", "") for r in records if r.get("work_summary")]
 
     def _build_chain_summary(self, react_trace: list[dict]) -> list[dict] | None:
         """
