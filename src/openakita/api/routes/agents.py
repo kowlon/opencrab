@@ -561,6 +561,42 @@ async def get_topology(request: Request):
             except Exception:
                 pass
 
+    # Include sessions from session_manager that aren't in the pool
+    # (e.g. conversations whose agent instances were reaped due to idle timeout)
+    pool_session_ids = {n["id"].split("::")[0] for n in nodes if not n["id"].startswith("dormant::")}
+    if session_manager:
+        try:
+            for sess in session_manager.list_sessions(channel="desktop"):
+                if sess.id in pool_session_ids or sess.id in seen_ids:
+                    continue
+                pid = getattr(sess.context, "agent_profile_id", "default") or "default"
+                pinfo = profile_map.get(pid, {"name": pid, "icon": "🤖", "color": "#6b7280"})
+
+                conv_title = ""
+                msgs = sess.context.messages if hasattr(sess.context, "messages") else []
+                for m in msgs:
+                    if m.get("role") == "user":
+                        conv_title = (m.get("content") or "")[:60]
+
+                seen_ids.add(sess.id)
+                nodes.append({
+                    "id": sess.id,
+                    "profile_id": pid,
+                    "name": pinfo["name"],
+                    "icon": pinfo["icon"],
+                    "color": pinfo["color"],
+                    "status": "idle",
+                    "is_sub_agent": False,
+                    "parent_id": None,
+                    "iteration": 0,
+                    "tools_executed": [],
+                    "tools_total": 0,
+                    "elapsed_s": 0,
+                    "conversation_title": conv_title,
+                })
+        except Exception:
+            pass
+
     # Always include system presets as dormant neurons when not active
     active_profile_ids = {n["profile_id"] for n in nodes}
     for pid, pinfo in profile_map.items():
