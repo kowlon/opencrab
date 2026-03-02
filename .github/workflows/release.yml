@@ -424,6 +424,7 @@ jobs:
           for app in "${APPS[@]}"; do
             FRAMEWORK_DIR="${app}/Contents/Resources/resources/openakita-server/_internal/Python.framework"
             if [ -d "${FRAMEWORK_DIR}" ]; then
+              SIGNED_REALPATHS=""
               for pybin in \
                 "${FRAMEWORK_DIR}/Python" \
                 "${FRAMEWORK_DIR}/Versions/3.11/Python" \
@@ -432,8 +433,13 @@ jobs:
                 "${FRAMEWORK_DIR}/Versions/3.11/Resources/Python.app/Contents/MacOS/Python" \
                 "${FRAMEWORK_DIR}/Versions/Current/Resources/Python.app/Contents/MacOS/Python"; do
                 if [ -f "${pybin}" ]; then
-                  echo "Re-signing Python framework binary: ${pybin}"
-                  codesign --force --options runtime --timestamp --sign "${IDENTITY}" "${pybin}"
+                  REAL_PYBIN="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${pybin}")"
+                  case " ${SIGNED_REALPATHS} " in
+                    *" ${REAL_PYBIN} "*) continue ;;
+                  esac
+                  echo "Re-signing Python framework binary: ${pybin} -> ${REAL_PYBIN}"
+                  codesign --force --options runtime --timestamp --sign "${IDENTITY}" "${REAL_PYBIN}"
+                  SIGNED_REALPATHS="${SIGNED_REALPATHS} ${REAL_PYBIN}"
                 fi
               done
             fi
