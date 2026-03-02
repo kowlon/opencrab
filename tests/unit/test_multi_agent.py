@@ -181,7 +181,7 @@ class TestProfileStore:
         })
         assert updated.description == "New desc"
         assert updated.id == "sys"  # immutable, not changed
-        assert updated.skills == []  # immutable, not changed
+        assert updated.skills == ["new-skill"]  # skills is now a customizable field
 
     def test_update_nonexistent_raises(self, store: ProfileStore):
         with pytest.raises(KeyError):
@@ -1253,7 +1253,7 @@ class TestEdgeCasesAndBugs:
 
     def test_profile_store_system_immutable_validation(self, tmp_path):
         """BUG CHECK: Saving a SYSTEM profile with changed immutable fields
-        should raise PermissionError via _validate_system_update.
+        (id, type, created_by) should raise PermissionError via _validate_system_update.
         """
         store = ProfileStore(tmp_path / "agents")
         sys_profile = _make_profile("sys", "System", agent_type=AgentType.SYSTEM)
@@ -1261,8 +1261,7 @@ class TestEdgeCasesAndBugs:
 
         mutated = _make_profile(
             "sys", "System",
-            agent_type=AgentType.SYSTEM,
-            skills=["new_skill"],  # immutable field changed
+            agent_type=AgentType.CUSTOM,  # type is immutable on SYSTEM profiles
         )
         with pytest.raises(PermissionError):
             store.save(mutated)

@@ -57,12 +57,12 @@ class TestApplyBudget:
         assert result.content == "short text"
         assert result.truncated is False
 
-    def test_exceeds_budget_no_truncation(self):
-        """Current implementation is observe-only, does NOT truncate."""
+    def test_exceeds_budget_truncates(self):
+        """Exceeding budget by >=20% triggers truncation."""
         long_text = "x" * 10000
         result = apply_budget(long_text, 10, "test")
-        assert result.content == long_text
-        assert result.truncated is False
+        assert len(result.content) < len(long_text)
+        assert result.truncated is True
         assert result.original_tokens > 10
 
     def test_returns_budget_result_type(self):
@@ -104,5 +104,5 @@ class TestApplyBudgetToSections:
         assert config.identity_budget == 1600
         assert config.catalogs_budget == 12000
         assert config.user_budget == 300
-        assert config.memory_budget == 1500
-        assert config.total_budget == 16000
+        assert config.memory_budget == 2500
+        assert config.total_budget == 17000
