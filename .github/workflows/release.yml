@@ -391,6 +391,53 @@ jobs:
           echo "All $MAX_ATTEMPTS attempts failed"
           exit 1
 
+      - name: Re-sign final macOS app bundles for notarization
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${APPLE_CERTIFICATE:-}" ] || [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            echo "APPLE_CERTIFICATE / APPLE_SIGNING_IDENTITY not configured, skipping final app re-sign."
+            exit 0
+          fi
+
+          TARGET_BASE="apps/setup-center/src-tauri/target"
+          if [ -n "${{ matrix.rust_target }}" ]; then
+            BUNDLE_DIR="${TARGET_BASE}/${{ matrix.rust_target }}/release/bundle"
+          else
+            BUNDLE_DIR="${TARGET_BASE}/release/bundle"
+          fi
+
+          mapfile -d '' APPS < <(find "${BUNDLE_DIR}" -type d -name "*.app" -print0)
+          if [ "${#APPS[@]}" -eq 0 ]; then
+            echo "No .app bundles found under ${BUNDLE_DIR}; skip."
+            exit 0
+          fi
+
+          IDENTITY="${APPLE_SIGNING_IDENTITY}"
+          for app in "${APPS[@]}"; do
+            FRAMEWORK_DIR="${app}/Contents/Resources/resources/openakita-server/_internal/Python.framework"
+            if [ -d "${FRAMEWORK_DIR}" ]; then
+              for pybin in \
+                "${FRAMEWORK_DIR}/Versions/3.11/Python" \
+                "${FRAMEWORK_DIR}/Versions/Current/Python" \
+                "${FRAMEWORK_DIR}/Resources/Python.app/Contents/MacOS/Python"; do
+                if [ -f "${pybin}" ]; then
+                  echo "Re-signing Python framework binary: ${pybin}"
+                  codesign --force --options runtime --timestamp --sign "${IDENTITY}" "${pybin}"
+                fi
+              done
+            fi
+
+            echo "Re-signing app bundle root: ${app}"
+            codesign --force --deep --options runtime --timestamp --sign "${IDENTITY}" "${app}"
+            echo "Verifying app signature: ${app}"
+            codesign --verify --deep --strict --verbose=2 "${app}"
+          done
+
       - name: Notarize macOS artifacts (manual notarytool)
         if: runner.os == 'macOS'
         timeout-minutes: 90
