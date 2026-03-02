@@ -153,7 +153,9 @@
     "manualInstallHint": "支持格式: owner/repo、owner/repo@skill-name、GitHub/Gitee HTTPS 链接",
     "envNotReady": "环境未就绪：请先完成 Python 环境和工作区配置",
     "reload": "刷新",
-    "reloadHint": "让后端重新扫描加载所有技能"
+    "reloadHint": "让后端重新扫描加载所有技能",
+    "refreshed": "已刷新技能列表",
+    "alreadyInstalled": "该技能已安装"
   },
   "status": {
     "title": "系统状态",

@@ -5463,11 +5463,10 @@ export function App() {
               )}
 
               <div className="dialogFooter">
-                <button className="btnSmall" onClick={() => { setAddCompDialogOpen(false); setConnTestResult(null); }}>{t("common.cancel")}</button>
-                <div style={{ display: "flex", gap: 8 }}>
+                <button className="btnSecondary endpointFooterBtn" onClick={() => { setAddCompDialogOpen(false); setConnTestResult(null); }}>{t("common.cancel")}</button>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                   <button
-                    className="btnSmall"
-                    style={{ padding: "8px 16px", borderRadius: 8 }}
+                    className="btnSecondary endpointFooterBtn"
                     disabled={(!compilerApiKeyValue.trim() && !isLocalProvider(providers.find((p) => p.slug === compilerProviderSlug))) || !compilerBaseUrl.trim() || connTesting}
                     onClick={() => { const _cp = providers.find((p) => p.slug === compilerProviderSlug); doTestConnection({
                       testApiType: compilerApiType,
@@ -5487,15 +5486,15 @@ export function App() {
                     if (!currentWorkspaceId && dataMode !== "remote") cMissing.push(t("workspace.title") || "工作区");
                     const cBtnDisabled = cMissing.length > 0 || !!busy;
                     return (
-                      <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                        <button className="btnPrimary" style={{ padding: "8px 20px", borderRadius: 8 }} onClick={async () => { const ok = await doSaveCompilerEndpoint(); if (ok) { setAddCompDialogOpen(false); setConnTestResult(null); } }} disabled={cBtnDisabled}>
+                      <div className="endpointPrimaryWrap">
+                        <button className="btnPrimary endpointFooterBtn" onClick={async () => { const ok = await doSaveCompilerEndpoint(); if (ok) { setAddCompDialogOpen(false); setConnTestResult(null); } }} disabled={cBtnDisabled}>
                           {t("llm.addEndpoint")}
                         </button>
-                        {cBtnDisabled && !busy && cMissing.length > 0 && (
-                          <span style={{ fontSize: 11, color: "var(--muted)", maxWidth: 220, textAlign: "right" }}>
-                            {t("common.missingFields") || "缺少"}: {cMissing.join(", ")}
-                          </span>
-                        )}
+                        <span className="endpointPrimaryHint">
+                          {cBtnDisabled && !busy && cMissing.length > 0 ? (
+                            <>{t("common.missingFields") || "缺少"}: {cMissing.join(", ")}</>
+                          ) : null}
+                        </span>
                       </div>
                     );
                   })()}
@@ -5623,11 +5622,10 @@ export function App() {
               )}
 
               <div className="dialogFooter">
-                <button className="btnSmall" onClick={() => { setAddSttDialogOpen(false); setConnTestResult(null); }}>{t("common.cancel")}</button>
-                <div style={{ display: "flex", gap: 8 }}>
+                <button className="btnSecondary endpointFooterBtn" onClick={() => { setAddSttDialogOpen(false); setConnTestResult(null); }}>{t("common.cancel")}</button>
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                   <button
-                    className="btnSmall"
-                    style={{ padding: "8px 16px", borderRadius: 8 }}
+                    className="btnSecondary endpointFooterBtn"
                     disabled={(!sttApiKeyValue.trim() && !isLocalProvider(providers.find((p) => p.slug === sttProviderSlug))) || !sttBaseUrl.trim() || connTesting}
                     onClick={() => { const _sp = providers.find((p) => p.slug === sttProviderSlug); doTestConnection({
                       testApiType: sttApiType,
@@ -5646,15 +5644,15 @@ export function App() {
                     if (!currentWorkspaceId && dataMode !== "remote") sMissing.push(t("workspace.title") || "工作区");
                     const sBtnDisabled = sMissing.length > 0 || !!busy;
                     return (
-                      <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                        <button className="btnPrimary" style={{ padding: "8px 20px", borderRadius: 8 }} onClick={async () => { const ok = await doSaveSttEndpoint(); if (ok) { setAddSttDialogOpen(false); setConnTestResult(null); } }} disabled={sBtnDisabled}>
+                      <div className="endpointPrimaryWrap">
+                        <button className="btnPrimary endpointFooterBtn" onClick={async () => { const ok = await doSaveSttEndpoint(); if (ok) { setAddSttDialogOpen(false); setConnTestResult(null); } }} disabled={sBtnDisabled}>
                           {t("llm.addStt")}
                         </button>
-                        {sBtnDisabled && !busy && sMissing.length > 0 && (
-                          <span style={{ fontSize: 11, color: "var(--muted)", maxWidth: 220, textAlign: "right" }}>
-                            {t("common.missingFields") || "缺少"}: {sMissing.join(", ")}
-                          </span>
-                        )}
+                        <span className="endpointPrimaryHint">
+                          {sBtnDisabled && !busy && sMissing.length > 0 ? (
+                            <>{t("common.missingFields") || "缺少"}: {sMissing.join(", ")}</>
+                          ) : null}
+                        </span>
                       </div>
                     );
                   })()}
@@ -8365,6 +8363,7 @@ export function App() {
               apiBaseUrl={apiBaseUrl}
               serviceRunning={!!serviceStatus?.running}
               dataMode={dataMode}
+              onNotice={setNotice}
             />
           )}
         </div>

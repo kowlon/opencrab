@@ -153,7 +153,9 @@
     "manualInstallHint": "Formats: owner/repo, owner/repo@skill-name, GitHub/Gitee HTTPS URL",
     "envNotReady": "Environment not ready: please complete Python env and workspace setup first",
     "reload": "Reload",
-    "reloadHint": "Rescan and reload all skills from backend"
+    "reloadHint": "Rescan and reload all skills from backend",
+    "refreshed": "Skills list refreshed",
+    "alreadyInstalled": "This skill is already installed"
   },
   "status": {
     "title": "System Status",

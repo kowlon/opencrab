@@ -1229,6 +1229,7 @@ button:disabled {
 .feedbackOptionCheckbox {
   margin-top: 2px;
   flex: 0 0 auto;
+  width: auto;
 }
 .feedbackOptionHint {
   font-size: 11px;
