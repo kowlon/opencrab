@@ -316,11 +316,6 @@ jobs:
             echo "  Signing: $bin"
             codesign --force --options runtime --timestamp --sign "$IDENTITY" "$bin"
           done
-          PY_FRAMEWORK_DIR="$RESOURCE_DIR/openakita-server/_internal/Python.framework"
-          if [ -d "$PY_FRAMEWORK_DIR" ]; then
-            echo "  Signing framework bundle: $PY_FRAMEWORK_DIR"
-            codesign --force --deep --options runtime --timestamp --sign "$IDENTITY" "$PY_FRAMEWORK_DIR"
-          fi
           echo "All embedded binaries signed."
 
       - name: Create gitignored placeholders for Rust build
