@@ -2902,15 +2902,28 @@ class MessageGateway:
         *,
         throttle_seconds: float | None = None,
         role: str = "system",
+        force: bool = False,
     ) -> None:
         """
         发出“进度事件”并由网关节流/合并后发送。
 
+        - 受 im_chain_push 全局开关和会话级 chain_push 元数据控制。
         - 多条事件会在节流窗口内合并为一条，避免刷屏。
         - 进度消息默认以 system role 记录到 session（不影响模型对话历史）。
+        - 传 force=True 可绕过 chain_push 检查（仅用于必须送达的系统通知）。
         """
         if not session or not text:
             return
+
+        # chain_push 开关守卫
+        if not force:
+            from ..config import get_settings
+            _s = get_settings()
+            _push = session.get_metadata("chain_push")
+            if _push is None:
+                _push = _s.im_chain_push
+            if not _push:
+                return
 
         session_key = session.session_key
         throttle = self._progress_throttle_seconds if throttle_seconds is None else throttle_seconds
