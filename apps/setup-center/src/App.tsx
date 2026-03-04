@@ -523,6 +523,7 @@ export function App() {
       const cur = await invoke<string | null>("get_current_workspace_id");
       setCurrentWorkspaceId(cur);
     } else {
+      setInfo({ os: "web", arch: "", homeDir: "", openakitaRootDir: "" });
       if (!currentWorkspaceId) setCurrentWorkspaceId("default");
     }
   }
@@ -3747,7 +3748,7 @@ export function App() {
                     try { await openFileWithDefault(ws.path); } catch (e) { console.error(e); }
                   }}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                   </svg>
                 </button>

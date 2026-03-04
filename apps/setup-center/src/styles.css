@@ -1022,19 +1022,20 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  border: none;
+  border: 1px solid var(--line);
   border-radius: 4px;
-  background: transparent;
-  color: var(--muted);
+  background: var(--panel2);
+  color: var(--accent);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 .btnIconInline:hover {
   color: var(--accent);
   background: var(--hover);
+  border-color: var(--accent);
 }
 .statusCardActions {
   margin-top: 6px;
