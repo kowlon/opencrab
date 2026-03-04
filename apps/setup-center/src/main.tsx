@@ -1,3 +1,14 @@
+// Polyfill: AbortSignal.timeout is unavailable on older WebKit (macOS < 13 / Safari < 16).
+// Must run before any module that calls AbortSignal.timeout().
+if (typeof AbortSignal.timeout !== "function") {
+  AbortSignal.timeout = (ms: number) => {
+    const c = new AbortController();
+    const id = setTimeout(() => c.abort(new DOMException("TimeoutError", "TimeoutError")), ms);
+    c.signal.addEventListener("abort", () => clearTimeout(id), { once: true });
+    return c.signal;
+  };
+}
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 
