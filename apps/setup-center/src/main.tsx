@@ -43,8 +43,19 @@ class GlobalErrorBoundary extends React.Component<
     console.error("[ErrorBoundary] Uncaught error:", error, errorInfo);
   }
 
+  private getErrorText(): string {
+    const e = this.state.error;
+    if (!e) return "";
+    const name = e.name || "Error";
+    const msg = e.message || "(no message)";
+    const stack = e.stack || "";
+    const ua = navigator.userAgent;
+    return `${name}: ${msg}\n\nStack:\n${stack}\n\nUserAgent: ${ua}`;
+  }
+
   render() {
     if (this.state.hasError) {
+      const errorText = this.getErrorText();
       return (
         <div style={{
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -54,7 +65,7 @@ class GlobalErrorBoundary extends React.Component<
         }}>
           <div style={{
             background: "#fff", borderRadius: 16, boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-            padding: "40px 48px", maxWidth: 480, width: "100%", textAlign: "center",
+            padding: "40px 48px", maxWidth: 540, width: "100%", textAlign: "center",
           }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>:(</div>
             <h2 style={{ margin: "0 0 12px", fontSize: 20, fontWeight: 600, color: "#1e293b" }}>
@@ -65,31 +76,46 @@ class GlobalErrorBoundary extends React.Component<
             </p>
             {this.state.error && (
               <details style={{
-                marginBottom: 20, textAlign: "left", background: "#f1f5f9",
+                marginBottom: 16, textAlign: "left", background: "#f1f5f9",
                 borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#475569",
-                maxHeight: 120, overflow: "auto",
+                maxHeight: 200, overflow: "auto",
               }}>
                 <summary style={{ cursor: "pointer", fontWeight: 500 }}>Error Details</summary>
-                <pre style={{ margin: "8px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                  {this.state.error.message}
-                  {"\n"}
-                  {this.state.error.stack?.slice(0, 500)}
+                <pre style={{ margin: "8px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-all", fontSize: 11 }}>
+                  {errorText}
                 </pre>
               </details>
             )}
-            <button
-              onClick={() => location.reload()}
-              style={{
-                background: "linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)",
-                color: "#fff", border: "none", borderRadius: 10, padding: "10px 32px",
-                fontSize: 15, fontWeight: 600, cursor: "pointer",
-                boxShadow: "0 2px 8px rgba(14,165,233,0.3)", transition: "transform 0.1s",
-              }}
-              onMouseDown={(e) => { (e.target as HTMLButtonElement).style.transform = "scale(0.97)"; }}
-              onMouseUp={(e) => { (e.target as HTMLButtonElement).style.transform = ""; }}
-            >
-              Reload Application
-            </button>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(errorText).catch(() => {});
+                  const btn = document.getElementById("_eb_copy");
+                  if (btn) btn.textContent = "Copied!";
+                }}
+                id="_eb_copy"
+                style={{
+                  background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1",
+                  borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 500,
+                  cursor: "pointer", transition: "transform 0.1s",
+                }}
+              >
+                Copy Error
+              </button>
+              <button
+                onClick={() => location.reload()}
+                style={{
+                  background: "linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)",
+                  color: "#fff", border: "none", borderRadius: 10, padding: "10px 24px",
+                  fontSize: 15, fontWeight: 600, cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(14,165,233,0.3)", transition: "transform 0.1s",
+                }}
+                onMouseDown={(e) => { (e.target as HTMLButtonElement).style.transform = "scale(0.97)"; }}
+                onMouseUp={(e) => { (e.target as HTMLButtonElement).style.transform = ""; }}
+              >
+                Reload Application
+              </button>
+            </div>
           </div>
         </div>
       );
