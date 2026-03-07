@@ -899,6 +899,8 @@ class OrgToolHandler:
 
         tools = args.get("tools", [])
         reason = args.get("reason", "")
+        if not tools:
+            return "参数不完整：请指定需要申请的工具列表（tools）。"
 
         messenger = self._runtime.get_messenger(org_id)
         if not messenger:
@@ -920,6 +922,7 @@ class OrgToolHandler:
         )
 
         msg = OrgMessage(
+            org_id=org_id,
             from_node=node_id,
             to_node=parent.id,
             msg_type=MsgType.QUESTION,
@@ -959,6 +962,7 @@ class OrgToolHandler:
         for t in tools:
             if t not in existing:
                 target.external_tools.append(t)
+                existing.add(t)
 
         self._runtime._save_org(org)
         self._runtime.evict_node_agent(org_id, target_id)
@@ -966,6 +970,7 @@ class OrgToolHandler:
         messenger = self._runtime.get_messenger(org_id)
         if messenger:
             notify = OrgMessage(
+                org_id=org_id,
                 from_node=node_id,
                 to_node=target_id,
                 msg_type=MsgType.FEEDBACK,
@@ -1016,6 +1021,7 @@ class OrgToolHandler:
         messenger = self._runtime.get_messenger(org_id)
         if messenger:
             notify = OrgMessage(
+                org_id=org_id,
                 from_node=node_id,
                 to_node=target_id,
                 msg_type=MsgType.FEEDBACK,

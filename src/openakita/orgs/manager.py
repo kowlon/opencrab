@@ -119,6 +119,9 @@ class OrgManager:
             if hasattr(org, key):
                 if key == "status" and isinstance(val, str):
                     val = OrgStatus(val)
+                elif key == "user_persona" and isinstance(val, dict):
+                    from .models import UserPersona
+                    val = UserPersona.from_dict(val)
                 setattr(org, key, val)
 
         if nodes_raw is not None:

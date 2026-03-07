@@ -28,6 +28,13 @@ class TestToolCategories:
         assert expand_tool_categories(None) == set()
         assert expand_tool_categories([]) == set()
 
+    def test_expand_skips_blank_entries(self):
+        result = expand_tool_categories(["research", "", "  ", "run_shell"])
+        assert "" not in result
+        assert "  " not in result
+        assert "web_search" in result
+        assert "run_shell" in result
+
     def test_expand_single_category(self):
         result = expand_tool_categories(["research"])
         assert result == {"web_search", "news_search"}
@@ -169,6 +176,15 @@ class TestToolRequestMechanism:
         )
         assert "申请已发送" in result or "ceo" in result.lower() or "CEO" in result
 
+    async def test_request_tools_empty_list_rejected(self, tool_handler_with_org):
+        handler, rt, org = tool_handler_with_org
+        result = await handler.handle(
+            "org_request_tools",
+            {"tools": [], "reason": "测试"},
+            org.id, "cto",
+        )
+        assert "参数不完整" in result or "工具列表" in result
+
     async def test_request_tools_root_node_rejected(self, tool_handler_with_org):
         handler, rt, org = tool_handler_with_org
         result = await handler.handle(
@@ -205,6 +221,18 @@ class TestToolRequestMechanism:
         )
         cto_node = org.get_node("cto")
         assert cto_node.external_tools.count("research") == 1
+
+    async def test_grant_tools_single_call_dedup(self, tool_handler_with_org):
+        """Single grant call with duplicate entries should not create duplicates."""
+        handler, rt, org = tool_handler_with_org
+        await handler.handle(
+            "org_grant_tools",
+            {"node_id": "cto", "tools": ["research", "filesystem", "research"]},
+            org.id, "ceo",
+        )
+        cto_node = org.get_node("cto")
+        assert cto_node.external_tools.count("research") == 1
+        assert "filesystem" in cto_node.external_tools
 
     async def test_grant_tools_not_subordinate(self, tool_handler_with_org):
         handler, rt, org = tool_handler_with_org

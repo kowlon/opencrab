@@ -113,6 +113,12 @@ interface OrgSummary {
   updated_at: string;
 }
 
+interface UserPersona {
+  title: string;
+  display_name: string;
+  description: string;
+}
+
 interface OrgFull {
   id: string;
   name: string;
@@ -121,6 +127,7 @@ interface OrgFull {
   status: string;
   nodes: OrgNodeData[];
   edges: OrgEdgeData[];
+  user_persona?: UserPersona;
   [key: string]: any;
 }
 
@@ -649,6 +656,7 @@ export function OrgEditorView({
         body: JSON.stringify({
           name: currentOrg.name,
           description: currentOrg.description,
+          user_persona: currentOrg.user_persona || { title: "负责人", display_name: "", description: "" },
           heartbeat_enabled: currentOrg.heartbeat_enabled,
           heartbeat_interval_s: currentOrg.heartbeat_interval_s,
           standup_enabled: currentOrg.standup_enabled,
@@ -1608,7 +1616,7 @@ export function OrgEditorView({
                           if (!currentOrg) return;
                           setPromptPreviewLoading(true);
                           try {
-                            const resp = await safeFetch(`/api/orgs/${currentOrg.id}/nodes/${selectedNode.id}/prompt-preview`);
+                            const resp = await safeFetch(`${apiBaseUrl}/api/orgs/${currentOrg.id}/nodes/${selectedNode.id}/prompt-preview`);
                             if (resp.ok) {
                               const data = await resp.json();
                               setFullPromptPreview(data.full_prompt);
@@ -1999,6 +2007,96 @@ export function OrgEditorView({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Right Panel: Org Settings (when no node selected) ── */}
+      {currentOrg && !selectedNode && !isMobile && (
+        <div
+          style={{
+            width: 280,
+            borderLeft: "1px solid var(--line)",
+            overflowY: "auto",
+            background: "var(--bg-app)",
+            flexShrink: 0,
+            padding: 12,
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>组织设置</div>
+
+          <div className="card" style={{ padding: 10, marginBottom: 10 }}>
+            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8 }}>👤 我的身份</div>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, lineHeight: 1.5 }}>
+              你在本组织中的角色设定。节点会以此身份认知你（如"来自董事长的指令"）。
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div>
+                <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 2 }}>头衔</label>
+                <input
+                  className="input"
+                  style={{ width: "100%", fontSize: 12 }}
+                  placeholder="例如：董事长、产品负责人、甲方"
+                  value={currentOrg.user_persona?.title || ""}
+                  onChange={(e) => setCurrentOrg({
+                    ...currentOrg,
+                    user_persona: { ...currentOrg.user_persona, title: e.target.value, display_name: currentOrg.user_persona?.display_name || "", description: currentOrg.user_persona?.description || "" },
+                  })}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 2 }}>显示名称（可选）</label>
+                <input
+                  className="input"
+                  style={{ width: "100%", fontSize: 12 }}
+                  placeholder="留空则使用头衔"
+                  value={currentOrg.user_persona?.display_name || ""}
+                  onChange={(e) => setCurrentOrg({
+                    ...currentOrg,
+                    user_persona: { ...currentOrg.user_persona, title: currentOrg.user_persona?.title || "负责人", display_name: e.target.value, description: currentOrg.user_persona?.description || "" },
+                  })}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, color: "var(--muted)", display: "block", marginBottom: 2 }}>简介</label>
+                <input
+                  className="input"
+                  style={{ width: "100%", fontSize: 12 }}
+                  placeholder="例如：公司最高决策者"
+                  value={currentOrg.user_persona?.description || ""}
+                  onChange={(e) => setCurrentOrg({
+                    ...currentOrg,
+                    user_persona: { ...currentOrg.user_persona, title: currentOrg.user_persona?.title || "负责人", display_name: currentOrg.user_persona?.display_name || "", description: e.target.value },
+                  })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 10 }}>
+            <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 6 }}>快捷预设</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {[
+                { title: "董事长", desc: "公司最高决策者" },
+                { title: "产品负责人", desc: "项目需求方与最终验收人" },
+                { title: "出品人", desc: "内容方向决策者" },
+                { title: "投资人", desc: "外部投资方" },
+                { title: "甲方", desc: "项目委托方" },
+                { title: "课题负责人", desc: "研究课题主持人" },
+              ].map((preset) => (
+                <button
+                  key={preset.title}
+                  className="btnSmall"
+                  style={{ fontSize: 11, padding: "3px 8px" }}
+                  onClick={() => setCurrentOrg({
+                    ...currentOrg,
+                    user_persona: { title: preset.title, display_name: preset.title, description: preset.desc },
+                  })}
+                >
+                  {preset.title}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

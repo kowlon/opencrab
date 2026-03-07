@@ -314,7 +314,13 @@ class OrgRuntime:
             {"target": target_node_id, "content": content[:200]},
         )
 
-        result = await self._activate_and_run(org, target, content)
+        persona = org.user_persona
+        if persona and persona.label:
+            tagged_content = f"[来自 {persona.label}] {content}"
+        else:
+            tagged_content = content
+
+        result = await self._activate_and_run(org, target, tagged_content)
         return result
 
     # ------------------------------------------------------------------
@@ -475,7 +481,10 @@ class OrgRuntime:
                     filtered.append(t)
             agent._tools = filtered
 
-        if node.mcp_servers and "mcp" in (node.external_tools or []):
+        _MCP_TOOL_NAMES = {"call_mcp_tool", "list_mcp_servers", "get_mcp_instructions"}
+        if node.mcp_servers and (
+            "mcp" in (node.external_tools or []) or _MCP_TOOL_NAMES & allowed_external
+        ):
             self._connect_node_mcp_servers(agent, node.mcp_servers)
 
         self._override_system_prompt_for_org(agent, org_context_prompt)
@@ -926,15 +935,21 @@ class OrgRuntime:
     def _connect_node_mcp_servers(agent: Any, mcp_servers: list[str]) -> None:
         """Best-effort connect MCP servers listed on the node."""
         try:
-            mcp_client = getattr(agent, "_mcp_client", None)
-            if not mcp_client:
+            client = getattr(agent, "mcp_client", None)
+            if not client:
                 return
             for server_name in mcp_servers:
-                if hasattr(mcp_client, "connect_server"):
+                if hasattr(client, "connect"):
                     import asyncio
                     try:
                         loop = asyncio.get_running_loop()
-                        loop.create_task(mcp_client.connect_server(server_name))
+                        task = loop.create_task(client.connect(server_name))
+                        task.add_done_callback(
+                            lambda t, s=server_name: (
+                                logger.warning(f"[OrgRuntime] MCP connect '{s}' failed: {t.exception()}")
+                                if t.exception() else None
+                            )
+                        )
                     except RuntimeError:
                         pass
         except Exception as e:

@@ -20,6 +20,7 @@ from openakita.orgs.models import (
     OrgNode,
     OrgStatus,
     ScheduleType,
+    UserPersona,
     _new_id,
     _now_iso,
 )
@@ -298,3 +299,74 @@ class TestInboxMessage:
         restored = InboxMessage.from_dict(d)
         assert restored.requires_approval is True
         assert restored.priority == InboxPriority.APPROVAL
+
+
+# ---------------------------------------------------------------------------
+# UserPersona
+# ---------------------------------------------------------------------------
+
+
+class TestUserPersona:
+    def test_defaults(self):
+        p = UserPersona()
+        assert p.title == "负责人"
+        assert p.display_name == ""
+        assert p.description == ""
+
+    def test_label_uses_display_name_if_set(self):
+        p = UserPersona(title="董事长", display_name="张三")
+        assert p.label == "张三"
+
+    def test_label_falls_back_to_title(self):
+        p = UserPersona(title="产品负责人")
+        assert p.label == "产品负责人"
+
+    def test_to_dict(self):
+        p = UserPersona(title="甲方", display_name="客户A", description="外部委托")
+        d = p.to_dict()
+        assert d == {"title": "甲方", "display_name": "客户A", "description": "外部委托"}
+
+    def test_from_dict(self):
+        d = {"title": "出品人", "display_name": "李四", "description": "内容决策"}
+        p = UserPersona.from_dict(d)
+        assert p.title == "出品人"
+        assert p.display_name == "李四"
+
+    def test_from_dict_none(self):
+        p = UserPersona.from_dict(None)
+        assert p.title == "负责人"
+
+    def test_from_dict_empty(self):
+        p = UserPersona.from_dict({})
+        assert p.title == "负责人"
+
+    def test_from_dict_ignores_unknown_keys(self):
+        d = {"title": "X", "display_name": "Y", "description": "Z", "extra": "ignored"}
+        p = UserPersona.from_dict(d)
+        assert p.title == "X"
+        assert not hasattr(p, "extra")
+
+    def test_org_roundtrip_with_persona(self):
+        org = Organization(
+            id="org_p", name="含身份组织",
+            user_persona=UserPersona(title="董事长", display_name="老板", description="最高决策者"),
+        )
+        d = org.to_dict()
+        assert d["user_persona"]["title"] == "董事长"
+        assert d["user_persona"]["display_name"] == "老板"
+
+        restored = Organization.from_dict(d)
+        assert isinstance(restored.user_persona, UserPersona)
+        assert restored.user_persona.label == "老板"
+        assert restored.user_persona.description == "最高决策者"
+
+    def test_org_default_persona(self):
+        org = Organization()
+        assert isinstance(org.user_persona, UserPersona)
+        assert org.user_persona.title == "负责人"
+
+    def test_org_from_dict_without_persona(self):
+        d = {"id": "org_x", "name": "无身份"}
+        org = Organization.from_dict(d)
+        assert isinstance(org.user_persona, UserPersona)
+        assert org.user_persona.title == "负责人"

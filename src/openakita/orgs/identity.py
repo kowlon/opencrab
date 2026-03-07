@@ -109,8 +109,12 @@ class OrgIdentity:
                      f"需要详情时用 org_get_org_chart 查看完整架构，不确定找谁时用 org_find_colleague 搜索。")
 
         rel_parts = []
+        persona = org.user_persona
         if parent:
             rel_parts.append(f"- 直属上级：{parent.role_title}({parent.department})")
+        elif persona and persona.label:
+            desc = f"（{persona.description}）" if persona.description else "（用户）"
+            rel_parts.append(f"- 直属上级：{persona.label}{desc}")
         if children:
             child_str = ", ".join(f"{c.role_title}" for c in children)
             rel_parts.append(f"- 直属下级：{child_str}")

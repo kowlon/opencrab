@@ -19,7 +19,7 @@ TOOL_CATEGORIES: dict[str, list[str]] = {
     "mcp": ["call_mcp_tool", "list_mcp_servers", "get_mcp_instructions"],
     "browser": [
         "browser_task", "browser_open", "browser_navigate",
-        "browser_click", "browser_screenshot",
+        "browser_screenshot",
     ],
     "communication": ["deliver_artifacts", "get_chat_history"],
 }
@@ -58,6 +58,8 @@ def expand_tool_categories(entries: list[str] | None) -> set[str]:
         return set()
     result: set[str] = set()
     for entry in entries:
+        if not entry or not entry.strip():
+            continue
         if entry in TOOL_CATEGORIES:
             result.update(TOOL_CATEGORIES[entry])
         else:

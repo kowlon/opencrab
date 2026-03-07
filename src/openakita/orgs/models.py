@@ -266,6 +266,28 @@ class OrgEdge:
 
 
 @dataclass
+class UserPersona:
+    """The human user's identity within an organization."""
+    title: str = "负责人"
+    display_name: str = ""
+    description: str = ""
+
+    def to_dict(self) -> dict:
+        return {"title": self.title, "display_name": self.display_name,
+                "description": self.description}
+
+    @classmethod
+    def from_dict(cls, d: dict | None) -> UserPersona:
+        if not d:
+            return cls()
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+    @property
+    def label(self) -> str:
+        return self.display_name or self.title
+
+
+@dataclass
 class Organization:
     id: str = field(default_factory=lambda: _new_id("org_"))
     name: str = ""
@@ -323,6 +345,9 @@ class Organization:
     total_messages_exchanged: int = 0
     total_tokens_used: int = 0
 
+    # User identity within the organization
+    user_persona: UserPersona = field(default_factory=UserPersona)
+
     # Token budget (reserved, not enforced initially)
     token_budget: int | None = None
     token_budget_period: str | None = None
@@ -368,6 +393,7 @@ class Organization:
             "total_tasks_completed": self.total_tasks_completed,
             "total_messages_exchanged": self.total_messages_exchanged,
             "total_tokens_used": self.total_tokens_used,
+            "user_persona": self.user_persona.to_dict(),
             "token_budget": self.token_budget,
             "token_budget_period": self.token_budget_period,
         }
@@ -382,11 +408,14 @@ class Organization:
                 d["status"] = OrgStatus.DORMANT
         raw_nodes = d.get("nodes", [])
         raw_edges = d.get("edges", [])
+        raw_persona = d.pop("user_persona", None)
         known = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in d.items() if k in known and k not in ("nodes", "edges")}
         org = cls(**filtered)
         org.nodes = [OrgNode.from_dict(n) for n in raw_nodes]
         org.edges = [OrgEdge.from_dict(e) for e in raw_edges]
+        if isinstance(raw_persona, dict):
+            org.user_persona = UserPersona.from_dict(raw_persona)
         return org
 
     def get_node(self, node_id: str) -> OrgNode | None:

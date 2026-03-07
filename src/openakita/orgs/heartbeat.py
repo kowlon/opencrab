@@ -138,6 +138,8 @@ class OrgHeartbeat:
             "如果一切正常且无需新行动，简要说明当前状态即可。"
         )
 
+        persona_label = org.user_persona.label if org.user_persona else "用户"
+
         prompt = (
             f"[心跳检查] 当前时间: {_now_iso()}\n\n"
             f"组织: {org.name}\n"
@@ -146,7 +148,8 @@ class OrgHeartbeat:
             f"## 组织黑板摘要\n{blackboard_summary}\n\n"
             f"{action_guidance}\n\n"
             f"注意：本次心跳级联深度限制为 {org.heartbeat_max_cascade_depth} 层，"
-            f"请谨慎控制委派深度。"
+            f"请谨慎控制委派深度。\n"
+            f"重要决策和进展应主动写入黑板，以便{persona_label}在查看组织状态时了解最新情况。"
         )
 
         es.emit("heartbeat_triggered", "system", {
