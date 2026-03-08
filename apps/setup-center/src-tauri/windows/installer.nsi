@@ -544,9 +544,11 @@ Function PageLeaveEnvCheck
  StrCpy $R8 "$R0\run"
  ${If} ${FileExists} "$R8\*.*"
   System::Call 'kernel32::SetEnvironmentVariable(t "NSIS_DEL_PATH", t R8)'
-  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"' $0
+  nsExec::ExecToLog 'powershell -NoProfile -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"'
+  Pop $0
   ${If} $0 != 0
-   ExecWait 'cmd /c rd /s /q "$R8"'
+   nsExec::ExecToLog 'cmd /c rd /s /q "$R8"'
+   Pop $0
   ${EndIf}
  ${EndIf}
 
@@ -554,9 +556,11 @@ Function PageLeaveEnvCheck
  StrCpy $R8 "$R0\venv"
  ${If} ${FileExists} "$R8\*.*"
   System::Call 'kernel32::SetEnvironmentVariable(t "NSIS_DEL_PATH", t R8)'
-  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "try { Get-ChildItem -Path $env:NSIS_DEL_PATH -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object { $$_.IsReadOnly = $$false }; Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"' $0
+  nsExec::ExecToLog 'powershell -NoProfile -Command "try { Get-ChildItem -Path $env:NSIS_DEL_PATH -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object { $$_.IsReadOnly = $$false }; Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"'
+  Pop $0
   ${If} $0 != 0
-   ExecWait 'cmd /c rd /s /q "$R8"'
+   nsExec::ExecToLog 'cmd /c rd /s /q "$R8"'
+   Pop $0
   ${EndIf}
  ${EndIf}
 
@@ -564,9 +568,11 @@ Function PageLeaveEnvCheck
  StrCpy $R8 "$R0\runtime"
  ${If} ${FileExists} "$R8\*.*"
   System::Call 'kernel32::SetEnvironmentVariable(t "NSIS_DEL_PATH", t R8)'
-  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "try { Get-ChildItem -Path $env:NSIS_DEL_PATH -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object { $$_.IsReadOnly = $$false }; Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"' $0
+  nsExec::ExecToLog 'powershell -NoProfile -Command "try { Get-ChildItem -Path $env:NSIS_DEL_PATH -Recurse -Force -File -ErrorAction SilentlyContinue | ForEach-Object { $$_.IsReadOnly = $$false }; Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"'
+  Pop $0
   ${If} $0 != 0
-   ExecWait 'cmd /c rd /s /q "$R8"'
+   nsExec::ExecToLog 'cmd /c rd /s /q "$R8"'
+   Pop $0
   ${EndIf}
  ${EndIf}
 
@@ -574,9 +580,11 @@ Function PageLeaveEnvCheck
  StrCpy $R8 "$R0\modules"
  ${If} ${FileExists} "$R8\*.*"
   System::Call 'kernel32::SetEnvironmentVariable(t "NSIS_DEL_PATH", t R8)'
-  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"' $0
+  nsExec::ExecToLog 'powershell -NoProfile -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"'
+  Pop $0
   ${If} $0 != 0
-   ExecWait 'cmd /c rd /s /q "$R8"'
+   nsExec::ExecToLog 'cmd /c rd /s /q "$R8"'
+   Pop $0
   ${EndIf}
  ${EndIf}
 
@@ -584,18 +592,22 @@ Function PageLeaveEnvCheck
  StrCpy $R8 "$R0\python"
  ${If} ${FileExists} "$R8\*.*"
   System::Call 'kernel32::SetEnvironmentVariable(t "NSIS_DEL_PATH", t R8)'
-  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"' $0
+  nsExec::ExecToLog 'powershell -NoProfile -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"'
+  Pop $0
   ${If} $0 != 0
-   ExecWait 'cmd /c rd /s /q "$R8"'
+   nsExec::ExecToLog 'cmd /c rd /s /q "$R8"'
+   Pop $0
   ${EndIf}
  ${EndIf}
 
  StrCpy $R8 "$R0\embedded_python"
  ${If} ${FileExists} "$R8\*.*"
   System::Call 'kernel32::SetEnvironmentVariable(t "NSIS_DEL_PATH", t R8)'
-  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"' $0
+  nsExec::ExecToLog 'powershell -NoProfile -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"'
+  Pop $0
   ${If} $0 != 0
-   ExecWait 'cmd /c rd /s /q "$R8"'
+   nsExec::ExecToLog 'cmd /c rd /s /q "$R8"'
+   Pop $0
   ${EndIf}
  ${EndIf}
 
@@ -604,9 +616,11 @@ Function PageLeaveEnvCheck
   ; ~/.openakita 下的用户数据
   StrCpy $R8 "$R0\workspaces"
   System::Call 'kernel32::SetEnvironmentVariable(t "NSIS_DEL_PATH", t R8)'
-  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"' $0
+  nsExec::ExecToLog 'powershell -NoProfile -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"'
+  Pop $0
   ${If} $0 != 0
-   ExecWait 'cmd /c rd /s /q "$R8"'
+   nsExec::ExecToLog 'cmd /c rd /s /q "$R8"'
+   Pop $0
   ${EndIf}
 
   Delete "$R0\state.json"
@@ -616,9 +630,11 @@ Function PageLeaveEnvCheck
 
   StrCpy $R8 "$R0\logs"
   System::Call 'kernel32::SetEnvironmentVariable(t "NSIS_DEL_PATH", t R8)'
-  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"' $0
+  nsExec::ExecToLog 'powershell -NoProfile -Command "try { Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction Stop } catch { exit 1 }"'
+  Pop $0
   ${If} $0 != 0
-   ExecWait 'cmd /c rd /s /q "$R8"'
+   nsExec::ExecToLog 'cmd /c rd /s /q "$R8"'
+   Pop $0
   ${EndIf}
 
   ; Tauri 应用数据目录（WebView 缓存、localStorage 等前端数据）
@@ -1032,9 +1048,11 @@ Section Install
   ${If} $R3 = ${BST_CHECKED}
    !insertmacro _OpenAkita_WritePathHelper
    !if "${INSTALLMODE}" == "perMachine"
-    ExecWait 'powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$PLUGINSDIR\_oa_pathhelper.ps1" -Action add -BinDir "$INSTDIR\bin" -RegPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"' $R9
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\_oa_pathhelper.ps1" -Action add -BinDir "$INSTDIR\bin" -RegPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"'
+    Pop $R9
    !else
-    ExecWait 'powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$PLUGINSDIR\_oa_pathhelper.ps1" -Action add -BinDir "$INSTDIR\bin" -RegPath "HKCU:\Environment"' $R9
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\_oa_pathhelper.ps1" -Action add -BinDir "$INSTDIR\bin" -RegPath "HKCU:\Environment"'
+    Pop $R9
    !endif
    SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
   ${EndIf}
@@ -1130,9 +1148,11 @@ Section Uninstall
  ${If} $R8 != ""
   !insertmacro _OpenAkita_WritePathHelper
   ; 从系统 PATH 移除
-  ExecWait 'powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$PLUGINSDIR\_oa_pathhelper.ps1" -Action remove -BinDir "$R8" -RegPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"' $R9
+  nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\_oa_pathhelper.ps1" -Action remove -BinDir "$R8" -RegPath "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"'
+  Pop $R9
   ; 从用户 PATH 移除
-  ExecWait 'powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "$PLUGINSDIR\_oa_pathhelper.ps1" -Action remove -BinDir "$R8" -RegPath "HKCU:\Environment"' $R9
+  nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\_oa_pathhelper.ps1" -Action remove -BinDir "$R8" -RegPath "HKCU:\Environment"'
+  Pop $R9
   ; 广播 WM_SETTINGCHANGE
   SendMessage ${HWND_BROADCAST} ${WM_SETTINGCHANGE} 0 "STR:Environment" /TIMEOUT=5000
  ${EndIf}

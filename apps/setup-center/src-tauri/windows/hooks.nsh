@@ -208,9 +208,11 @@
 
 !macro _OpenAkita_ForceRemoveDir dir
   System::Call 'kernel32::SetEnvironmentVariable(t "NSIS_DEL_PATH", t "${dir}")'
-  ExecWait 'powershell -NoProfile -WindowStyle Hidden -Command "Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction SilentlyContinue"' $0
+  nsExec::ExecToLog 'powershell -NoProfile -Command "Remove-Item -LiteralPath $env:NSIS_DEL_PATH -Recurse -Force -ErrorAction SilentlyContinue"'
+  Pop $0
   ${If} $0 != 0
-    ExecWait 'cmd /c rd /s /q "${dir}"'
+    nsExec::ExecToLog 'cmd /c rd /s /q "${dir}"'
+    Pop $0
   ${EndIf}
 !macroend
 
