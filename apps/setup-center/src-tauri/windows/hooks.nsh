@@ -102,50 +102,89 @@
   !insertmacro _OpenAkita_KillServicePidsIn $R0
 !macroend
 
+; 生成合并清理 PowerShell 脚本（环境组件 + 可选用户数据），单次调用替代逐目录多次调用
+!macro _OpenAkita_WriteCleanupScript
+  InitPluginsDir
+  FileOpen $R8 "$PLUGINSDIR\_oa_cleanup.ps1" w
+  FileWrite $R8 "param([string]$$Root, [switch]$$CleanUserData)$\r$\n"
+  FileWrite $R8 "$$ErrorActionPreference = 'SilentlyContinue'$\r$\n"
+  FileWrite $R8 "foreach ($$d in @('run','venv','runtime','modules','python','embedded_python')) {$\r$\n"
+  FileWrite $R8 "    $$p = Join-Path $$Root $$d$\r$\n"
+  FileWrite $R8 "    if (Test-Path $$p) {$\r$\n"
+  FileWrite $R8 "        if ($$d -in @('venv','runtime')) {$\r$\n"
+  FileWrite $R8 "            Get-ChildItem -Path $$p -Recurse -Force -File -EA SilentlyContinue | ForEach-Object { $$_.IsReadOnly = $$false }$\r$\n"
+  FileWrite $R8 "        }$\r$\n"
+  FileWrite $R8 '        Remove-Item -LiteralPath $$p -Recurse -Force -EA SilentlyContinue$\r$\n'
+  FileWrite $R8 '        if (Test-Path $$p) { cmd /c rd /s /q "$$p" 2>$$null }$\r$\n'
+  FileWrite $R8 "    }$\r$\n"
+  FileWrite $R8 "}$\r$\n"
+  FileWrite $R8 "if ($$CleanUserData) {$\r$\n"
+  FileWrite $R8 "    foreach ($$d in @('workspaces','uploads','logs')) {$\r$\n"
+  FileWrite $R8 "        $$p = Join-Path $$Root $$d$\r$\n"
+  FileWrite $R8 "        if (Test-Path $$p) {$\r$\n"
+  FileWrite $R8 '            Remove-Item -LiteralPath $$p -Recurse -Force -EA SilentlyContinue$\r$\n'
+  FileWrite $R8 '            if (Test-Path $$p) { cmd /c rd /s /q "$$p" 2>$$null }$\r$\n'
+  FileWrite $R8 "        }$\r$\n"
+  FileWrite $R8 "    }$\r$\n"
+  FileWrite $R8 "    foreach ($$f in @('state.json','config.json','.env','cli.json')) {$\r$\n"
+  FileWrite $R8 "        Remove-Item -LiteralPath (Join-Path $$Root $$f) -Force -EA SilentlyContinue$\r$\n"
+  FileWrite $R8 "    }$\r$\n"
+  FileWrite $R8 "}$\r$\n"
+  FileClose $R8
+!macroend
+
 !macro NSIS_HOOK_PREINSTALL
-  ; 安装前（Section Install 入口处）：强制杀掉所有旧进程，防止文件锁定导致覆盖失败
-  ; 即使 PageLeaveEnvCheck 中已执行过，这里再次确保（覆盖进程可能在页面间重启）
+  ; 安装前（Section Install 入口处）：强制杀掉所有旧进程，防止文件锁定导致覆盖失败。
+  ; 所有清理操作统一在此执行（有进度日志），PageLeaveEnvCheck 仅设置标志位。
   ;
   ; 所有命令通过 nsExec 在隐藏控制台中执行，完全无弹窗。
   ; 策略：Stop-Process 杀主进程 + taskkill /T 杀子进程树（Stop-Process 不杀子进程）。
 
-  ; 1) 杀掉 Setup Center（托盘常驻）
-  nsExec::ExecToLog 'powershell -NoProfile -Command "Get-Process -Name openakita-setup-center -ErrorAction SilentlyContinue | Stop-Process -Force"'
+  ; 1) 杀掉 Setup Center + openakita-server（合并为单次 PowerShell 调用）
+  DetailPrint "Stopping OpenAkita processes..."
+  nsExec::ExecToLog 'powershell -NoProfile -Command "Get-Process -Name openakita-setup-center,openakita-server -EA SilentlyContinue | Stop-Process -Force"'
   Pop $0
   nsExec::ExecToLog 'taskkill /IM openakita-setup-center.exe /T /F'
-  Pop $0
-
-  ; 2) 杀掉 openakita-server（PyInstaller 打包的后端）及其子进程树
-  nsExec::ExecToLog 'powershell -NoProfile -Command "Get-Process -Name openakita-server -ErrorAction SilentlyContinue | Stop-Process -Force"'
   Pop $0
   nsExec::ExecToLog 'taskkill /IM openakita-server.exe /T /F'
   Pop $0
 
-  ; 3) 杀掉 PID 文件追踪的服务进程（python 方式启动的后端）
+  ; 2) 杀掉 PID 文件追踪的服务进程（python 方式启动的后端）
   !insertmacro _OpenAkita_KillAllServicePids
 
-  ; 4) 等待进程完全退出释放文件锁（慢速系统/杀毒软件需要更多时间）
-  Sleep 3000
+  ; 3) 等待进程完全退出释放文件锁
+  Sleep 2000
+
+  ; 4) 合并清理环境组件 + 可选用户数据（单次 PowerShell 调用替代逐目录多次调用）
+  ExpandEnvStrings $R0 "%USERPROFILE%\.openakita"
+  ${If} ${FileExists} "$R0\*"
+    DetailPrint "Cleaning previous installation components..."
+    !insertmacro _OpenAkita_WriteCleanupScript
+    ${If} $EnvCleanUserDataConfirmed = 1
+      DetailPrint "Cleaning user data (as requested)..."
+      nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\_oa_cleanup.ps1" -Root "$R0" -CleanUserData'
+      Pop $0
+      ; Tauri 应用数据目录（WebView 缓存、localStorage 等前端数据）
+      SetShellVarContext current
+      RmDir /r "$APPDATA\${BUNDLEID}"
+      RmDir /r "$LOCALAPPDATA\${BUNDLEID}"
+    ${Else}
+      nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\_oa_cleanup.ps1" -Root "$R0"'
+      Pop $0
+    ${EndIf}
+  ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
-  ; 卸载前：强制杀掉残留进程（策略同 PREINSTALL，nsExec 无弹窗）
-  ; 1) 杀掉 Setup Center（可能在托盘常驻）
-  nsExec::ExecToLog 'powershell -NoProfile -Command "Get-Process -Name openakita-setup-center -ErrorAction SilentlyContinue | Stop-Process -Force"'
+  ; 卸载前：强制杀掉残留进程（合并 PowerShell 调用，nsExec 无弹窗）
+  nsExec::ExecToLog 'powershell -NoProfile -Command "Get-Process -Name openakita-setup-center,openakita-server -EA SilentlyContinue | Stop-Process -Force"'
   Pop $0
   nsExec::ExecToLog 'taskkill /IM openakita-setup-center.exe /T /F'
   Pop $0
-
-  ; 2) 杀掉 openakita-server（PyInstaller 打包的后端）及其子进程树
-  nsExec::ExecToLog 'powershell -NoProfile -Command "Get-Process -Name openakita-server -ErrorAction SilentlyContinue | Stop-Process -Force"'
-  Pop $0
   nsExec::ExecToLog 'taskkill /IM openakita-server.exe /T /F'
   Pop $0
-
-  ; 3) 杀掉 PID 文件追踪的服务进程
   !insertmacro _OpenAkita_KillAllServicePids
-
-  Sleep 3000
+  Sleep 2000
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
