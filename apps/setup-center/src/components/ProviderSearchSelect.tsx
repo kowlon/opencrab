@@ -18,9 +18,11 @@ export function ProviderSearchSelect({
   const [open, setOpen] = useState(false);
   const [hoverIdx, setHoverIdx] = useState(0);
   const [search, setSearch] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const justSelected = useRef(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const allOptions = useMemo(() => {
     const base = options.slice();
@@ -33,7 +35,7 @@ export function ProviderSearchSelect({
     [allOptions, value],
   );
 
-  const displayValue = search || selectedLabel;
+  const displayValue = isFocused ? search : selectedLabel;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -58,9 +60,12 @@ export function ProviderSearchSelect({
             setOpen(true);
           }}
           placeholder={placeholder || "搜索服务商..."}
-          onFocus={() => { setSearch(""); setOpen(true); }}
+          onClick={() => { if (!open) { setIsFocused(true); setSearch(""); setOpen(true); } }}
+          onFocus={() => { setIsFocused(true); setSearch(""); setOpen(true); }}
           onBlur={() => {
-            setTimeout(() => {
+            setIsFocused(false);
+            blurTimer.current = setTimeout(() => {
+              blurTimer.current = null;
               setOpen(false);
               if (justSelected.current) {
                 justSelected.current = false;
@@ -84,10 +89,12 @@ export function ProviderSearchSelect({
                 onChange(filtered[hoverIdx].value);
                 setSearch("");
                 setOpen(false);
+                setIsFocused(false);
               }
             } else if (e.key === "Escape") {
               setSearch("");
               setOpen(false);
+              setIsFocused(false);
             }
           }}
           disabled={disabled}
@@ -97,6 +104,7 @@ export function ProviderSearchSelect({
           type="button"
           className="btnSmall"
           onClick={() => {
+            if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
             if (!open) { setSearch(""); }
             setOpen((v) => !v);
             inputRef.current?.focus();
@@ -147,6 +155,7 @@ export function ProviderSearchSelect({
                   onChange(opt.value);
                   setSearch("");
                   setOpen(false);
+                  setIsFocused(false);
                 }}
                 style={{
                   padding: "10px 12px",

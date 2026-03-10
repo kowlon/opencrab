@@ -834,7 +834,9 @@ class WeWorkBotAdapter(ChannelAdapter):
             if quote_text:
                 text_content = f"[引用: {quote_text}]\n{text_content}"
 
-        # 检测 @机器人（在去除 mention 之前检测）
+        # 企业微信智能机器人 HTTP 回调模式下，群消息仅在 @机器人 时才投递，
+        # 因此所有到达的群消息实际上都是 @了机器人的。此处用 ^@\S+ 正则做二次确认
+        # 是保守策略（消息文本开头包含 @mention），对私聊则无需检测。
         is_mentioned = bool(
             msg_data.get("chattype") == "group"
             and re.match(r"^@\S+", text_content)
@@ -886,6 +888,7 @@ class WeWorkBotAdapter(ChannelAdapter):
         content = MessageContent(images=[media])
 
         is_direct_message = chat_type == "private"
+        # 智能机器人 HTTP 回调只在群聊被 @时投递，故群图片消息 is_mentioned=True
         is_mentioned = msg_data.get("chattype") == "group"
 
         unified = UnifiedMessage.create(
@@ -940,7 +943,7 @@ class WeWorkBotAdapter(ChannelAdapter):
             if quote_text:
                 text_parts.insert(0, f"[引用: {quote_text}]")
 
-        # 检测 @机器人（在去除 mention 之前检测）
+        # 智能机器人 HTTP 回调只在群聊被 @时投递；此处 ^@\S+ 是保守二次确认
         combined_text = "\n".join(text_parts) if text_parts else None
         is_mentioned = bool(
             msg_data.get("chattype") == "group"
@@ -997,6 +1000,7 @@ class WeWorkBotAdapter(ChannelAdapter):
             content = MessageContent(text="[语音消息，无法识别]")
 
         is_direct_message = chat_type == "private"
+        # 智能机器人 HTTP 回调只在群聊被 @时投递，故群语音消息 is_mentioned=True
         is_mentioned = msg_data.get("chattype") == "group"
 
         unified = UnifiedMessage.create(
@@ -1038,6 +1042,7 @@ class WeWorkBotAdapter(ChannelAdapter):
         content = MessageContent(files=[media])
 
         is_direct_message = chat_type == "private"
+        # 智能机器人 HTTP 回调只在群聊被 @时投递，故群文件消息 is_mentioned=True
         is_mentioned = msg_data.get("chattype") == "group"
 
         unified = UnifiedMessage.create(

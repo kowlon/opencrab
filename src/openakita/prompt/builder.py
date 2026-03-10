@@ -604,6 +604,56 @@ def _build_python_info(
     )
 
 
+_PLATFORM_NAMES = {
+    "feishu": "飞书",
+    "telegram": "Telegram",
+    "wechat_work": "企业微信",
+    "dingtalk": "钉钉",
+    "onebot": "OneBot",
+}
+
+
+def _build_im_environment_section() -> str:
+    """从 IM context 读取当前环境信息，生成系统提示词段落"""
+    try:
+        from ..core.im_context import get_im_session
+        session = get_im_session()
+        if not session:
+            return ""
+        im_env = session.get_metadata("_im_environment") if hasattr(session, "get_metadata") else None
+        if not im_env:
+            return ""
+    except Exception:
+        return ""
+
+    platform = im_env.get("platform", "unknown")
+    platform_name = _PLATFORM_NAMES.get(platform, platform)
+    chat_type = im_env.get("chat_type", "private")
+    chat_type_name = "群聊" if chat_type == "group" else "私聊"
+    chat_id = im_env.get("chat_id", "")
+    thread_id = im_env.get("thread_id")
+    bot_id = im_env.get("bot_id", "")
+    capabilities = im_env.get("capabilities", [])
+
+    lines = [
+        "## 当前 IM 环境",
+        f"- 平台：{platform_name}",
+        f"- 场景：{chat_type_name}（ID: {chat_id}）",
+    ]
+    if thread_id:
+        lines.append(f"- 当前在话题/线程中（thread_id: {thread_id}），对话上下文仅包含本话题内的消息")
+    if bot_id:
+        lines.append(f"- 你的身份：机器人（ID: {bot_id}）")
+    if capabilities:
+        lines.append(f"- 已确认可用的能力：{', '.join(capabilities)}")
+    lines.append("- 你可以通过 get_chat_info / get_user_info / get_chat_members 等工具主动查询环境信息")
+    lines.append(
+        "- **重要**：你的记忆系统是跨会话共享的，检索到的记忆可能来自其他群聊或私聊场景。"
+        "请优先关注当前对话上下文，审慎引用来源不明的共享记忆。"
+    )
+    return "\n".join(lines) + "\n\n"
+
+
 def _build_session_type_rules(session_type: str, persona_active: bool = False) -> str:
     """
     构建会话类型相关规则
@@ -664,7 +714,8 @@ C. 方案三
 """
 
     if session_type == "im":
-        return common_rules + """## IM 会话规则
+        im_env_section = _build_im_environment_section()
+        return common_rules + im_env_section + f"""## IM 会话规则
 
 - **文本消息**：助手的自然语言回复会由网关直接转发给用户（不需要、也不应该通过工具发送）。
 - **附件交付**：文件/图片/语音等交付必须通过统一的网关交付工具 `deliver_artifacts` 完成，并以回执作为交付证据。

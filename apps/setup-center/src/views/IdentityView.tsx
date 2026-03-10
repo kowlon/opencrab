@@ -5,6 +5,7 @@ import {
   IconRefresh, IconCheck, IconX, IconInfo,
   IconChevronRight, IconLoader,
 } from "../icons";
+import { ModalOverlay } from "../components/ModalOverlay";
 
 type IdentityFile = {
   name: string;
@@ -447,14 +448,14 @@ export function IdentityView({ serviceRunning, apiBaseUrl }: Props) {
 
       {/* Confirm dialog */}
       {confirmDialog && (
-        <div style={{
+        <ModalOverlay onClose={() => setConfirmDialog(null)} className="" style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex",
           justifyContent: "center", alignItems: "center", zIndex: 9999,
-        }} onClick={() => setConfirmDialog(null)}>
+        }}>
           <div style={{
             background: "var(--card-bg, #fff)", borderRadius: 12, padding: 24,
             maxWidth: 480, width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-          }} onClick={e => e.stopPropagation()}>
+          }}>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12, color: "#dc2626" }}>
               {confirmDialog.title}
             </div>
@@ -475,7 +476,7 @@ export function IdentityView({ serviceRunning, apiBaseUrl }: Props) {
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Toast */}

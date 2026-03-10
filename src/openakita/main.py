@@ -111,6 +111,7 @@ _CHANNEL_DEPS: dict[str, list[tuple[str, str]]] = {
     "feishu": [("lark_oapi", "lark-oapi")],
     "dingtalk": [("dingtalk_stream", "dingtalk-stream")],
     "wework": [("aiohttp", "aiohttp"), ("Crypto", "pycryptodome")],
+    "wework_ws": [("websockets", "websockets")],
     "onebot": [("websockets", "websockets")],
     "qqbot": [("botpy", "qq-botpy"), ("pilk", "pilk")],
 }
@@ -236,6 +237,8 @@ def _ensure_channel_deps() -> None:
         enabled_channels.append("dingtalk")
     if settings.wework_enabled:
         enabled_channels.append("wework")
+    if settings.wework_ws_enabled:
+        enabled_channels.append("wework_ws")
     if settings.onebot_enabled:
         enabled_channels.append("onebot")
     if settings.qqbot_enabled:
@@ -502,6 +505,14 @@ def _create_bot_adapter(bot_type: str, creds: dict, *, channel_name: str, bot_id
             callback_host=creds.get("callback_host", "0.0.0.0"),
             channel_name=channel_name, bot_id=bot_id, agent_profile_id=agent_profile_id,
         )
+    elif bot_type == "wework_ws":
+        from .channels.adapters import WeWorkWsAdapter
+        return WeWorkWsAdapter(
+            bot_id=creds.get("bot_id", ""),
+            secret=creds.get("secret", ""),
+            ws_url=creds.get("ws_url", "wss://openws.work.weixin.qq.com"),
+            channel_name=channel_name, bot_id_alias=bot_id, agent_profile_id=agent_profile_id,
+        )
     elif bot_type == "onebot":
         from .channels.adapters import OneBotAdapter
         return OneBotAdapter(
@@ -570,6 +581,7 @@ async def start_im_channels(agent_or_master):
         settings.telegram_enabled
         or settings.feishu_enabled
         or settings.wework_enabled
+        or settings.wework_ws_enabled
         or settings.dingtalk_enabled
         or settings.onebot_enabled
         or settings.qqbot_enabled
@@ -648,18 +660,30 @@ async def start_im_channels(agent_or_master):
 
     # 飞书
     if settings.feishu_enabled and settings.feishu_app_id:
-        try:
-            from .channels.adapters import FeishuAdapter
-
-            feishu = FeishuAdapter(
-                app_id=settings.feishu_app_id,
-                app_secret=settings.feishu_app_secret,
+        _feishu_dup = any(
+            b.get("type") == "feishu"
+            and b.get("credentials", {}).get("app_id") == settings.feishu_app_id
+            and b.get("enabled", True)
+            for b in (settings.im_bots or [])
+        )
+        if _feishu_dup:
+            logger.info(
+                "Feishu adapter skipped: im_bots already contains a feishu bot "
+                f"with the same app_id ({settings.feishu_app_id[:8]}...)"
             )
-            await _message_gateway.register_adapter(feishu)
-            adapters_started.append("feishu")
-            logger.info("Feishu adapter registered")
-        except Exception as e:
-            logger.error(f"Failed to start Feishu adapter: {e}")
+        else:
+            try:
+                from .channels.adapters import FeishuAdapter
+
+                feishu = FeishuAdapter(
+                    app_id=settings.feishu_app_id,
+                    app_secret=settings.feishu_app_secret,
+                )
+                await _message_gateway.register_adapter(feishu)
+                adapters_started.append("feishu")
+                logger.info("Feishu adapter registered")
+            except Exception as e:
+                logger.error(f"Failed to start Feishu adapter: {e}")
 
     # 企业微信（智能机器人模式）
     if settings.wework_enabled and settings.wework_corp_id:
@@ -678,6 +702,41 @@ async def start_im_channels(agent_or_master):
             logger.info("WeWork Smart Robot adapter registered")
         except Exception as e:
             logger.error(f"Failed to start WeWork adapter: {e}")
+
+    # 企业微信（智能机器人 — WebSocket 长连接模式）
+    if settings.wework_ws_enabled and settings.wework_ws_bot_id:
+        # 双开警告：HTTP 回调与 WS 长连接同时启用
+        if settings.wework_enabled:
+            logger.warning(
+                "WeWork HTTP callback and WebSocket are both enabled. "
+                "If they share the same bot, messages may be processed twice."
+            )
+
+        # 重复注册检查：im_bots 中是否已含相同 bot_id 的 wework_ws 条目
+        _wework_ws_dup = any(
+            b.get("type") == "wework_ws"
+            and b.get("credentials", {}).get("bot_id") == settings.wework_ws_bot_id
+            and b.get("enabled", True)
+            for b in (settings.im_bots or [])
+        )
+        if _wework_ws_dup:
+            logger.info(
+                "WeWork WS adapter skipped: im_bots already contains a wework_ws bot "
+                f"with the same bot_id ({settings.wework_ws_bot_id[:8]}...)"
+            )
+        else:
+            try:
+                from .channels.adapters import WeWorkWsAdapter
+
+                wework_ws = WeWorkWsAdapter(
+                    bot_id=settings.wework_ws_bot_id,
+                    secret=settings.wework_ws_secret,
+                )
+                await _message_gateway.register_adapter(wework_ws)
+                adapters_started.append("wework_ws")
+                logger.info("WeWork WS (WebSocket) adapter registered")
+            except Exception as e:
+                logger.error(f"Failed to start WeWork WS adapter: {e}")
 
     # 钉钉
     if settings.dingtalk_enabled and settings.dingtalk_client_id:
@@ -901,7 +960,8 @@ def show_channels():
     channels = [
         ("Telegram", settings.telegram_enabled, settings.telegram_bot_token),
         ("飞书", settings.feishu_enabled, settings.feishu_app_id),
-        ("企业微信", settings.wework_enabled, settings.wework_corp_id),
+        ("企业微信(HTTP)", settings.wework_enabled, settings.wework_corp_id),
+        ("企业微信(WS)", settings.wework_ws_enabled, settings.wework_ws_bot_id),
         ("钉钉", settings.dingtalk_enabled, settings.dingtalk_client_id),
         ("OneBot", settings.onebot_enabled, settings.onebot_ws_url),
         ("QQ 官方机器人", settings.qqbot_enabled, settings.qqbot_app_id),

@@ -276,13 +276,23 @@ class Settings(BaseSettings):
     feishu_app_id: str = Field(default="", description="飞书 App ID")
     feishu_app_secret: str = Field(default="", description="飞书 App Secret")
 
-    # 企业微信（智能机器人）
-    wework_enabled: bool = Field(default=False, description="是否启用企业微信")
+    # 企业微信（智能机器人 — HTTP 回调模式）
+    wework_enabled: bool = Field(default=False, description="是否启用企业微信（HTTP 回调模式）")
     wework_corp_id: str = Field(default="", description="企业微信 Corp ID")
     wework_token: str = Field(default="", description="企业微信回调 Token")
     wework_encoding_aes_key: str = Field(default="", description="企业微信回调加密 AES Key")
     wework_callback_port: int = Field(default=9880, description="企业微信回调服务端口")
     wework_callback_host: str = Field(default="0.0.0.0", description="企业微信回调服务绑定地址")
+
+    # 企业微信（智能机器人 — WebSocket 长连接模式）
+    wework_ws_enabled: bool = Field(default=False, description="是否启用企业微信 WebSocket 长连接")
+    wework_ws_bot_id: str = Field(default="", description="企业微信机器人 ID（后台获取）")
+    wework_ws_secret: str = Field(default="", description="企业微信机器人 Secret（后台获取）")
+    wework_ws_thinking_indicator: bool = Field(default=True, description="收到消息后立即发送'思考中'流式首帧提示")
+    wework_ws_msg_item_images: bool = Field(
+        default=False,
+        description="流式回复中使用 msg_item 发送图片（当前企业微信版本可能不渲染，默认关闭）",
+    )
 
     # 钉钉
     dingtalk_enabled: bool = Field(default=False, description="是否启用钉钉")

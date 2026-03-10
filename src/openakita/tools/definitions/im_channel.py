@@ -27,6 +27,10 @@ IM_CHANNEL_TOOLS = [
   - mime/name/dedupe_key: 预留字段（可选）
 - target_channel（可选）: 目标 IM 通道名。指定后会将附件发送到该通道（如从桌面端发送文件到 telegram）。
   不填则默认发送到当前通道（IM 模式）或返回文件 URL（桌面模式）。
+- prefer_chat_type（可选，默认 "private"）: 跨通道发送时偏好的聊天类型。
+  - "private": 优先发送到私聊窗口（默认，适合截图、文件等个人交付）
+  - "group": 优先发送到群聊窗口（适合用户明确要求发到群里的场景）
+  仅在指定 target_channel 时生效。
 
 输出说明：
 - 返回 JSON 字符串，包含每个 artifact 的回执（receipt）：
@@ -40,7 +44,8 @@ IM_CHANNEL_TOOLS = [
 - 发送截图：deliver_artifacts(artifacts=[{"type":"image","path":"data/temp/s.png","caption":"这是截图"}])
 - 发送文件：deliver_artifacts(artifacts=[{"type":"file","path":"data/out/report.md"}])
 - 跨通道发送：deliver_artifacts(artifacts=[{"type":"file","path":"data/out/report.docx"}], target_channel="telegram")
-- 从桌面发图到飞书：deliver_artifacts(artifacts=[{"type":"image","path":"data/temp/chart.png","caption":"图表"}], target_channel="feishu")""",
+- 从桌面发图到飞书：deliver_artifacts(artifacts=[{"type":"image","path":"data/temp/chart.png","caption":"图表"}], target_channel="feishu")
+- 发到飞书群聊：deliver_artifacts(artifacts=[{"type":"file","path":"data/out/report.md"}], target_channel="feishu", prefer_chat_type="group")""",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -64,6 +69,11 @@ IM_CHANNEL_TOOLS = [
                 "target_channel": {
                     "type": "string",
                     "description": "目标 IM 通道名（如 telegram/wework/feishu/dingtalk）。留空或不填则发送到当前通道（IM 模式）或桌面端（Desktop 模式）。",
+                },
+                "prefer_chat_type": {
+                    "type": "string",
+                    "description": "跨通道发送时偏好的聊天类型: private(私聊,默认) / group(群聊)。优先选择匹配类型的会话，不匹配时回退到其他类型。仅在指定 target_channel 时生效。",
+                    "default": "private",
                 },
                 "mode": {
                     "type": "string",
@@ -130,6 +140,78 @@ IM_CHANNEL_TOOLS = [
                     "description": "是否包含系统消息（如任务通知）",
                     "default": True,
                 },
+            },
+        },
+    },
+    {
+        "name": "get_chat_info",
+        "category": "IM Channel",
+        "description": "Get current chat/group information (name, member count, description, owner). Use when you need to understand the current chat context.",
+        "detail": """获取当前聊天/群组的信息。
+
+**返回内容**：
+- 群聊名称、描述、群主、成员数等
+- 私聊时返回对方用户信息
+
+**适用场景**：
+- 需要了解当前群聊环境
+- 用户询问"这个群有多少人"等""",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_user_info",
+        "category": "IM Channel",
+        "description": "Get user info by user_id (name, avatar). Use when you need to look up a specific user's details.",
+        "detail": """获取指定用户的信息。
+
+**返回内容**：
+- 用户名称、头像等基本信息
+
+**适用场景**：
+- 需要查询某个用户的名称
+- 需要获取用户头像""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "string", "description": "用户 ID（open_id 格式）"},
+            },
+            "required": ["user_id"],
+        },
+    },
+    {
+        "name": "get_chat_members",
+        "category": "IM Channel",
+        "description": "Get member list of the current group chat. Use when user asks about group members or you need to know who is in the chat.",
+        "detail": """获取当前群聊的成员列表。
+
+**返回内容**：
+- 成员 ID 和名称列表
+
+**适用场景**：
+- 用户询问"群里都有谁"
+- 需要查找特定群成员""",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_recent_messages",
+        "category": "IM Channel",
+        "description": "Get recent messages from the chat (platform API, not session history). Use when in a topic/thread and need to see messages outside the thread, or when user asks about recent group activity.",
+        "detail": """获取群聊最近的消息列表（通过平台 API 获取，非会话历史）。
+
+**与 get_chat_history 的区别**：
+- get_chat_history: 获取当前会话上下文中的消息（session 内的对话历史）
+- get_recent_messages: 调用平台 API 获取群聊中的实际消息（包括话题外的消息）
+
+**适用场景**：
+- 在话题中需要查看话题外的群消息
+- 用户说"看看群里刚才的通知"、"群里最近说了什么"
+- 需要获取群聊中其他人的消息
+
+**注意**：需要平台的消息读取权限（如飞书的 im:message:readonly）""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "获取最近多少条消息", "default": 20},
             },
         },
     },

@@ -59,25 +59,63 @@ export function IMConfigView(props: IMConfigViewProps) {
         </>
       ),
     },
-    {
-      title: t("config.imWework"),
-      appType: t("config.imTypeSmartBot"),
-      logo: <LogoWework size={22} />,
-      enabledKey: "WEWORK_ENABLED",
-      docUrl: "https://work.weixin.qq.com/",
-      needPublicIp: true,
-      body: (
-        <>
-          <FT k="WEWORK_CORP_ID" label="Corp ID" help={t("config.imWeworkCorpIdHelp")} />
-          <FT k="WEWORK_TOKEN" label="Callback Token" help={t("config.imWeworkTokenHelp")} />
-          <FT k="WEWORK_ENCODING_AES_KEY" label="EncodingAESKey" type="password" help={t("config.imWeworkAesKeyHelp")} />
-          <FT k="WEWORK_CALLBACK_PORT" label={t("config.imCallbackPort")} placeholder="9880" />
-          <div className="fieldHint" style={{ fontSize: 12, color: "var(--text3)", margin: "4px 0 0 0", lineHeight: 1.6 }}>
-            {t("config.imWeworkCallbackUrlHint")}<code style={{ background: "var(--bg2)", padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>http://your-domain:9880/callback</code>
-          </div>
-        </>
-      ),
-    },
+    (() => {
+      const weworkMode = (envDraft["WEWORK_MODE"] || "websocket") as "http" | "websocket";
+      const isWs = weworkMode === "websocket";
+      return {
+        title: t("config.imWework"),
+        appType: isWs ? t("config.imTypeSmartBotWs") : t("config.imTypeSmartBot"),
+        logo: <LogoWework size={22} />,
+        enabledKey: isWs ? "WEWORK_WS_ENABLED" : "WEWORK_ENABLED",
+        docUrl: "https://work.weixin.qq.com/",
+        needPublicIp: !isWs,
+        body: (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              <div className="label">{t("config.imWeworkMode")}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                {(["http", "websocket"] as const).map((m) => (
+                  <button key={m} className={weworkMode === m ? "capChipActive" : "capChip"}
+                    onClick={() => {
+                      const oldKey = isWs ? "WEWORK_WS_ENABLED" : "WEWORK_ENABLED";
+                      const newKey = m === "websocket" ? "WEWORK_WS_ENABLED" : "WEWORK_ENABLED";
+                      setEnvDraft((d) => {
+                        const wasEnabled = (d[oldKey] || "false").toLowerCase() === "true";
+                        const next: Record<string, string> = { ...d, WEWORK_MODE: m };
+                        if (wasEnabled && oldKey !== newKey) {
+                          next[oldKey] = "false";
+                          next[newKey] = "true";
+                        }
+                        return next;
+                      });
+                    }}
+                  >{m === "http" ? t("config.imWeworkModeHttp") : t("config.imWeworkModeWs")}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                {isWs ? t("config.imWeworkModeWsHint") : t("config.imWeworkModeHttpHint")}
+              </div>
+            </div>
+            {isWs ? (
+              <>
+                <FT k="WEWORK_WS_BOT_ID" label={t("config.imWeworkBotId")} help={t("config.imWeworkBotIdHelp")} />
+                <FT k="WEWORK_WS_SECRET" label={t("config.imWeworkSecret")} type="password" help={t("config.imWeworkSecretHelp")} />
+              </>
+            ) : (
+              <>
+                <FT k="WEWORK_CORP_ID" label="Corp ID" help={t("config.imWeworkCorpIdHelp")} />
+                <FT k="WEWORK_TOKEN" label="Callback Token" help={t("config.imWeworkTokenHelp")} />
+                <FT k="WEWORK_ENCODING_AES_KEY" label="EncodingAESKey" type="password" help={t("config.imWeworkAesKeyHelp")} />
+                <FT k="WEWORK_CALLBACK_PORT" label={t("config.imCallbackPort")} placeholder="9880" />
+                <div className="fieldHint" style={{ fontSize: 12, color: "var(--text3)", margin: "4px 0 0 0", lineHeight: 1.6 }}>
+                  {t("config.imWeworkCallbackUrlHint")}<code style={{ background: "var(--bg2)", padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>http://your-domain:9880/callback</code>
+                </div>
+              </>
+            )}
+          </>
+        ),
+      };
+    })(),
     {
       title: t("config.imDingtalk"),
       appType: t("config.imTypeInternalApp"),

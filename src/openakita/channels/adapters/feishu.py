@@ -13,10 +13,13 @@
 """
 
 import asyncio
+import collections
 import contextlib
+import importlib.util
 import json
 import logging
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -130,6 +133,21 @@ class FeishuAdapter(ChannelAdapter):
         self._ws_thread: threading.Thread | None = None
         self._ws_loop: asyncio.AbstractEventLoop | None = None
         self._bot_open_id: str | None = None
+        self._capabilities: list[str] = []
+
+        # 消息去重：WebSocket 重连可能导致重复投递
+        self._seen_message_ids: collections.OrderedDict[str, None] = collections.OrderedDict()
+        self._seen_message_ids_max = 500
+
+        # "思考中..."占位卡片：chat_id → 卡片 message_id
+        self._thinking_cards: dict[str, str] = {}
+        # 最近一条用户消息 ID：chat_id → user_msg_id（供 send_typing 回复定位）
+        self._last_user_msg: dict[str, str] = {}
+
+        # 关键事件缓冲（per-chat_id，上限 _MAX_EVENTS_PER_CHAT 条）
+        self._important_events: dict[str, list[dict]] = {}
+        self._events_lock = threading.Lock()
+        self._MAX_EVENTS_PER_CHAT = 10
 
     async def start(self) -> None:
         """
@@ -151,7 +169,6 @@ class FeishuAdapter(ChannelAdapter):
             .build()
         )
 
-        self._running = True
         # 记录主事件循环，用于从 WebSocket 线程投递协程
         try:
             self._main_loop = asyncio.get_running_loop()
@@ -159,19 +176,66 @@ class FeishuAdapter(ChannelAdapter):
             self._main_loop = None
         logger.info("Feishu adapter: client initialized")
 
-        # 尝试获取机器人 open_id（用于精确匹配 @提及）
+        # 尝试获取机器人 open_id（用于精确匹配 @提及）。
+        # lark_oapi.api.bot 子模块在部分打包版本中可能缺失，
+        # 导入失败不应阻断适配器启动——仅影响群聊 @提及检测。
         try:
             import lark_oapi.api.bot.v3 as bot_v3
 
-            req = bot_v3.GetBotInfoRequest.builder().build()
-            resp = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: self._client.bot.v3.bot_info.get(req)
+            for attempt in range(3):
+                try:
+                    req = bot_v3.GetBotInfoRequest.builder().build()
+                    resp = await asyncio.get_running_loop().run_in_executor(
+                        None, lambda: self._client.bot.v3.bot_info.get(req)
+                    )
+                    if resp.success() and resp.data and resp.data.bot:
+                        self._bot_open_id = getattr(resp.data.bot, "open_id", None)
+                        logger.info(f"Feishu bot open_id: {self._bot_open_id}")
+                        break
+                    else:
+                        logger.warning(
+                            f"Feishu: GetBotInfo attempt {attempt + 1}/3 failed: {getattr(resp, 'msg', 'unknown')}"
+                        )
+                except Exception as e:
+                    logger.warning(f"Feishu: GetBotInfo attempt {attempt + 1}/3 error: {e}")
+                if attempt < 2:
+                    await asyncio.sleep(2)
+        except ImportError:
+            logger.warning(
+                "lark_oapi.api.bot module not available, trying raw HTTP fallback..."
             )
-            if resp.success() and resp.data and resp.data.bot:
-                self._bot_open_id = getattr(resp.data.bot, "open_id", None)
-                logger.info(f"Feishu bot open_id: {self._bot_open_id}")
-        except Exception as e:
-            logger.debug(f"Feishu: could not fetch bot info (non-critical): {e}")
+            try:
+                raw_req = (
+                    lark_oapi.BaseRequest.builder()
+                    .http_method(lark_oapi.HttpMethod.GET)
+                    .uri("/open-apis/bot/v3/info")
+                    .token_types({lark_oapi.AccessTokenType.TENANT})
+                    .build()
+                )
+                raw_resp = await asyncio.get_running_loop().run_in_executor(
+                    None, lambda: self._client.request(raw_req)
+                )
+                if raw_resp.success() and raw_resp.raw:
+                    _body = json.loads(raw_resp.raw.content)
+                    _bot = _body.get("bot") or _body.get("data", {}).get("bot") or {}
+                    self._bot_open_id = _bot.get("open_id")
+                    if self._bot_open_id:
+                        logger.info(
+                            f"Feishu bot open_id (raw HTTP): {self._bot_open_id}"
+                        )
+            except Exception as e:
+                logger.warning(f"Feishu: raw HTTP bot info fallback failed: {e}")
+
+        if not self._bot_open_id:
+            logger.warning(
+                "Feishu: bot open_id not available. "
+                "@mention detection will be disabled (bot will NOT respond to any @mention in groups)."
+            )
+
+        # 在启动 WS 之前标记为运行中：
+        # - 必须在 client 创建 + lark 导入成功之后（确保绿点不虚标）
+        # - 必须在 start_websocket 之前（WS 线程依赖 _running 判断是否记录错误）
+        self._running = True
 
         # 自动启动 WebSocket 长连接（非阻塞模式）
         try:
@@ -180,6 +244,73 @@ class FeishuAdapter(ChannelAdapter):
         except Exception as e:
             logger.warning(f"Feishu adapter: WebSocket startup failed: {e}")
             logger.warning("Feishu adapter: falling back to webhook-only mode")
+
+        # 探测可用权限/能力
+        await self._probe_capabilities()
+
+    async def _probe_capabilities(self) -> None:
+        """探测飞书适配器已实现方法对应的权限是否可用
+
+        通过调用 API 并检查响应码判断权限：
+        - 权限不足：响应消息通常包含 "permission"/"tenant_access_token"
+        - 参数无效/资源不存在：说明权限本身是通过的
+        """
+        self._capabilities = ["发消息", "发文件", "回复消息"]
+        if not self._client:
+            return
+
+        _PERMISSION_KEYWORDS = ("permission", "tenant_access_token", "app_access_token", "forbidden")
+
+        def _is_permission_error(resp: Any) -> bool:
+            if resp.success():
+                return False
+            msg = (getattr(resp, "msg", "") or "").lower()
+            return any(kw in msg for kw in _PERMISSION_KEYWORDS)
+
+        try:
+            import lark_oapi.api.im.v1 as im_v1
+            import lark_oapi.api.contact.v3 as contact_v3
+        except ImportError:
+            logger.warning("lark_oapi submodules not available for capability probing")
+            return
+
+        try:
+            req = im_v1.GetChatRequest.builder().chat_id("probe_test").build()
+            resp = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.chat.get(req))
+            if not _is_permission_error(resp):
+                self._capabilities.append("获取群信息")
+        except Exception:
+            pass
+
+        try:
+            req = contact_v3.GetUserRequest.builder().user_id("probe_test").user_id_type("open_id").build()
+            resp = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.contact.v3.user.get(req))
+            if not _is_permission_error(resp):
+                self._capabilities.append("获取用户信息")
+        except Exception:
+            pass
+
+        try:
+            req = im_v1.GetChatMembersRequest.builder().chat_id("probe_test").member_id_type("open_id").build()
+            resp = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.chat_members.get(req))
+            if not _is_permission_error(resp):
+                self._capabilities.append("获取群成员")
+        except Exception:
+            pass
+
+        try:
+            req = im_v1.ListMessageRequest.builder().container_id_type("chat").container_id("probe_test").page_size(1).build()
+            resp = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.list(req))
+            if not _is_permission_error(resp):
+                self._capabilities.append("获取消息历史")
+        except Exception:
+            pass
+
+        logger.info(f"Feishu capabilities: {self._capabilities}")
 
     def start_websocket(self, blocking: bool = True) -> None:
         """
@@ -200,28 +331,26 @@ class FeishuAdapter(ChannelAdapter):
 
         logger.info("Starting Feishu WebSocket connection...")
 
-        # 关键点：
-        # lark_oapi.ws.client 在模块级保存了一个全局 loop 变量（导入时绑定）。
-        # 因此必须在 WebSocket 线程里，把该模块的 loop 指向该线程的新事件循环，
-        # 否则会错误地复用主线程/主 loop，导致 Python 3.13 报 task 进入/离开错误。
+        # lark_oapi.ws.client 在模块级保存了一个全局 loop 变量，Client 类的
+        # start / _connect / _receive_message_loop 等方法全部直接引用该变量。
+        # 多个 FeishuAdapter 实例在不同线程启动时会互相覆盖这个 loop，导致
+        # 运行时 create_task 投递到错误的事件循环，消息静默丢失。
+        #
+        # 解决方案：用 importlib.util 为每个线程创建 lark_oapi.ws.client 模块
+        # 的**独立副本**（不修改 sys.modules）。每个副本的 Client 类方法通过
+        # __globals__ 引用各自副本的 loop 变量，从根本上消除跨实例污染。
 
         def _run_ws_in_thread() -> None:
-            import importlib
-
-            import lark_oapi.ws.client as ws_client_mod
-
             new_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(new_loop)
             self._ws_loop = new_loop
 
-            # 覆盖 SDK ws 模块的全局 loop
-            ws_client_mod.loop = new_loop
-            importlib.reload(ws_client_mod)
-            ws_client_mod.loop = new_loop
-
             try:
-                WsClient = ws_client_mod.Client
-                ws_client = WsClient(
+                spec = importlib.util.find_spec("lark_oapi.ws.client")
+                ws_mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(ws_mod)
+
+                ws_client = ws_mod.Client(
                     self.config.app_id,
                     self.config.app_secret,
                     event_handler=self._event_dispatcher,
@@ -230,7 +359,8 @@ class FeishuAdapter(ChannelAdapter):
                     ),
                 )
                 self._ws_client = ws_client
-                ws_client.start()  # 阻塞运行于该线程
+
+                ws_client.start()
             except Exception as e:
                 if self._running:
                     logger.error(f"Feishu WebSocket error: {e}", exc_info=True)
@@ -245,10 +375,10 @@ class FeishuAdapter(ChannelAdapter):
             self._ws_thread = threading.Thread(
                 target=_run_ws_in_thread,
                 daemon=True,
-                name="FeishuWebSocket",
+                name=f"FeishuWS-{self.channel_name}",
             )
             self._ws_thread.start()
-            logger.info("Feishu WebSocket client started in background thread")
+            logger.info(f"Feishu WebSocket client started in background thread ({self.channel_name})")
 
     def _setup_event_dispatcher(self) -> None:
         """设置事件分发器"""
@@ -275,6 +405,20 @@ class FeishuAdapter(ChannelAdapter):
             )
         except AttributeError:
             pass
+        # 注册群聊更新事件（群公告变更等）
+        try:
+            builder = builder.register_p2_im_chat_updated_v1(self._on_chat_updated)
+        except AttributeError:
+            pass
+        # 注册机器人入群/被踢事件
+        try:
+            builder = builder.register_p2_im_chat_member_bot_added_v1(self._on_bot_chat_added)
+        except AttributeError:
+            pass
+        try:
+            builder = builder.register_p2_im_chat_member_bot_deleted_v1(self._on_bot_chat_deleted)
+        except AttributeError:
+            pass
         self._event_dispatcher = builder.build()
 
     def _on_message_receive(self, data: Any) -> None:
@@ -288,7 +432,10 @@ class FeishuAdapter(ChannelAdapter):
             message = event.message
             sender = event.sender
 
-            logger.info(f"Feishu: received message from {sender.sender_id.open_id}")
+            logger.info(
+                f"Feishu[{self.channel_name}]: received message from "
+                f"{sender.sender_id.open_id}"
+            )
 
             # 提取 mentions 列表（用于 is_mentioned 检测）
             mentions_raw = []
@@ -313,6 +460,7 @@ class FeishuAdapter(ChannelAdapter):
                 "content": message.content,
                 "root_id": getattr(message, "root_id", None),
                 "mentions": mentions_raw,
+                "create_time": getattr(message, "create_time", None),
             }
 
             sender_dict = {
@@ -357,9 +505,248 @@ class FeishuAdapter(ChannelAdapter):
         """机器人进入会话事件，仅需静默消费以避免 SDK 报错"""
         pass
 
-    async def _handle_message_async(self, msg_dict: dict, sender_dict: dict) -> None:
-        """异步处理消息"""
+    def _on_chat_updated(self, data: Any) -> None:
+        """群聊信息更新事件 (im.chat.updated_v1)"""
         try:
+            event = data.event
+            chat_id = getattr(event, "chat_id", "")
+            if not chat_id:
+                return
+            after = getattr(event, "after", None)
+            changes = {}
+            if after:
+                name = getattr(after, "name", None)
+                if name:
+                    changes["name"] = name
+                description = getattr(after, "description", None)
+                if description is not None:
+                    changes["description"] = description
+            if changes:
+                self._buffer_event(chat_id, {
+                    "type": "chat_updated",
+                    "chat_id": chat_id,
+                    "changes": changes,
+                })
+        except Exception as e:
+            logger.debug(f"Feishu: failed to handle chat_updated event: {e}")
+
+    def _on_bot_chat_added(self, data: Any) -> None:
+        """机器人被添加到群聊事件 (im.chat.member.bot.added_v1)"""
+        try:
+            event = data.event
+            chat_id = getattr(event, "chat_id", "")
+            if chat_id:
+                self._buffer_event(chat_id, {
+                    "type": "bot_added",
+                    "chat_id": chat_id,
+                })
+                logger.info(f"Feishu: bot added to chat {chat_id}")
+        except Exception as e:
+            logger.debug(f"Feishu: failed to handle bot_added event: {e}")
+
+    def _on_bot_chat_deleted(self, data: Any) -> None:
+        """机器人被移出群聊事件 (im.chat.member.bot.deleted_v1)"""
+        try:
+            event = data.event
+            chat_id = getattr(event, "chat_id", "")
+            if chat_id:
+                self._buffer_event(chat_id, {
+                    "type": "bot_removed",
+                    "chat_id": chat_id,
+                })
+                logger.info(f"Feishu: bot removed from chat {chat_id}")
+        except Exception as e:
+            logger.debug(f"Feishu: failed to handle bot_deleted event: {e}")
+
+    def _buffer_event(self, chat_id: str, event: dict) -> None:
+        """线程安全地缓冲事件"""
+        with self._events_lock:
+            events = self._important_events.setdefault(chat_id, [])
+            if len(events) >= self._MAX_EVENTS_PER_CHAT:
+                events.pop(0)
+            events.append(event)
+
+    def get_pending_events(self, chat_id: str) -> list[dict]:
+        """取出并清空指定群的待处理事件（线程安全）"""
+        with self._events_lock:
+            return self._important_events.pop(chat_id, [])
+
+    async def add_reaction(self, message_id: str, emoji_type: str = "DONE") -> None:
+        """给消息添加表情回复，用作「已读」回执替代"""
+        if not self._client:
+            return
+        try:
+            request = (
+                lark_oapi.api.im.v1.CreateMessageReactionRequest.builder()
+                .message_id(message_id)
+                .request_body(
+                    lark_oapi.api.im.v1.CreateMessageReactionRequestBody.builder()
+                    .reaction_type(
+                        lark_oapi.api.im.v1.Emoji.builder()
+                        .emoji_type(emoji_type)
+                        .build()
+                    )
+                    .build()
+                )
+                .build()
+            )
+            await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message_reaction.create(request)
+            )
+        except Exception as e:
+            logger.debug(f"Feishu: add_reaction failed (non-critical): {e}")
+
+    # ==================== 思考状态指示器 ====================
+
+    async def send_typing(self, chat_id: str) -> None:
+        """发送"思考中..."占位卡片（首次调用时发送，后续调用跳过）。
+
+        Gateway 的 _keep_typing 每 4 秒调用一次，仅第一次生成卡片。
+        """
+        if chat_id in self._thinking_cards:
+            return
+        if not self._client:
+            return
+        reply_to = self._last_user_msg.pop(chat_id, None)
+        card_msg_id = await self._send_thinking_card(chat_id, reply_to=reply_to)
+        if card_msg_id:
+            self._thinking_cards[chat_id] = card_msg_id
+
+    async def _send_thinking_card(
+        self, chat_id: str, reply_to: str | None = None,
+    ) -> str | None:
+        """发送"思考中..."交互卡片，返回卡片 message_id。"""
+        card = {
+            "config": {"wide_screen_mode": True},
+            "elements": [
+                {"tag": "markdown", "content": "💭 **思考中...**"},
+            ],
+        }
+        content = json.dumps(card)
+        try:
+            if reply_to:
+                request = (
+                    lark_oapi.api.im.v1.ReplyMessageRequest.builder()
+                    .message_id(reply_to)
+                    .request_body(
+                        lark_oapi.api.im.v1.ReplyMessageRequestBody.builder()
+                        .msg_type("interactive")
+                        .content(content)
+                        .build()
+                    )
+                    .build()
+                )
+                response = await asyncio.get_running_loop().run_in_executor(
+                    None, lambda: self._client.im.v1.message.reply(request)
+                )
+            else:
+                request = (
+                    lark_oapi.api.im.v1.CreateMessageRequest.builder()
+                    .receive_id_type("chat_id")
+                    .request_body(
+                        lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
+                        .receive_id(chat_id)
+                        .msg_type("interactive")
+                        .content(content)
+                        .build()
+                    )
+                    .build()
+                )
+                response = await asyncio.get_running_loop().run_in_executor(
+                    None, lambda: self._client.im.v1.message.create(request)
+                )
+            if response.success():
+                logger.debug(f"Feishu: thinking card sent to {chat_id}")
+                return response.data.message_id
+            logger.debug(f"Feishu: thinking card failed: {response.msg}")
+        except Exception as e:
+            logger.debug(f"Feishu: _send_thinking_card error: {e}")
+        return None
+
+    async def _patch_card_content(self, message_id: str, new_content: str) -> bool:
+        """通过 PATCH API 将占位卡片更新为最终回复内容。"""
+        card = {
+            "config": {"wide_screen_mode": True},
+            "elements": [
+                {"tag": "markdown", "content": new_content},
+            ],
+        }
+        request = (
+            lark_oapi.api.im.v1.PatchMessageRequest.builder()
+            .message_id(message_id)
+            .request_body(
+                lark_oapi.api.im.v1.PatchMessageRequestBody.builder()
+                .content(json.dumps(card))
+                .build()
+            )
+            .build()
+        )
+        response = await asyncio.get_running_loop().run_in_executor(
+            None, lambda: self._client.im.v1.message.patch(request)
+        )
+        if response.success():
+            logger.debug(f"Feishu: thinking card patched: {message_id}")
+            return True
+        logger.warning(
+            f"Feishu: patch card failed ({message_id}): {response.msg}"
+        )
+        return False
+
+    async def _delete_feishu_message(self, message_id: str) -> None:
+        """删除飞书消息（PATCH 失败时的降级方案，静默忽略错误）。"""
+        try:
+            request = (
+                lark_oapi.api.im.v1.DeleteMessageRequest.builder()
+                .message_id(message_id)
+                .build()
+            )
+            await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.delete(request)
+            )
+        except Exception as e:
+            logger.debug(f"Feishu: delete message failed (non-critical): {e}")
+
+    _STALE_MESSAGE_THRESHOLD = 120  # 超过此秒数的重投递消息视为陈旧
+
+    async def _handle_message_async(self, msg_dict: dict, sender_dict: dict) -> None:
+        """异步处理消息（含去重 + 陈旧消息防护 + 已读回执）"""
+        try:
+            msg_id = msg_dict.get("message_id")
+
+            # 消息去重（WebSocket 重连可能重复投递）
+            if msg_id:
+                if msg_id in self._seen_message_ids:
+                    logger.debug(f"Feishu: duplicate message ignored: {msg_id}")
+                    return
+                self._seen_message_ids[msg_id] = None
+                while len(self._seen_message_ids) > self._seen_message_ids_max:
+                    self._seen_message_ids.popitem(last=False)
+
+            # 陈旧消息防护：系统重启后去重字典为空，飞书 WebSocket 可能
+            # 重新投递断连前未确认的旧消息。通过 create_time 检测并丢弃。
+            create_time_ms = msg_dict.get("create_time")
+            if create_time_ms:
+                try:
+                    age = time.time() - int(create_time_ms) / 1000
+                    if age > self._STALE_MESSAGE_THRESHOLD:
+                        logger.warning(
+                            f"Feishu[{self.channel_name}]: stale message dropped "
+                            f"(age={age:.0f}s > {self._STALE_MESSAGE_THRESHOLD}s): "
+                            f"{msg_id}"
+                        )
+                        return
+                except (ValueError, TypeError):
+                    pass
+
+            # 发送已读回执（表情回复，fire-and-forget）
+            if msg_id:
+                asyncio.create_task(self.add_reaction(msg_id))
+
+            # 记录最近用户消息 ID，供 send_typing 回复定位
+            chat_id = msg_dict.get("chat_id")
+            if chat_id and msg_id:
+                self._last_user_msg[chat_id] = msg_id
+
             unified = await self._convert_message(msg_dict, sender_dict)
             self._log_message(unified)
             await self._emit_message(unified)
@@ -429,10 +816,35 @@ class FeishuAdapter(ChannelAdapter):
         return {"success": True}
 
     async def _handle_message_event(self, event: dict) -> None:
-        """处理消息事件（Webhook 模式）"""
+        """处理消息事件（Webhook 模式，含去重 + 陈旧消息防护 + 已读回执）"""
         try:
             message = event.get("message", {})
             sender = event.get("sender", {})
+
+            msg_id = message.get("message_id")
+            if msg_id:
+                if msg_id in self._seen_message_ids:
+                    logger.debug(f"Feishu: duplicate message ignored: {msg_id}")
+                    return
+                self._seen_message_ids[msg_id] = None
+                while len(self._seen_message_ids) > self._seen_message_ids_max:
+                    self._seen_message_ids.popitem(last=False)
+
+            create_time_ms = message.get("create_time")
+            if create_time_ms:
+                try:
+                    age = time.time() - int(create_time_ms) / 1000
+                    if age > self._STALE_MESSAGE_THRESHOLD:
+                        logger.warning(
+                            f"Feishu[{self.channel_name}]: stale message dropped "
+                            f"(age={age:.0f}s): {msg_id}"
+                        )
+                        return
+                except (ValueError, TypeError):
+                    pass
+
+            if msg_id:
+                asyncio.create_task(self.add_reaction(msg_id))
 
             unified = await self._convert_message(message, sender)
             self._log_message(unified)
@@ -540,7 +952,62 @@ class FeishuAdapter(ChannelAdapter):
                         is_mentioned = True
                         break
             else:
-                is_mentioned = bool(mentions)
+                # _bot_open_id 缺失时的降级检测：
+                # 收集排除发送者后的候选 mention
+                sender_open_id = sender.get("sender_id", {}).get("open_id", "")
+                candidates = []
+                for m in mentions:
+                    m_id = m.get("id", {}) if isinstance(m, dict) else {}
+                    m_open_id = m_id.get("open_id", "")
+                    if m_open_id and m_open_id != sender_open_id:
+                        candidates.append(m_open_id)
+                if len(candidates) == 1:
+                    # 仅一个非发送者 mention → 高概率就是 bot，安全缓存
+                    is_mentioned = True
+                    self._bot_open_id = candidates[0]
+                    logger.info(
+                        f"Feishu: auto-discovered bot open_id from mention: {candidates[0]}"
+                    )
+                elif candidates:
+                    # 多个非发送者 mention → 响应但不缓存，避免误存
+                    is_mentioned = True
+                    logger.info(
+                        f"Feishu: multiple non-sender mentions ({len(candidates)}), "
+                        "responding without caching bot_open_id"
+                    )
+                else:
+                    logger.warning(
+                        "Feishu: _bot_open_id is None, mention detection fallback inconclusive"
+                    )
+
+        # 清理 @_user_N 占位符：替换为实际名称或移除
+        if content.text and mentions:
+            for m in mentions:
+                key = m.get("key", "") if isinstance(m, dict) else ""
+                name = m.get("name", "") if isinstance(m, dict) else ""
+                if key and key in content.text:
+                    content.text = content.text.replace(key, f"@{name}" if name else "")
+            content.text = content.text.strip()
+
+        # 检测 @所有人 -- 双重检测策略（key == "@_all" 或 key 存在但 open_id 为空）
+        metadata: dict[str, Any] = {}
+        if mentions:
+            for m in mentions:
+                m_dict = m if isinstance(m, dict) else {}
+                key = m_dict.get("key", "")
+                m_id = m_dict.get("id", {})
+                open_id = m_id.get("open_id", "") if isinstance(m_id, dict) else ""
+                if key == "@_all" or (key and not open_id):
+                    chat_id = message.get("chat_id", "")
+                    metadata["at_all"] = True
+                    logger.info(f"Feishu: detected @all mention in chat {chat_id}: {m_dict}")
+                    self._buffer_event(chat_id, {
+                        "type": "at_all",
+                        "chat_id": chat_id,
+                        "message_id": message.get("message_id", ""),
+                        "text": (content.text or "")[:200],
+                    })
+                    break
 
         sender_id = sender.get("sender_id", {})
         user_id = sender_id.get("user_id") or sender_id.get("open_id", "")
@@ -555,26 +1022,59 @@ class FeishuAdapter(ChannelAdapter):
             chat_type=chat_type,
             is_mentioned=is_mentioned,
             is_direct_message=is_direct_message,
+            thread_id=message.get("root_id"),
             reply_to=message.get("root_id"),
             raw={"message": message, "sender": sender},
+            metadata=metadata,
         )
 
     def _parse_post_content(self, post: dict) -> str:
-        """解析富文本内容"""
+        """解析富文本内容
+
+        飞书 post 消息的 content JSON 格式为：
+        {"post": {"zh_cn": {"title": "...", "content": [[...]]}}}
+        需要先提取语言层再解析具体内容。
+        """
+        body = post
+        if "post" in post:
+            lang_map = post["post"]
+            body = lang_map.get("zh_cn") or lang_map.get("en_us") or {}
+            if not body and lang_map:
+                body = next(iter(lang_map.values()), {})
+        elif "title" not in post and "content" not in post:
+            for v in post.values():
+                if isinstance(v, dict) and ("title" in v or "content" in v):
+                    body = v
+                    break
+
+        if not isinstance(body, dict):
+            return str(body) if body else ""
+
         result = []
 
-        title = post.get("title", "")
+        title = body.get("title", "")
         if title:
             result.append(title)
 
-        for content in post.get("content", []):
-            for item in content:
-                if item.get("tag") == "text":
-                    result.append(item.get("text", ""))
-                elif item.get("tag") == "a":
-                    result.append(f"[{item.get('text', '')}]({item.get('href', '')})")
-                elif item.get("tag") == "at":
-                    result.append(f"@{item.get('user_name', '')}")
+        for paragraph in body.get("content", []):
+            line_parts = []
+            for item in paragraph:
+                tag = item.get("tag", "")
+                if tag == "text":
+                    line_parts.append(item.get("text", ""))
+                elif tag == "a":
+                    line_parts.append(f"[{item.get('text', '')}]({item.get('href', '')})")
+                elif tag == "at":
+                    line_parts.append(f"@{item.get('user_name', item.get('user_id', ''))}")
+                elif tag == "img":
+                    image_key = item.get("image_key", "")
+                    line_parts.append(f"[图片:{image_key}]" if image_key else "[图片]")
+                elif tag == "media":
+                    line_parts.append(f"[视频:{item.get('file_key', '')}]")
+                elif tag == "emotion":
+                    line_parts.append(item.get("emoji_type", ""))
+            if line_parts:
+                result.append("".join(line_parts))
 
         return "\n".join(result)
 
@@ -583,7 +1083,40 @@ class FeishuAdapter(ChannelAdapter):
         if not self._client:
             raise RuntimeError("Feishu client not started")
 
+        # ---- 思考卡片处理：尝试 PATCH 占位卡片为最终回复 ----
+        thinking_card_id = self._thinking_cards.pop(message.chat_id, None)
+        if thinking_card_id:
+            text = message.content.text or ""
+            if text and not message.content.has_media:
+                try:
+                    if await self._patch_card_content(thinking_card_id, text):
+                        return thinking_card_id
+                except Exception as e:
+                    logger.warning(f"Feishu: patch thinking card failed: {e}")
+            with contextlib.suppress(Exception):
+                await self._delete_feishu_message(thinking_card_id)
+
+        reply_target = message.reply_to or message.thread_id
+
+        # 语音/文件/视频：委托给专用方法，避免 fallthrough 到空文本
+        if message.content.voices and message.content.voices[0].local_path:
+            return await self.send_voice(
+                message.chat_id, message.content.voices[0].local_path,
+                message.content.text, reply_to=reply_target,
+            )
+        if message.content.files and message.content.files[0].local_path:
+            return await self.send_file(
+                message.chat_id, message.content.files[0].local_path,
+                message.content.text, reply_to=reply_target,
+            )
+        if message.content.videos and message.content.videos[0].local_path:
+            return await self.send_file(
+                message.chat_id, message.content.videos[0].local_path,
+                message.content.text, reply_to=reply_target,
+            )
+
         # 构建消息内容
+        _pending_caption = None
         if message.content.text and not message.content.has_media:
             text = message.content.text
             # 检测是否包含 markdown 格式
@@ -609,14 +1142,39 @@ class FeishuAdapter(ChannelAdapter):
                 image_key = await self._upload_image(image.local_path)
                 msg_type = "image"
                 content = json.dumps({"image_key": image_key})
+                _pending_caption = message.content.text or None
             else:
                 msg_type = "text"
                 content = json.dumps({"text": message.content.text or "[图片]"})
+                _pending_caption = None
         else:
             msg_type = "text"
             content = json.dumps({"text": message.content.text or ""})
+            _pending_caption = None
 
-        # 发送消息（在线程池中执行同步调用）
+        # 话题回复：有 reply_to 或 thread_id 时使用 ReplyMessageRequest 回到同一话题
+        if reply_target:
+            request = (
+                lark_oapi.api.im.v1.ReplyMessageRequest.builder()
+                .message_id(reply_target)
+                .request_body(
+                    lark_oapi.api.im.v1.ReplyMessageRequestBody.builder()
+                    .msg_type(msg_type)
+                    .content(content)
+                    .build()
+                )
+                .build()
+            )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.reply(request)
+            )
+            if not response.success():
+                raise RuntimeError(f"Failed to reply message: {response.msg}")
+            if _pending_caption:
+                await self._send_text(message.chat_id, _pending_caption, reply_to=reply_target)
+            return response.data.message_id
+
+        # 普通发送（在线程池中执行同步调用）
         request = (
             lark_oapi.api.im.v1.CreateMessageRequest.builder()
             .receive_id_type("chat_id")
@@ -630,14 +1188,138 @@ class FeishuAdapter(ChannelAdapter):
             .build()
         )
 
-        response = await asyncio.get_event_loop().run_in_executor(
+        response = await asyncio.get_running_loop().run_in_executor(
             None, lambda: self._client.im.v1.message.create(request)
         )
 
         if not response.success():
             raise RuntimeError(f"Failed to send message: {response.msg}")
 
+        if _pending_caption:
+            await self._send_text(message.chat_id, _pending_caption, reply_to=reply_target)
+
         return response.data.message_id
+
+    # ==================== IM 查询工具方法 ====================
+
+    async def get_chat_info(self, chat_id: str) -> dict | None:
+        """获取群聊信息（群名、成员数、群主等）"""
+        if not self._client:
+            return None
+        try:
+            import lark_oapi.api.im.v1 as im_v1
+            req = im_v1.GetChatRequest.builder().chat_id(chat_id).build()
+            resp = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.chat.get(req)
+            )
+            if not resp.success():
+                logger.debug(f"Feishu get_chat_info failed: {resp.msg}")
+                return None
+            chat = resp.data.chat
+            return {
+                "id": chat_id,
+                "name": getattr(chat, "name", ""),
+                "type": "group",
+                "description": getattr(chat, "description", ""),
+                "owner_id": getattr(chat, "owner_id", ""),
+                "members_count": getattr(chat, "user_count", 0),
+            }
+        except Exception as e:
+            logger.debug(f"Feishu get_chat_info error: {e}")
+            return None
+
+    async def get_user_info(self, user_id: str) -> dict | None:
+        """获取用户信息（名称、头像等）"""
+        if not self._client:
+            return None
+        try:
+            import lark_oapi.api.contact.v3 as contact_v3
+            req = (
+                contact_v3.GetUserRequest.builder()
+                .user_id(user_id)
+                .user_id_type("open_id")
+                .build()
+            )
+            resp = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.contact.v3.user.get(req)
+            )
+            if not resp.success():
+                logger.debug(f"Feishu get_user_info failed: {resp.msg}")
+                return None
+            user = resp.data.user
+            avatar = getattr(user, "avatar", None)
+            avatar_url = ""
+            if avatar and isinstance(avatar, dict):
+                avatar_url = avatar.get("avatar_origin", "")
+            elif avatar:
+                avatar_url = getattr(avatar, "avatar_origin", "")
+            return {
+                "id": user_id,
+                "name": getattr(user, "name", ""),
+                "avatar_url": avatar_url,
+            }
+        except Exception as e:
+            logger.debug(f"Feishu get_user_info error: {e}")
+            return None
+
+    async def get_chat_members(self, chat_id: str) -> list[dict]:
+        """获取群聊成员列表"""
+        if not self._client:
+            return []
+        try:
+            import lark_oapi.api.im.v1 as im_v1
+            req = (
+                im_v1.GetChatMembersRequest.builder()
+                .chat_id(chat_id)
+                .member_id_type("open_id")
+                .build()
+            )
+            resp = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.chat_members.get(req)
+            )
+            if not resp.success():
+                logger.debug(f"Feishu get_chat_members failed: {resp.msg}")
+                return []
+            return [
+                {"id": getattr(m, "member_id", ""), "name": getattr(m, "name", "")}
+                for m in (resp.data.items or [])
+            ]
+        except Exception as e:
+            logger.debug(f"Feishu get_chat_members error: {e}")
+            return []
+
+    async def get_recent_messages(self, chat_id: str, limit: int = 20) -> list[dict]:
+        """获取群聊最近消息（话题分层策略第二层）"""
+        if not self._client:
+            return []
+        try:
+            import lark_oapi.api.im.v1 as im_v1
+            req = (
+                im_v1.ListMessageRequest.builder()
+                .container_id_type("chat")
+                .container_id(chat_id)
+                .page_size(limit)
+                .build()
+            )
+            resp = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.list(req)
+            )
+            if not resp.success():
+                logger.debug(f"Feishu get_recent_messages failed: {resp.msg}")
+                return []
+            return [
+                {
+                    "id": getattr(m, "message_id", ""),
+                    "sender": getattr(m, "sender", {}),
+                    "content": (lambda b: b.get("content", "") if isinstance(b, dict) else getattr(b, "content", "") if b else "")(getattr(m, "body", None)),
+                    "type": getattr(m, "msg_type", ""),
+                    "time": getattr(m, "create_time", ""),
+                }
+                for m in (resp.data.items or [])
+            ]
+        except Exception as e:
+            logger.debug(f"Feishu get_recent_messages error: {e}")
+            return []
 
     def _contains_markdown(self, text: str) -> bool:
         """检测文本是否包含 markdown 格式"""
@@ -673,7 +1355,7 @@ class FeishuAdapter(ChannelAdapter):
                 .build()
             )
 
-            response = await asyncio.get_event_loop().run_in_executor(
+            response = await asyncio.get_running_loop().run_in_executor(
                 None, lambda: self._client.im.v1.image.create(request)
             )
 
@@ -699,7 +1381,7 @@ class FeishuAdapter(ChannelAdapter):
             # 仅用于下载机器人自己上传的图片（无 message_id）
             request = lark_oapi.api.im.v1.GetImageRequest.builder().image_key(media.file_id).build()
 
-            response = await asyncio.get_event_loop().run_in_executor(
+            response = await asyncio.get_running_loop().run_in_executor(
                 None, lambda: self._client.im.v1.image.get(request)
             )
         else:
@@ -713,7 +1395,7 @@ class FeishuAdapter(ChannelAdapter):
                 .build()
             )
 
-            response = await asyncio.get_event_loop().run_in_executor(
+            response = await asyncio.get_running_loop().run_in_executor(
                 None, lambda: self._client.im.v1.message_resource.get(request)
             )
 
@@ -748,13 +1430,16 @@ class FeishuAdapter(ChannelAdapter):
             mime_type=mime_type,
         )
 
-    async def send_card(self, chat_id: str, card: dict) -> str:
+    async def send_card(
+        self, chat_id: str, card: dict, *, reply_to: str | None = None,
+    ) -> str:
         """
         发送卡片消息
 
         Args:
             chat_id: 聊天 ID
             card: 卡片内容（飞书卡片 JSON）
+            reply_to: 回复目标消息 ID（用于话题内回复）
 
         Returns:
             消息 ID
@@ -762,22 +1447,39 @@ class FeishuAdapter(ChannelAdapter):
         if not self._client:
             raise RuntimeError("Feishu client not started")
 
-        request = (
-            lark_oapi.api.im.v1.CreateMessageRequest.builder()
-            .receive_id_type("chat_id")
-            .request_body(
-                lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
-                .receive_id(chat_id)
-                .msg_type("interactive")
-                .content(json.dumps(card))
+        content = json.dumps(card)
+
+        if reply_to:
+            request = (
+                lark_oapi.api.im.v1.ReplyMessageRequest.builder()
+                .message_id(reply_to)
+                .request_body(
+                    lark_oapi.api.im.v1.ReplyMessageRequestBody.builder()
+                    .msg_type("interactive")
+                    .content(content)
+                    .build()
+                )
                 .build()
             )
-            .build()
-        )
-
-        response = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: self._client.im.v1.message.create(request)
-        )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.reply(request)
+            )
+        else:
+            request = (
+                lark_oapi.api.im.v1.CreateMessageRequest.builder()
+                .receive_id_type("chat_id")
+                .request_body(
+                    lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
+                    .receive_id(chat_id)
+                    .msg_type("interactive")
+                    .content(content)
+                    .build()
+                )
+                .build()
+            )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.create(request)
+            )
 
         if not response.success():
             raise RuntimeError(f"Failed to send card: {response.msg}")
@@ -813,7 +1515,7 @@ class FeishuAdapter(ChannelAdapter):
             .build()
         )
 
-        response = await asyncio.get_event_loop().run_in_executor(
+        response = await asyncio.get_running_loop().run_in_executor(
             None, lambda: self._client.im.v1.message.reply(request)
         )
 
@@ -822,7 +1524,10 @@ class FeishuAdapter(ChannelAdapter):
 
         return response.data.message_id
 
-    async def send_photo(self, chat_id: str, photo_path: str, caption: str = "") -> str:
+    async def send_photo(
+        self, chat_id: str, photo_path: str, caption: str | None = None,
+        *, reply_to: str | None = None,
+    ) -> str:
         """
         发送图片
 
@@ -830,6 +1535,7 @@ class FeishuAdapter(ChannelAdapter):
             chat_id: 聊天 ID
             photo_path: 图片文件路径
             caption: 图片说明文字
+            reply_to: 回复目标消息 ID（用于话题内回复）
 
         Returns:
             消息 ID
@@ -837,40 +1543,56 @@ class FeishuAdapter(ChannelAdapter):
         if not self._client:
             raise RuntimeError("Feishu client not started")
 
-        # 上传图片获取 image_key
         image_key = await self._upload_image(photo_path)
+        content = json.dumps({"image_key": image_key})
 
-        # 发送图片消息
-        request = (
-            lark_oapi.api.im.v1.CreateMessageRequest.builder()
-            .receive_id_type("chat_id")
-            .request_body(
-                lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
-                .receive_id(chat_id)
-                .msg_type("image")
-                .content(json.dumps({"image_key": image_key}))
+        if reply_to:
+            request = (
+                lark_oapi.api.im.v1.ReplyMessageRequest.builder()
+                .message_id(reply_to)
+                .request_body(
+                    lark_oapi.api.im.v1.ReplyMessageRequestBody.builder()
+                    .msg_type("image")
+                    .content(content)
+                    .build()
+                )
                 .build()
             )
-            .build()
-        )
-
-        response = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: self._client.im.v1.message.create(request)
-        )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.reply(request)
+            )
+        else:
+            request = (
+                lark_oapi.api.im.v1.CreateMessageRequest.builder()
+                .receive_id_type("chat_id")
+                .request_body(
+                    lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
+                    .receive_id(chat_id)
+                    .msg_type("image")
+                    .content(content)
+                    .build()
+                )
+                .build()
+            )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.create(request)
+            )
 
         if not response.success():
             raise RuntimeError(f"Failed to send photo: {response.msg}")
 
         message_id = response.data.message_id
 
-        # 如果有说明文字，追加发送文本消息
         if caption:
-            await self._send_text(chat_id, caption)
+            await self._send_text(chat_id, caption, reply_to=reply_to)
 
         logger.info(f"Sent photo to {chat_id}: {photo_path}")
         return message_id
 
-    async def send_file(self, chat_id: str, file_path: str, caption: str = "") -> str:
+    async def send_file(
+        self, chat_id: str, file_path: str, caption: str | None = None,
+        *, reply_to: str | None = None,
+    ) -> str:
         """
         发送文件
 
@@ -878,6 +1600,7 @@ class FeishuAdapter(ChannelAdapter):
             chat_id: 聊天 ID
             file_path: 文件路径
             caption: 文件说明文字
+            reply_to: 回复目标消息 ID（用于话题内回复）
 
         Returns:
             消息 ID
@@ -885,50 +1608,64 @@ class FeishuAdapter(ChannelAdapter):
         if not self._client:
             raise RuntimeError("Feishu client not started")
 
-        # 上传文件获取 file_key
         file_key = await self._upload_file(file_path)
+        content = json.dumps({"file_key": file_key})
 
-        # 发送文件消息
-        request = (
-            lark_oapi.api.im.v1.CreateMessageRequest.builder()
-            .receive_id_type("chat_id")
-            .request_body(
-                lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
-                .receive_id(chat_id)
-                .msg_type("file")
-                .content(json.dumps({"file_key": file_key}))
+        if reply_to:
+            request = (
+                lark_oapi.api.im.v1.ReplyMessageRequest.builder()
+                .message_id(reply_to)
+                .request_body(
+                    lark_oapi.api.im.v1.ReplyMessageRequestBody.builder()
+                    .msg_type("file")
+                    .content(content)
+                    .build()
+                )
                 .build()
             )
-            .build()
-        )
-
-        response = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: self._client.im.v1.message.create(request)
-        )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.reply(request)
+            )
+        else:
+            request = (
+                lark_oapi.api.im.v1.CreateMessageRequest.builder()
+                .receive_id_type("chat_id")
+                .request_body(
+                    lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
+                    .receive_id(chat_id)
+                    .msg_type("file")
+                    .content(content)
+                    .build()
+                )
+                .build()
+            )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.create(request)
+            )
 
         if not response.success():
             raise RuntimeError(f"Failed to send file: {response.msg}")
 
         message_id = response.data.message_id
 
-        # 如果有说明文字，追加发送文本消息
         if caption:
-            await self._send_text(chat_id, caption)
+            await self._send_text(chat_id, caption, reply_to=reply_to)
 
         logger.info(f"Sent file to {chat_id}: {file_path}")
         return message_id
 
-    async def send_voice(self, chat_id: str, voice_path: str, caption: str | None = None) -> str:
+    async def send_voice(
+        self, chat_id: str, voice_path: str, caption: str | None = None,
+        *, reply_to: str | None = None,
+    ) -> str:
         """
         发送语音消息
-
-        上传音频文件获取 file_key，然后发送 audio 类型消息。
-        飞书 Create Message API 支持 msg_type="audio"。
 
         Args:
             chat_id: 聊天 ID
             voice_path: 语音文件路径
             caption: 语音说明文字
+            reply_to: 回复目标消息 ID（用于话题内回复）
 
         Returns:
             消息 ID
@@ -936,57 +1673,89 @@ class FeishuAdapter(ChannelAdapter):
         if not self._client:
             raise RuntimeError("Feishu client not started")
 
-        # 上传音频文件获取 file_key
         file_key = await self._upload_file(voice_path)
+        content = json.dumps({"file_key": file_key})
 
-        # 发送 audio 消息
-        request = (
-            lark_oapi.api.im.v1.CreateMessageRequest.builder()
-            .receive_id_type("chat_id")
-            .request_body(
-                lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
-                .receive_id(chat_id)
-                .msg_type("audio")
-                .content(json.dumps({"file_key": file_key}))
+        if reply_to:
+            request = (
+                lark_oapi.api.im.v1.ReplyMessageRequest.builder()
+                .message_id(reply_to)
+                .request_body(
+                    lark_oapi.api.im.v1.ReplyMessageRequestBody.builder()
+                    .msg_type("audio")
+                    .content(content)
+                    .build()
+                )
                 .build()
             )
-            .build()
-        )
-
-        response = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: self._client.im.v1.message.create(request)
-        )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.reply(request)
+            )
+        else:
+            request = (
+                lark_oapi.api.im.v1.CreateMessageRequest.builder()
+                .receive_id_type("chat_id")
+                .request_body(
+                    lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
+                    .receive_id(chat_id)
+                    .msg_type("audio")
+                    .content(content)
+                    .build()
+                )
+                .build()
+            )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.create(request)
+            )
 
         if not response.success():
             raise RuntimeError(f"Failed to send voice: {response.msg}")
 
         message_id = response.data.message_id
 
-        # 如果有说明文字，追加发送文本消息
         if caption:
-            await self._send_text(chat_id, caption)
+            await self._send_text(chat_id, caption, reply_to=reply_to)
 
         logger.info(f"Sent voice to {chat_id}: {voice_path}")
         return message_id
 
-    async def _send_text(self, chat_id: str, text: str) -> str:
+    async def _send_text(
+        self, chat_id: str, text: str, *, reply_to: str | None = None,
+    ) -> str:
         """发送纯文本消息"""
-        request = (
-            lark_oapi.api.im.v1.CreateMessageRequest.builder()
-            .receive_id_type("chat_id")
-            .request_body(
-                lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
-                .receive_id(chat_id)
-                .msg_type("text")
-                .content(json.dumps({"text": text}))
+        content = json.dumps({"text": text})
+
+        if reply_to:
+            request = (
+                lark_oapi.api.im.v1.ReplyMessageRequest.builder()
+                .message_id(reply_to)
+                .request_body(
+                    lark_oapi.api.im.v1.ReplyMessageRequestBody.builder()
+                    .msg_type("text")
+                    .content(content)
+                    .build()
+                )
                 .build()
             )
-            .build()
-        )
-
-        response = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: self._client.im.v1.message.create(request)
-        )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.reply(request)
+            )
+        else:
+            request = (
+                lark_oapi.api.im.v1.CreateMessageRequest.builder()
+                .receive_id_type("chat_id")
+                .request_body(
+                    lark_oapi.api.im.v1.CreateMessageRequestBody.builder()
+                    .receive_id(chat_id)
+                    .msg_type("text")
+                    .content(content)
+                    .build()
+                )
+                .build()
+            )
+            response = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: self._client.im.v1.message.create(request)
+            )
 
         if not response.success():
             raise RuntimeError(f"Failed to send text: {response.msg}")
@@ -1010,7 +1779,7 @@ class FeishuAdapter(ChannelAdapter):
                 .build()
             )
 
-            response = await asyncio.get_event_loop().run_in_executor(
+            response = await asyncio.get_running_loop().run_in_executor(
                 None, lambda: self._client.im.v1.file.create(request)
             )
 

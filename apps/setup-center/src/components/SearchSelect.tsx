@@ -19,6 +19,7 @@ export function SearchSelect({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const justSelected = useRef(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasOptions = options.length > 0;
 
   const displayValue = hasOptions ? (search || value) : value;
@@ -51,7 +52,8 @@ export function SearchSelect({
           placeholder={placeholder}
           onFocus={() => { if (hasOptions) setOpen(true); }}
           onBlur={() => {
-            setTimeout(() => {
+            blurTimer.current = setTimeout(() => {
+              blurTimer.current = null;
               setOpen(false);
               if (justSelected.current) {
                 justSelected.current = false;
@@ -129,6 +131,7 @@ export function SearchSelect({
             type="button"
             className="btnSmall"
             onClick={() => {
+              if (blurTimer.current) { clearTimeout(blurTimer.current); blurTimer.current = null; }
               if (!open) { setSearch(""); }
               setOpen((v) => !v);
               inputRef.current?.focus();

@@ -8,6 +8,7 @@ import type { SkillInfo, SkillConfigField, MarketplaceSkill, EnvMap } from "../t
 import { envGet, envSet } from "../utils";
 import { IconGear, IconZap, IconPackage, IconStar, IconCheck, IconX, IconDownload, IconSearch, IconConfig, IconFolderOpen, IconEdit } from "../icons";
 import { safeFetch } from "../providers";
+import { ModalOverlay } from "../components/ModalOverlay";
 
 // ─── i18n 辅助：按当前语言优先显示中文名/描述 ───
 
@@ -289,11 +290,10 @@ function SkillDetailModal({
   }, [onClose, savingContent]);
 
   return (
-    <div className="modalOverlay" onClick={savingContent ? undefined : onClose}>
+    <ModalOverlay onClose={savingContent ? () => {} : onClose}>
       <div
         className="modalContent"
         style={{ maxWidth: 720, width: "90vw", maxHeight: "85vh", display: "flex", flexDirection: "column", padding: 0 }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div style={{ padding: "18px 24px 14px", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
@@ -425,7 +425,7 @@ function SkillDetailModal({
           )}
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 

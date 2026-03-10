@@ -54,7 +54,7 @@ from .routes import (
 logger = logging.getLogger(__name__)
 
 API_HOST = os.environ.get("API_HOST", "127.0.0.1")
-API_PORT = 18900
+API_PORT = int(os.environ.get("API_PORT", "18900"))
 
 
 def is_port_free(host: str, port: int) -> bool:

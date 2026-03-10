@@ -168,6 +168,7 @@ class SessionManager:
         channel: str,
         chat_id: str,
         user_id: str,
+        thread_id: str | None = None,
         create_if_missing: bool = True,
         config: SessionConfig | None = None,
     ) -> Session | None:
@@ -178,6 +179,7 @@ class SessionManager:
             channel: 来源通道
             chat_id: 聊天 ID
             user_id: 用户 ID
+            thread_id: 话题/线程 ID（可选，用于话题级隔离）
             create_if_missing: 如果不存在是否创建
             config: 会话配置（创建时使用）
 
@@ -185,6 +187,8 @@ class SessionManager:
             Session 或 None
         """
         session_key = f"{channel}:{chat_id}:{user_id}"
+        if thread_id:
+            session_key += f":{thread_id}"
 
         with self._sessions_lock:
             # 检查缓存
@@ -195,7 +199,7 @@ class SessionManager:
 
             # 创建新会话
             if create_if_missing:
-                session = self._create_session(channel, chat_id, user_id, config)
+                session = self._create_session(channel, chat_id, user_id, thread_id, config)
                 self._sessions[session_key] = session
                 logger.info(f"Created new session: {session_key}")
                 return session
@@ -215,6 +219,7 @@ class SessionManager:
         channel: str,
         chat_id: str,
         user_id: str,
+        thread_id: str | None = None,
         config: SessionConfig | None = None,
     ) -> Session:
         """创建新会话"""
@@ -227,6 +232,7 @@ class SessionManager:
             channel=channel,
             chat_id=chat_id,
             user_id=user_id,
+            thread_id=thread_id,
             config=session_config,
         )
 

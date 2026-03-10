@@ -8,6 +8,7 @@ import {
   DotGreen, DotGray,
 } from "../icons";
 import { safeFetch } from "../providers";
+import { ModalOverlay } from "../components/ModalOverlay";
 import { logger } from "../platform";
 import { IS_WEB, onWsEvent } from "../platform";
 
@@ -68,16 +69,19 @@ type AgentProfile = {
 
 const DEFAULT_API = "http://127.0.0.1:18900";
 
-const BOT_TYPES = ["feishu", "telegram", "dingtalk", "wework", "onebot", "qqbot"] as const;
+const BOT_TYPES = ["feishu", "telegram", "dingtalk", "wework", "wework_ws", "onebot", "qqbot"] as const;
 
 const BOT_TYPE_LABELS: Record<string, string> = {
   feishu: "飞书",
   telegram: "Telegram",
   dingtalk: "钉钉",
-  wework: "企业微信",
+  wework: "企业微信(HTTP)",
+  wework_ws: "企业微信(WS)",
   onebot: "OneBot (QQ)",
   qqbot: "QQ 官方机器人",
 };
+
+const WEWORK_TYPES = new Set(["wework", "wework_ws"]);
 
 const CREDENTIAL_FIELDS: Record<string, { key: string; label: string; secret?: boolean }[]> = {
   feishu: [
@@ -98,6 +102,10 @@ const CREDENTIAL_FIELDS: Record<string, { key: string; label: string; secret?: b
     { key: "encoding_aes_key", label: "Encoding AES Key", secret: true },
     { key: "callback_port", label: "Callback Port" },
     { key: "callback_host", label: "Callback Host" },
+  ],
+  wework_ws: [
+    { key: "bot_id", label: "Bot ID" },
+    { key: "secret", label: "Secret", secret: true },
   ],
   onebot: [
     { key: "ws_url", label: "WebSocket URL" },
@@ -539,6 +547,7 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
             credentials: editingBot.credentials,
           }
         : {
+            type: editingBot.type,
             name: editingBot.name,
             agent_profile_id: editingBot.agent_profile_id,
             enabled: editingBot.enabled,
@@ -747,15 +756,15 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
 
       {/* Delete confirmation overlay */}
       {confirmDeleteId && (
-        <div style={{
+        <ModalOverlay onClose={() => setConfirmDeleteId(null)} className="" style={{
           position: "fixed", inset: 0, zIndex: 9000,
           background: "rgba(0,0,0,0.35)", display: "flex",
           alignItems: "center", justifyContent: "center",
-        }} onClick={() => setConfirmDeleteId(null)}>
+        }}>
           <div style={{
             background: "var(--panel)", borderRadius: 12, padding: 24,
             minWidth: 320, boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
-          }} onClick={(e) => e.stopPropagation()}>
+          }}>
             <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("im.botConfirmDelete")}</div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
@@ -779,15 +788,20 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Slide-in Editor Panel */}
       {editorOpen && (
+        <ModalOverlay onClose={closeEditor} className="" style={{
+          position: "fixed", inset: 0, zIndex: 7999,
+          background: "rgba(15, 23, 42, 0.45)", backdropFilter: "blur(4px)",
+          display: "flex", justifyContent: "flex-end",
+        }}>
         <div style={{
-          position: "fixed", top: 0, right: 0, bottom: 0, width: 420,
+          position: "relative", width: 420, height: "100%",
           background: "var(--panel)", borderLeft: "1px solid var(--line)",
-          boxShadow: "-4px 0 24px rgba(0,0,0,0.12)", zIndex: 8000,
+          boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
           display: "flex", flexDirection: "column",
           animation: "slideInRight 0.2s ease-out",
         }}>
@@ -850,8 +864,11 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
             <label style={{ display: "block", marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{t("im.botType")}</div>
               <select
-                value={editingBot.type}
-                onChange={(e) => setEditingBot((p) => ({ ...p, type: e.target.value, credentials: {} }))}
+                value={WEWORK_TYPES.has(editingBot.type) ? "wework_ws" : editingBot.type}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEditingBot((p) => ({ ...p, type: val, credentials: {} }));
+                }}
                 disabled={!isCreating}
                 style={{
                   width: "100%", padding: "8px 10px", borderRadius: 6,
@@ -859,8 +876,8 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
                   fontSize: 13, boxSizing: "border-box",
                 }}
               >
-                {BOT_TYPES.map((bt) => (
-                  <option key={bt} value={bt}>{BOT_TYPE_LABELS[bt] || bt}</option>
+                {BOT_TYPES.filter((bt) => bt !== "wework").map((bt) => (
+                  <option key={bt} value={bt}>{bt === "wework_ws" ? "企业微信" : (BOT_TYPE_LABELS[bt] || bt)}</option>
                 ))}
               </select>
             </label>
@@ -905,6 +922,39 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
                 }} />
               </div>
             </div>
+
+            {/* WeWork mode selector */}
+            {WEWORK_TYPES.has(editingBot.type) && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{t("config.imWeworkMode")}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                  {(["wework_ws", "wework"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      className={editingBot.type === m ? "capChipActive" : "capChip"}
+                      onClick={() => {
+                        if (editingBot.type !== m) {
+                          setEditingBot((p) => ({ ...p, type: m, credentials: {} }));
+                        }
+                      }}
+                      style={{
+                        padding: "4px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer",
+                        border: editingBot.type === m ? "1px solid var(--accent)" : "1px solid var(--line)",
+                        background: editingBot.type === m ? "var(--accent-bg, rgba(59,130,246,0.1))" : "transparent",
+                        color: editingBot.type === m ? "var(--accent, #3b82f6)" : "inherit",
+                        fontWeight: editingBot.type === m ? 600 : 400,
+                      }}
+                    >
+                      {m === "wework_ws" ? t("config.imWeworkModeWs") : t("config.imWeworkModeHttp")}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                  {editingBot.type === "wework_ws" ? t("config.imWeworkModeWsHint") : t("config.imWeworkModeHttpHint")}
+                </div>
+              </div>
+            )}
 
             {/* Credentials */}
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{t("im.botCredentials")}</div>
@@ -973,6 +1023,7 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
             </button>
           </div>
         </div>
+        </ModalOverlay>
       )}
     </div>
   );

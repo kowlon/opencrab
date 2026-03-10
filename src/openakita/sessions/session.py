@@ -184,6 +184,7 @@ class Session:
     channel: str  # 来源通道
     chat_id: str  # 聊天 ID（群/私聊）
     user_id: str  # 用户 ID
+    thread_id: str | None = None  # 话题/线程 ID（飞书话题等）
 
     # 状态
     state: SessionState = SessionState.ACTIVE
@@ -205,6 +206,7 @@ class Session:
         channel: str,
         chat_id: str,
         user_id: str,
+        thread_id: str | None = None,
         config: SessionConfig | None = None,
     ) -> "Session":
         """创建新会话"""
@@ -216,6 +218,7 @@ class Session:
             channel=channel,
             chat_id=chat_id,
             user_id=user_id,
+            thread_id=thread_id,
             config=config or SessionConfig(),
         )
 
@@ -313,7 +316,10 @@ class Session:
     @property
     def session_key(self) -> str:
         """会话唯一标识"""
-        return f"{self.channel}:{self.chat_id}:{self.user_id}"
+        key = f"{self.channel}:{self.chat_id}:{self.user_id}"
+        if self.thread_id:
+            key += f":{self.thread_id}"
+        return key
 
     def add_message(self, role: str, content: str, **metadata) -> None:
         """添加消息并更新活跃时间"""
@@ -437,6 +443,7 @@ class Session:
             "channel": self.channel,
             "chat_id": self.chat_id,
             "user_id": self.user_id,
+            "thread_id": self.thread_id,
             "state": self.state.value,
             "created_at": self.created_at.isoformat(),
             "last_active": self.last_active.isoformat(),
@@ -471,6 +478,7 @@ class Session:
             channel=data["channel"],
             chat_id=data["chat_id"],
             user_id=data["user_id"],
+            thread_id=data.get("thread_id"),
             state=SessionState(data.get("state", "active")),
             created_at=datetime.fromisoformat(data["created_at"]),
             last_active=datetime.fromisoformat(data["last_active"]),

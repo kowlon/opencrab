@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Valid IM bot types
-VALID_BOT_TYPES = frozenset({"feishu", "telegram", "dingtalk", "wework", "onebot", "qqbot"})
+VALID_BOT_TYPES = frozenset({"feishu", "telegram", "dingtalk", "wework", "wework_ws", "onebot", "qqbot"})
 
 
 # ─── Pydantic models ─────────────────────────────────────────────────────
@@ -26,6 +26,7 @@ class BotCreateRequest(BaseModel):
 
 
 class BotUpdateRequest(BaseModel):
+    type: str | None = None
     name: str | None = None
     agent_profile_id: str | None = None
     enabled: bool | None = None
@@ -118,6 +119,13 @@ async def update_bot(bot_id: str, body: BotUpdateRequest):
         raise HTTPException(status_code=404, detail=f"bot '{bot_id}' not found")
 
     bot = dict(bots[idx])
+    if body.type is not None:
+        if body.type not in VALID_BOT_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"type must be one of: {', '.join(sorted(VALID_BOT_TYPES))}",
+            )
+        bot["type"] = body.type
     if body.name is not None:
         bot["name"] = body.name
     if body.agent_profile_id is not None:

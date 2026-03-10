@@ -69,6 +69,7 @@ import { CliManager } from "./components/CliManager";
 import { WebPasswordManager } from "./components/WebPasswordManager";
 import { FieldText, FieldBool, FieldSelect, FieldCombo, TelegramPairingCodeHint } from "./components/EnvFields";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { ModalOverlay } from "./components/ModalOverlay";
 import { ToastContainer } from "./components/ToastContainer";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
@@ -2925,6 +2926,7 @@ export function App() {
           "FEISHU_ENABLED", "FEISHU_APP_ID", "FEISHU_APP_SECRET",
           "WEWORK_ENABLED", "WEWORK_CORP_ID",
           "WEWORK_TOKEN", "WEWORK_ENCODING_AES_KEY", "WEWORK_CALLBACK_PORT", "WEWORK_CALLBACK_HOST",
+          "WEWORK_MODE", "WEWORK_WS_ENABLED", "WEWORK_WS_BOT_ID", "WEWORK_WS_SECRET",
           "DINGTALK_ENABLED", "DINGTALK_CLIENT_ID", "DINGTALK_CLIENT_SECRET",
           "ONEBOT_ENABLED", "ONEBOT_WS_URL", "ONEBOT_ACCESS_TOKEN",
           "QQBOT_ENABLED", "QQBOT_APP_ID", "QQBOT_APP_SECRET", "QQBOT_SANDBOX", "QQBOT_MODE", "QQBOT_WEBHOOK_PORT", "QQBOT_WEBHOOK_PATH",
@@ -3782,6 +3784,7 @@ export function App() {
       { k: "TELEGRAM_ENABLED", name: "Telegram", required: ["TELEGRAM_BOT_TOKEN"] },
       { k: "FEISHU_ENABLED", name: t("status.feishu"), required: ["FEISHU_APP_ID", "FEISHU_APP_SECRET"] },
       { k: "WEWORK_ENABLED", name: t("status.wework"), required: ["WEWORK_CORP_ID", "WEWORK_TOKEN", "WEWORK_ENCODING_AES_KEY"] },
+      { k: "WEWORK_WS_ENABLED", name: t("status.weworkWs"), required: ["WEWORK_WS_BOT_ID", "WEWORK_WS_SECRET"] },
       { k: "DINGTALK_ENABLED", name: t("status.dingtalk"), required: ["DINGTALK_CLIENT_ID", "DINGTALK_CLIENT_SECRET"] },
       { k: "ONEBOT_ENABLED", name: "OneBot", required: ["ONEBOT_WS_URL"] },
       { k: "QQBOT_ENABLED", name: "QQ 机器人", required: ["QQBOT_APP_ID", "QQBOT_APP_SECRET"] },
@@ -4248,8 +4251,8 @@ export function App() {
 
         {/* ── Add endpoint dialog ── */}
         {addEpDialogOpen && (
-          <div className="modalOverlay" onClick={() => setAddEpDialogOpen(false)}>
-            <div className="modalContent" onClick={(e) => e.stopPropagation()}>
+          <ModalOverlay onClose={() => setAddEpDialogOpen(false)}>
+            <div className="modalContent">
               <div className="dialogHeader">
                 <div className="cardTitle">{isEditingEndpoint ? t("llm.editEndpoint") : t("llm.addEndpoint")}</div>
                 <button className="dialogCloseBtn" onClick={() => { setAddEpDialogOpen(false); resetEndpointEditor(); }}><IconX size={14} /></button>
@@ -4471,13 +4474,13 @@ export function App() {
                 </div>
               </div>
             </div>
-          </div>
+          </ModalOverlay>
         )}
 
         {/* ── Edit endpoint modal (aligned with add dialog) ── */}
         {editModalOpen && editDraft && (
-          <div className="modalOverlay" onClick={() => resetEndpointEditor()}>
-            <div className="modalContent" onClick={(e) => e.stopPropagation()}>
+          <ModalOverlay onClose={() => resetEndpointEditor()}>
+            <div className="modalContent">
               <div className="dialogHeader">
                 <div className="cardTitle">{t("llm.editEndpoint")}: {editDraft.name}</div>
                 <button className="dialogCloseBtn" onClick={() => resetEndpointEditor()}><IconX size={14} /></button>
@@ -4687,13 +4690,13 @@ export function App() {
                 </div>
               </div>
             </div>
-          </div>
+          </ModalOverlay>
         )}
 
         {/* ── Add compiler dialog ── */}
         {addCompDialogOpen && (
-          <div className="modalOverlay" onClick={() => setAddCompDialogOpen(false)}>
-            <div className="modalContent" onClick={(e) => e.stopPropagation()}>
+          <ModalOverlay onClose={() => setAddCompDialogOpen(false)}>
+            <div className="modalContent">
               <div className="dialogHeader">
                 <div className="cardTitle">{t("llm.addCompiler")}</div>
                 <button className="dialogCloseBtn" onClick={() => setAddCompDialogOpen(false)}><IconX size={14} /></button>
@@ -4852,13 +4855,13 @@ export function App() {
                 </div>
               </div>
             </div>
-          </div>
+          </ModalOverlay>
         )}
 
         {/* ── Add STT dialog (aligned with compiler dialog) ── */}
         {addSttDialogOpen && (
-          <div className="modalOverlay" onClick={() => setAddSttDialogOpen(false)}>
-            <div className="modalContent" onClick={(e) => e.stopPropagation()}>
+          <ModalOverlay onClose={() => setAddSttDialogOpen(false)}>
+            <div className="modalContent">
               <div className="dialogHeader">
                 <div className="cardTitle">{t("llm.addStt")}</div>
                 <button className="dialogCloseBtn" onClick={() => { setAddSttDialogOpen(false); setConnTestResult(null); }}><IconX size={14} /></button>
@@ -5010,7 +5013,7 @@ export function App() {
                 </div>
               </div>
             </div>
-          </div>
+          </ModalOverlay>
         )}
       </>
     );
@@ -6065,6 +6068,10 @@ export function App() {
       "WEWORK_ENCODING_AES_KEY",
       "WEWORK_CALLBACK_PORT",
       "WEWORK_CALLBACK_HOST",
+      "WEWORK_MODE",
+      "WEWORK_WS_ENABLED",
+      "WEWORK_WS_BOT_ID",
+      "WEWORK_WS_SECRET",
       "DINGTALK_ENABLED",
       "DINGTALK_CLIENT_ID",
       "DINGTALK_CLIENT_SECRET",
@@ -6195,22 +6202,60 @@ export function App() {
                   </>
                 ),
               },
-              {
-                title: "企业微信（需要 openakita[wework]）",
-                enabledKey: "WEWORK_ENABLED",
-                apply: "https://work.weixin.qq.com/",
-                body: (
-                  <>
-                    <FT k="WEWORK_CORP_ID" label="Corp ID" />
-                    <FT k="WEWORK_TOKEN" label="回调 Token" placeholder="在企业微信后台「接收消息」设置中获取" />
-                    <FT k="WEWORK_ENCODING_AES_KEY" label="EncodingAESKey" placeholder="在企业微信后台「接收消息」设置中获取" type="password" />
-                    <FT k="WEWORK_CALLBACK_PORT" label="回调端口" placeholder="9880" />
-                    <div style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 0 0", lineHeight: 1.6 }}>
-                      💡 企业微信后台「接收消息服务器配置」的 URL 请填：<code style={{ background: "#f5f5f5", padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>http://your-domain:9880/callback</code>
-                    </div>
-                  </>
-                ),
-              },
+              (() => {
+                const wMode = (envDraft["WEWORK_MODE"] || "websocket") as "http" | "websocket";
+                const isWs = wMode === "websocket";
+                return {
+                  title: "企业微信（需要 openakita[wework]）",
+                  enabledKey: isWs ? "WEWORK_WS_ENABLED" : "WEWORK_ENABLED",
+                  apply: "https://work.weixin.qq.com/",
+                  body: (
+                    <>
+                      <div style={{ marginBottom: 8 }}>
+                        <div className="label">{t("config.imWeworkMode")}</div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                          {(["http", "websocket"] as const).map((m) => (
+                            <button key={m} className={wMode === m ? "capChipActive" : "capChip"}
+                              onClick={() => {
+                                const oldKey = isWs ? "WEWORK_WS_ENABLED" : "WEWORK_ENABLED";
+                                const newKey = m === "websocket" ? "WEWORK_WS_ENABLED" : "WEWORK_ENABLED";
+                                setEnvDraft((d) => {
+                                  const wasEnabled = (d[oldKey] || "false").toLowerCase() === "true";
+                                  const next: Record<string, string> = { ...d, WEWORK_MODE: m };
+                                  if (wasEnabled && oldKey !== newKey) {
+                                    next[oldKey] = "false";
+                                    next[newKey] = "true";
+                                  }
+                                  return next;
+                                });
+                              }}
+                            >{m === "http" ? t("config.imWeworkModeHttp") : t("config.imWeworkModeWs")}</button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                          {isWs ? t("config.imWeworkModeWsHint") : t("config.imWeworkModeHttpHint")}
+                        </div>
+                      </div>
+                      {isWs ? (
+                        <>
+                          <FT k="WEWORK_WS_BOT_ID" label={t("config.imWeworkBotId")} />
+                          <FT k="WEWORK_WS_SECRET" label={t("config.imWeworkSecret")} type="password" />
+                        </>
+                      ) : (
+                        <>
+                          <FT k="WEWORK_CORP_ID" label="Corp ID" />
+                          <FT k="WEWORK_TOKEN" label="回调 Token" placeholder="在企业微信后台「接收消息」设置中获取" />
+                          <FT k="WEWORK_ENCODING_AES_KEY" label="EncodingAESKey" placeholder="在企业微信后台「接收消息」设置中获取" type="password" />
+                          <FT k="WEWORK_CALLBACK_PORT" label="回调端口" placeholder="9880" />
+                          <div style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 0 0", lineHeight: 1.6 }}>
+                            💡 企业微信后台「接收消息服务器配置」的 URL 请填：<code style={{ background: "#f5f5f5", padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>http://your-domain:9880/callback</code>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ),
+                };
+              })(),
               {
                 title: "钉钉（需要 openakita[dingtalk]）",
                 enabledKey: "DINGTALK_ENABLED",
@@ -7997,8 +8042,8 @@ export function App() {
 
         {/* ── Connect Dialog ── */}
         {connectDialogOpen && (
-          <div className="modalOverlay" onClick={() => setConnectDialogOpen(false)}>
-            <div className="modalContent" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+          <ModalOverlay onClose={() => setConnectDialogOpen(false)}>
+            <div className="modalContent" style={{ maxWidth: 420 }}>
               <div className="dialogHeader">
                 <span className="cardTitle">{t("connect.title")}</span>
                 <button className="dialogCloseBtn" onClick={() => setConnectDialogOpen(false)}>&times;</button>
@@ -8056,13 +8101,13 @@ export function App() {
                 }}>{t("connect.confirm")}</button>
               </div>
             </div>
-          </div>
+          </ModalOverlay>
         )}
 
         {/* ── Restart overlay ── */}
         {restartOverlay && (
           <div className="modalOverlay" style={{ zIndex: 10000, background: "rgba(0,0,0,0.5)" }}>
-            <div className="modalContent" style={{ maxWidth: 360, padding: "32px 28px", textAlign: "center", borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modalContent" style={{ maxWidth: 360, padding: "32px 28px", textAlign: "center", borderRadius: 16 }}>
               {(restartOverlay.phase === "saving" || restartOverlay.phase === "restarting" || restartOverlay.phase === "waiting") && (
                 <>
                   <div style={{ marginBottom: 16 }}>
@@ -8105,8 +8150,8 @@ export function App() {
 
         {/* ── Module restart prompt ── */}
         {moduleRestartPrompt && (
-          <div className="modalOverlay" onClick={() => setModuleRestartPrompt(null)}>
-            <div className="modalContent" style={{ maxWidth: 400, padding: "28px 24px", borderRadius: 16 }} onClick={(e) => e.stopPropagation()}>
+          <ModalOverlay onClose={() => setModuleRestartPrompt(null)}>
+            <div className="modalContent" style={{ maxWidth: 400, padding: "28px 24px", borderRadius: 16 }}>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{t("modules.restartTitle")}</div>
               <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20, lineHeight: 1.6 }}>
                 {t("modules.restartDesc", { name: moduleRestartPrompt })}
@@ -8119,13 +8164,13 @@ export function App() {
                 }}>{t("modules.restartNow")}</button>
               </div>
             </div>
-          </div>
+          </ModalOverlay>
         )}
 
         {/* ── Service conflict dialog ── */}
         {conflictDialog && (
-          <div className="modalOverlay" onClick={() => { setConflictDialog(null); setPendingStartWsId(null); }}>
-            <div className="modalContent" style={{ maxWidth: 440, padding: 24 }} onClick={(e) => e.stopPropagation()}>
+          <ModalOverlay onClose={() => { setConflictDialog(null); setPendingStartWsId(null); }}>
+            <div className="modalContent" style={{ maxWidth: 440, padding: 24 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <span style={{ fontSize: 20 }}>⚠️</span>
                 <span style={{ fontWeight: 600, fontSize: 15 }}>{t("conflict.title")}</span>
@@ -8142,7 +8187,7 @@ export function App() {
                   onClick={() => connectToExistingLocalService()}>{t("conflict.connectExisting")}</button>
               </div>
             </div>
-          </div>
+          </ModalOverlay>
         )}
 
         {/* ── Version mismatch banner ── */}

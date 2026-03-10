@@ -972,7 +972,8 @@ class Agent:
         self.handler_registry.register(
             "im_channel",
             create_im_channel_handler(self),
-            ["deliver_artifacts", "get_voice_file", "get_image_file", "get_chat_history"],
+            ["deliver_artifacts", "get_voice_file", "get_image_file", "get_chat_history",
+             "get_chat_info", "get_user_info", "get_chat_members", "get_recent_messages"],
         )
 
         # 技能管理

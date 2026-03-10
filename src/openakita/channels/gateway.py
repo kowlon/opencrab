@@ -1012,6 +1012,7 @@ class MessageGateway:
             channel=message.channel,
             chat_id=message.chat_id,
             user_id=message.user_id,
+            thread_id=message.thread_id,
         )
         if not session:
             return "❌ 无法获取会话"
@@ -1255,6 +1256,7 @@ class MessageGateway:
                 logger.info(f"Started adapter: {name}")
             except Exception as e:
                 failed.append(name)
+                adapter._running = False
                 logger.error(f"Failed to start adapter {name}: {e}")
 
         self._started_adapters = started
@@ -1626,7 +1628,7 @@ class MessageGateway:
             logger.debug(f"[Shutdown] Message rejected (drain mode): {message.channel}/{message.user_id}")
             return
 
-        session_key = f"{message.channel}:{message.chat_id}:{message.user_id}"
+        session_key = self._get_session_key(message)
         _raw_text = (message.plain_text or "").strip()
 
         # ==================== 终极重启指令拦截 ====================
@@ -1649,11 +1651,20 @@ class MessageGateway:
                 # 会话正在处理中
                 user_text = (message.plain_text or "").strip()
 
+                # 群聊响应模式过滤（防止未 @ 的群消息通过中断路径注入上下文）
+                if message.chat_type == "group" and not message.is_direct_message:
+                    _irq_mode = self._get_group_response_mode(message.channel)
+                    if _irq_mode == GroupResponseMode.MENTION_ONLY and not message.is_mentioned:
+                        _is_stop_or_skip = self.agent_handler and self.agent_handler.classify_interrupt(user_text) in ("stop", "skip")
+                        if not _is_stop_or_skip:
+                            logger.debug(
+                                f"[Interrupt] Group message ignored in interrupt path "
+                                f"(mention_only, not mentioned): {user_text[:50]}"
+                            )
+                            return
+
                 # 会话隔离校验：只有当 agent 正在处理本会话的任务时，
                 # cancel/skip/insert 操作才应生效（防止 A 用户误杀 B 用户的任务）
-                #
-                # agent_handler 是函数闭包，_current_session_id 在 Agent 实例上，
-                # 需要通过 _agent_ref 间接获取。
                 _agent_ref = getattr(self.agent_handler, "_agent_ref", None) if self.agent_handler else None
                 _resolved_sid = self._resolve_task_session_id(session_key, _agent_ref)
                 _session_matches = _resolved_sid is not None
@@ -1755,20 +1766,24 @@ class MessageGateway:
         logger.debug(f"[Interrupt] Added to queue: {session_key}, priority={priority.name}")
 
     def _get_session_key(self, message: UnifiedMessage) -> str:
-        """获取会话标识"""
-        return f"{message.channel}:{message.chat_id}:{message.user_id}"
+        """获取会话标识（话题消息会追加 thread_id 实现话题级隔离）"""
+        key = f"{message.channel}:{message.chat_id}:{message.user_id}"
+        if message.thread_id:
+            key += f":{message.thread_id}"
+        return key
 
     @staticmethod
     def _resolve_task_session_id(session_key: str, agent_ref: object) -> str | None:
         """
         根据 gateway session_key 找到 AgentState._tasks 中匹配的 task session_id。
 
-        session_key 格式:  "telegram:1241684312:tg_1241684312"
-                            channel : chat_id  : user_id
+        session_key 格式:
+          三段式: "telegram:1241684312:tg_1241684312"  (channel:chat_id:user_id)
+          四段式: "telegram:1241684312:tg_1241684312:thread_abc"  (channel:chat_id:user_id:thread_id)
 
         task key 可能是两种格式（取决于 _resolve_conversation_id 的返回）:
           a) session.id 格式: "telegram_1241684312_20260219031213_xxx"（下划线分隔）
-          b) gateway session_key 格式: "telegram:1241684312:tg_1241684312"（冒号分隔）
+          b) gateway session_key 格式: "telegram:1241684312:tg_1241684312[:thread_id]"（冒号分隔）
         """
         if not agent_ref:
             return None
@@ -1778,6 +1793,7 @@ class MessageGateway:
         parts = session_key.split(":")
         channel = parts[0] if parts else ""
         chat_id = parts[1] if len(parts) >= 2 else ""
+        thread_id = parts[3] if len(parts) >= 4 else ""
         if not channel or not chat_id:
             return None
 
@@ -1791,20 +1807,23 @@ class MessageGateway:
         prefix_colon = f"{channel}:"
         chat_id_seg_colon = f":{chat_id}:"
 
+        def _match_key(key: str) -> bool:
+            base_matched = (
+                (key.startswith(prefix_underscore) and chat_id_seg_underscore in key)
+                or (key.startswith(prefix_colon) and chat_id_seg_colon in key)
+            )
+            if not base_matched:
+                return False
+            if thread_id:
+                return thread_id in key
+            return True
+
         for key in tasks:
             task = tasks[key]
-            matched = (
-                (key.startswith(prefix_underscore) and chat_id_seg_underscore in key)
-                or (key.startswith(prefix_colon) and chat_id_seg_colon in key)
-            )
-            if matched and task.is_active:
+            if _match_key(key) and task.is_active:
                 return key
         for key in tasks:
-            matched = (
-                (key.startswith(prefix_underscore) and chat_id_seg_underscore in key)
-                or (key.startswith(prefix_colon) and chat_id_seg_colon in key)
-            )
-            if matched:
+            if _match_key(key):
                 return key
         return None
 
@@ -1953,6 +1972,7 @@ class MessageGateway:
                     channel=message.channel,
                     chat_id=message.chat_id,
                     user_id=message.user_id,
+                    thread_id=message.thread_id,
                 )
                 response_text = await self._thinking_cmd_handler.handle_command(
                     session_key, user_text, _thinking_session,
@@ -1988,6 +2008,7 @@ class MessageGateway:
                         channel=message.channel,
                         chat_id=message.chat_id,
                         user_id=message.user_id,
+                        thread_id=message.thread_id,
                     )
                     resp = await self._handle_agent_switch(
                         _switch_session, f"/切换 {arg}"
@@ -2006,6 +2027,7 @@ class MessageGateway:
                     channel=message.channel,
                     chat_id=message.chat_id,
                     user_id=message.user_id,
+                    thread_id=message.thread_id,
                 )
                 if _reset_session:
                     _old_count = len(_reset_session.context.messages)
@@ -2049,10 +2071,25 @@ class MessageGateway:
                 channel=message.channel,
                 chat_id=message.chat_id,
                 user_id=message.user_id,
+                thread_id=message.thread_id,
             )
 
             # 4.1 多Bot绑定：将 adapter 配置的 agent_profile_id 写入新 session
             self._apply_bot_agent_profile(session, message.channel)
+
+            # 4.2 注入 IM 环境上下文（平台、聊天类型、机器人身份、能力列表）
+            adapter = self._adapters.get(message.channel)
+            if adapter:
+                im_env = {
+                    "platform": message.channel,
+                    "chat_type": message.chat_type,
+                    "chat_id": message.chat_id,
+                    "thread_id": message.thread_id,
+                    "bot_id": getattr(adapter, "_bot_open_id", None),
+                    "capabilities": getattr(adapter, "_capabilities", []),
+                }
+                session.set_metadata("_im_environment", im_env)
+                session.set_metadata("chat_type", message.chat_type)
 
             # 4.5 推送未送达的自检报告（每天第一条消息时触发，最多一次）
             await self._maybe_deliver_pending_selfcheck_report(message)
@@ -2073,7 +2110,7 @@ class MessageGateway:
                             else:
                                 _time_desc = f"{int(_elapsed_min)} 分钟"
                             session.context.add_message(
-                                "user",
+                                "system",
                                 f"[上下文边界] 距上次对话已过去 {_time_desc}，"
                                 f"以下是新的对话，可能是新话题。"
                                 f"请优先关注边界之后的内容。",
@@ -2085,6 +2122,31 @@ class MessageGateway:
                             )
                     except (ValueError, TypeError):
                         pass
+
+            # 4.8 注入待处理的关键事件（@所有人、群公告变更等）
+            if adapter:
+                pending_events = adapter.get_pending_events(message.chat_id)
+                if pending_events:
+                    event_lines = []
+                    for evt in pending_events:
+                        evt_type = evt.get("type", "unknown")
+                        if evt_type == "at_all":
+                            event_lines.append(f"- @所有人消息: {evt.get('text', '')[:100]}")
+                        elif evt_type == "chat_updated":
+                            changes = evt.get("changes", {})
+                            event_lines.append(f"- 群聊信息更新: {changes}")
+                        elif evt_type == "bot_added":
+                            event_lines.append("- 机器人已被添加到群聊")
+                        elif evt_type == "bot_removed":
+                            event_lines.append("- 机器人已被移出群聊")
+                        else:
+                            event_lines.append(f"- 事件: {evt_type}")
+                    if event_lines:
+                        event_text = (
+                            "[系统提示] 以下是最近发生的重要事件，请注意：\n"
+                            + "\n".join(event_lines)
+                        )
+                        session.context.add_message("system", event_text)
 
             # 5. 记录消息到会话
             session.add_message(

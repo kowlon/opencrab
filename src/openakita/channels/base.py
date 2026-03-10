@@ -200,6 +200,18 @@ class ChannelAdapter(ABC):
         """
         return None
 
+    async def get_chat_members(self, chat_id: str) -> list[dict]:
+        """获取群聊成员列表"""
+        return []
+
+    async def get_recent_messages(self, chat_id: str, limit: int = 20) -> list[dict]:
+        """获取最近消息列表"""
+        return []
+
+    def get_pending_events(self, chat_id: str) -> list[dict]:
+        """获取并清空待处理的重要事件（如群公告变更、@所有人等）"""
+        return []
+
     async def delete_message(self, chat_id: str, message_id: str) -> bool:
         """删除消息"""
         return False

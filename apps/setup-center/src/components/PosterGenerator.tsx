@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toPng } from "html-to-image";
 import { IS_TAURI } from "../platform/detect";
 import logoUrl from "../assets/logo.png";
+import { ModalOverlay } from "./ModalOverlay";
 
 interface PosterProps {
   type: "invite" | "achievement";
@@ -99,8 +100,8 @@ export function PosterGenerator(props: PosterProps) {
   };
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose} className="" style={overlayStyle}>
+      <div style={modalStyle}>
         {/* Poster render target */}
         <div ref={posterRef} style={{ ...posterBaseStyle, width: posterW, height: posterH }}>
           {isInvite ? (
@@ -150,7 +151,7 @@ export function PosterGenerator(props: PosterProps) {
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
 
