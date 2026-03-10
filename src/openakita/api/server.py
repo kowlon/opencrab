@@ -29,7 +29,6 @@ from fastapi.responses import JSONResponse
 from .auth import WebAccessConfig, create_auth_middleware
 from .routes import (
     agents,
-    auth as auth_routes,
     bug_report,
     chat,
     chat_models,
@@ -48,8 +47,13 @@ from .routes import (
     skills,
     token_stats,
     upload,
-    websocket as ws_routes,
     workspace_io,
+)
+from .routes import (
+    auth as auth_routes,
+)
+from .routes import (
+    websocket as ws_routes,
 )
 
 logger = logging.getLogger(__name__)
@@ -288,6 +292,16 @@ def create_app(
             "api_version": "1.0.0",
             "status": "running",
         }
+
+    # ── Serve uploaded avatar files ──
+    from pathlib import Path as _Path
+
+    from fastapi.staticfiles import StaticFiles as _StaticFiles
+
+    from openakita.core.config import get_data_dir as _get_data_dir
+    _avatar_dir = _Path(_get_data_dir()) / "avatars"
+    _avatar_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/api/avatars", _StaticFiles(directory=str(_avatar_dir)), name="avatars")
 
     # ── Serve web frontend static files ──
     _mount_web_frontend(app)

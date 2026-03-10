@@ -279,6 +279,12 @@ interface OrgAvatarProps {
   style?: React.CSSProperties;
 }
 
+/** Check if an avatar value is a custom URL (uploaded image) vs. a preset ID */
+export function isCustomAvatar(avatarId: string | null | undefined): boolean {
+  if (!avatarId) return false;
+  return avatarId.startsWith("/") || avatarId.startsWith("http");
+}
+
 export function OrgAvatar({
   avatarId,
   size = 32,
@@ -287,40 +293,55 @@ export function OrgAvatar({
   onClick,
   style,
 }: OrgAvatarProps) {
-  const preset = avatarId ? AVATAR_MAP[avatarId] : undefined;
+  const isCustom = isCustomAvatar(avatarId);
+  const preset = !isCustom && avatarId ? AVATAR_MAP[avatarId] : undefined;
   const bg = preset?.bg ?? "#718096";
 
+  const containerStyle: React.CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: "50%",
+    background: isCustom ? "transparent" : bg,
+    position: "relative",
+    flexShrink: 0,
+    overflow: "hidden",
+    cursor: onClick ? "pointer" : undefined,
+    boxShadow: statusGlow && statusColor
+      ? `0 0 8px ${statusColor}`
+      : "0 1px 3px rgba(0,0,0,0.18)",
+    transition: "box-shadow .2s, transform .15s",
+    ...style,
+  };
+
   return (
-    <div
-      onClick={onClick}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: bg,
-        position: "relative",
-        flexShrink: 0,
-        cursor: onClick ? "pointer" : undefined,
-        boxShadow: statusGlow && statusColor
-          ? `0 0 8px ${statusColor}`
-          : "0 1px 3px rgba(0,0,0,0.18)",
-        transition: "box-shadow .2s, transform .15s",
-        ...style,
-      }}
-    >
-      <svg
-        viewBox="0 0 40 40"
-        width={size}
-        height={size}
-        style={{ display: "block", color: bg }}
-      >
-        {preset ? preset.icon("#fff") : (
-          <g>
-            <Head fill="#fff" />
-            <Shoulders fill="#fff" />
-          </g>
-        )}
-      </svg>
+    <div onClick={onClick} style={containerStyle}>
+      {isCustom ? (
+        <img
+          src={avatarId!}
+          alt="avatar"
+          style={{
+            width: size,
+            height: size,
+            borderRadius: "50%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+      ) : (
+        <svg
+          viewBox="0 0 40 40"
+          width={size}
+          height={size}
+          style={{ display: "block", color: bg }}
+        >
+          {preset ? preset.icon("#fff") : (
+            <g>
+              <Head fill="#fff" />
+              <Shoulders fill="#fff" />
+            </g>
+          )}
+        </svg>
+      )}
       {statusColor && (
         <div
           style={{

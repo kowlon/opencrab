@@ -2378,7 +2378,7 @@ export function OrgEditorView({
             {propsTab === "basic" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <label style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>头像</label>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                   {AVATAR_PRESETS.map((av) => {
                     const isSel = selectedNode.avatar === av.id;
                     return (
@@ -2397,7 +2397,67 @@ export function OrgEditorView({
                       />
                     );
                   })}
+                  {/* Upload custom avatar */}
+                  <label
+                    title="上传自定义头像"
+                    style={{
+                      width: 36, height: 36, borderRadius: "50%",
+                      border: "2px dashed var(--muted, #9ca3af)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      cursor: "pointer", opacity: 0.6, transition: "opacity .15s",
+                      fontSize: 18, color: "var(--muted, #9ca3af)",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.6")}
+                  >
+                    +
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      style={{ display: "none" }}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 2 * 1024 * 1024) {
+                          alert("图片不能超过 2MB");
+                          return;
+                        }
+                        const form = new FormData();
+                        form.append("file", file);
+                        try {
+                          const res = await safeFetch(`${apiBaseUrl}/api/orgs/avatars/upload`, {
+                            method: "POST",
+                            body: form,
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            updateNodeData("avatar", data.url);
+                          } else {
+                            const err = await res.text();
+                            alert(`上传失败: ${err}`);
+                          }
+                        } catch (err) {
+                          alert(`上传失败: ${err}`);
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
                 </div>
+                {/* Show custom avatar preview if currently using uploaded image */}
+                {selectedNode.avatar && (selectedNode.avatar.startsWith("/") || selectedNode.avatar.startsWith("http")) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <OrgAvatar avatarId={selectedNode.avatar} size={48} />
+                    <span style={{ fontSize: 11, color: "var(--muted)" }}>自定义头像</span>
+                    <button
+                      className="btn btn-sm"
+                      style={{ fontSize: 10, padding: "2px 6px" }}
+                      onClick={() => updateNodeData("avatar", null)}
+                    >
+                      移除
+                    </button>
+                  </div>
+                )}
                 <label style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>岗位名称</label>
                 <input
                   className="input"

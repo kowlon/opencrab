@@ -6,13 +6,19 @@ CRUD + 模板 + 节点管理 + 生命周期 + 命令 + 记忆 + 事件
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import time
+from datetime import UTC
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 
 from openakita.core.engine_bridge import to_engine
+
+ALLOWED_AVATAR_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"}
+MAX_AVATAR_SIZE = 2 * 1024 * 1024  # 2 MB
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/orgs", tags=["组织编排"])
@@ -64,6 +70,42 @@ async def create_org(request: Request):
 async def get_avatar_presets():
     from openakita.orgs.tool_categories import list_avatar_presets
     return list_avatar_presets()
+
+
+_FILE_FIELD = File(...)
+
+
+@router.post("/avatars/upload")
+async def upload_avatar(request: Request, file: UploadFile = _FILE_FIELD):
+    """Upload a custom avatar image. Returns the URL to use as avatar value."""
+    if file.content_type not in ALLOWED_AVATAR_TYPES:
+        raise HTTPException(
+            400,
+            f"Unsupported file type: {file.content_type}. "
+            f"Allowed: {', '.join(sorted(ALLOWED_AVATAR_TYPES))}",
+        )
+
+    data = await file.read()
+    if len(data) > MAX_AVATAR_SIZE:
+        raise HTTPException(400, f"File too large (max {MAX_AVATAR_SIZE // 1024}KB)")
+
+    ext_map = {
+        "image/png": ".png", "image/jpeg": ".jpg", "image/jpg": ".jpg",
+        "image/webp": ".webp", "image/svg+xml": ".svg",
+    }
+    ext = ext_map.get(file.content_type, ".png")
+    digest = hashlib.md5(data).hexdigest()[:12]
+    filename = f"{digest}_{int(time.time())}{ext}"
+
+    from openakita.core.config import get_data_dir
+    avatar_dir = Path(get_data_dir()) / "avatars"
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+    dest = avatar_dir / filename
+    dest.write_bytes(data)
+
+    url = f"/api/avatars/{filename}"
+    logger.info(f"Avatar uploaded: {filename} ({len(data)} bytes)")
+    return {"url": url, "filename": filename, "size": len(data)}
 
 
 @router.get("/templates")
@@ -170,7 +212,6 @@ async def export_org(request: Request, org_id: str):
     org = mgr.get(org_id)
     if org is None:
         raise HTTPException(404, f"Organization not found: {org_id}")
-    import json as _json
     org_dir = mgr._org_dir(org_id)
     export_data: dict[str, Any] = {"organization": org.to_dict(), "files": {}}
     for sub in ("memory", "events", "logs", "reports", "policies"):
@@ -610,7 +651,7 @@ async def add_memory(request: Request, org_id: str):
         from openakita.orgs.blackboard import OrgBlackboard
         bb = OrgBlackboard(mgr._org_dir(org_id), org_id)
     body = await request.json()
-    from openakita.orgs.models import MemoryType, MemoryScope
+    from openakita.orgs.models import MemoryScope, MemoryType
     try:
         scope = MemoryScope(body.get("scope", "org"))
         mt = MemoryType(body.get("memory_type", "fact"))
@@ -939,9 +980,10 @@ async def dismiss_node(request: Request, org_id: str, node_id: str):
 @router.get("/{org_id}/status")
 async def org_status_stream(request: Request, org_id: str):
     """SSE stream for real-time organization status updates."""
-    from fastapi.responses import StreamingResponse
     import asyncio as _asyncio
     import json as _json
+
+    from fastapi.responses import StreamingResponse
 
     rt = _get_runtime(request)
     org = rt.get_org(org_id)
@@ -958,7 +1000,7 @@ async def org_status_stream(request: Request, org_id: str):
                 try:
                     msg = await _asyncio.wait_for(q.get(), timeout=30.0)
                     yield f"data: {_json.dumps({'type': 'inbox', 'message': msg.to_dict()}, ensure_ascii=False)}\n\n"
-                except _asyncio.TimeoutError:
+                except TimeoutError:
                     current = rt.get_org(org_id)
                     if not current:
                         break
@@ -1186,9 +1228,9 @@ async def get_org_stats(request: Request, org_id: str):
     uptime_s = None
     if org.created_at:
         try:
-            from datetime import datetime, timezone
+            from datetime import datetime
             start = datetime.fromisoformat(org.created_at.replace("Z", "+00:00"))
-            uptime_s = round((datetime.now(timezone.utc) - start).total_seconds())
+            uptime_s = round((datetime.now(UTC) - start).total_seconds())
         except Exception:
             pass
 
