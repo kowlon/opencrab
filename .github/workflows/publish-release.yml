@@ -68,20 +68,31 @@ jobs:
           TAG="${{ inputs.tag }}"
           CHANNEL="${{ inputs.channel }}"
 
-          if [ "$CHANNEL" = "stable" ]; then
-            LATEST_FLAG="--latest"
-            PRERELEASE_FLAG="--prerelease=false"
-          else
-            LATEST_FLAG="--latest=false"
-            PRERELEASE_FLAG="--prerelease"
-          fi
+          case "$CHANNEL" in
+            stable)
+              LATEST_FLAG="--latest"
+              PRERELEASE_FLAG="--prerelease=false"
+              CHANNEL_LABEL="稳定版"
+              ;;
+            pre-release)
+              LATEST_FLAG="--latest=false"
+              PRERELEASE_FLAG="--prerelease"
+              CHANNEL_LABEL="抢先版"
+              ;;
+            dev)
+              LATEST_FLAG="--latest=false"
+              PRERELEASE_FLAG="--prerelease"
+              CHANNEL_LABEL="开发版"
+              ;;
+          esac
 
           gh release edit "$TAG" \
             --repo "${{ github.repository }}" \
             --draft=false \
+            --title "${TAG} [${CHANNEL_LABEL}]" \
             ${PRERELEASE_FLAG} \
             ${LATEST_FLAG}
-          echo "✅ Release ${TAG} published as ${CHANNEL}"
+          echo "✅ Release ${TAG} published as ${CHANNEL} [${CHANNEL_LABEL}]"
 
       # ── 生成 manifest（channel / per-version / versions.json / release.json compat） ──
       - name: Generate release manifest

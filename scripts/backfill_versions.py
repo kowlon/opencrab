@@ -79,7 +79,36 @@ def fetch_all_releases(repo: str, token: str | None = None) -> list[dict]:
     return releases
 
 
+CHANNEL_NAMES = {"stable", "pre-release", "dev"}
+
+TITLE_CHANNEL_MAP = {
+    "稳定版": "stable",
+    "抢先版": "pre-release",
+    "开发版": "dev",
+}
+
+
 def detect_channel(release: dict) -> str:
+    """Detect release channel with three-tier priority:
+    1. Manifest asset (stable.json / pre-release.json / dev.json) uploaded by CI
+    2. Title badge like "v1.25.9 [抢先版]" set by CI
+    3. Heuristic fallback for old releases without CI metadata
+    """
+    # Priority 1: check for channel manifest asset uploaded by publish-release.yml
+    assets = release.get("assets", [])
+    for asset in assets:
+        name = asset.get("name", "")
+        stem = name.removesuffix(".json")
+        if stem in CHANNEL_NAMES:
+            return stem
+
+    # Priority 2: check release title for channel badge like "[稳定版]"
+    title = release.get("name", "") or ""
+    for label, channel in TITLE_CHANNEL_MAP.items():
+        if label in title:
+            return channel
+
+    # Priority 3: heuristic fallback (old releases without CI metadata)
     tag = release.get("tag_name", "")
     is_prerelease = release.get("prerelease", False)
     is_latest = release.get("is_the_latest", False)
