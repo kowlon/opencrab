@@ -1250,11 +1250,16 @@ class MessageGateway:
 
     async def start(self) -> None:
         """启动网关"""
+        from ..config import settings
+
         self._running = True
         self._accepting = True
 
-        # 预加载 Whisper 语音识别模型（在后台线程中执行，不阻塞启动）
-        asyncio.create_task(self._preload_whisper_async())
+        # 预加载 Whisper 语音识别模型（仅在 whisper_enabled=True 时）
+        if settings.whisper_enabled:
+            asyncio.create_task(self._preload_whisper_async())
+        else:
+            logger.info("Local Whisper disabled (whisper_enabled=False), skipping model preload")
 
         # 启动所有适配器
         started = []
@@ -2266,6 +2271,8 @@ class MessageGateway:
         """
         预处理媒体文件（下载语音、图片到本地，语音自动转文字）
         """
+        from ..config import settings
+
         adapter = self._adapters.get(message.channel)
         if not adapter:
             return
@@ -2285,7 +2292,21 @@ class MessageGateway:
 
                 # 转写放在 download 之后；转写内部已使用线程池，不阻塞事件循环
                 if voice.local_path and not voice.transcription:
-                    transcription = await self._transcribe_voice_local(voice.local_path)
+                    transcription = None
+
+                    # 优先尝试在线 STT（配置了端点时）
+                    if self.stt_client and self.stt_client.is_available:
+                        transcription = await self.stt_client.transcribe(
+                            voice.local_path,
+                            language=self._whisper_language or None,
+                        )
+
+                    # 在线 STT 未配置或失败时，回退到本地 Whisper（需开启）
+                    if not transcription and settings.whisper_enabled:
+                        transcription = await self._transcribe_voice_local(
+                            voice.local_path
+                        )
+
                     if transcription:
                         voice.transcription = transcription
                         logger.info(f"Voice transcribed: {transcription}")
