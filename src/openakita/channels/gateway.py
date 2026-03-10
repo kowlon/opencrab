@@ -2259,6 +2259,19 @@ class MessageGateway:
                 f"(channel={message.channel}, user={message.user_id}): {e}",
                 exc_info=True,
             )
+            # 补录 assistant 错误响应，防止会话中出现孤立 user 消息
+            # (孤立 user 消息会导致下一轮连续同角色 → 模型混乱 / 工具重复执行)
+            try:
+                if session and session.context.messages:
+                    _last = session.context.messages[-1]
+                    if _last.get("role") == "user":
+                        session.add_message(
+                            role="assistant",
+                            content=f"[处理出错: {str(e)[:200]}]",
+                        )
+                        self.session_manager.mark_dirty()
+            except Exception:
+                pass
             # 发送错误提示
             await self._send_error(message, str(e))
         finally:

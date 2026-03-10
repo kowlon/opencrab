@@ -3566,6 +3566,10 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
         self._current_task_query = compiler_summary or message
 
         # 9.5 话题切换检测 — 检测当前消息是否是新话题
+        # 防御性浅拷贝：_detect_topic_change 可能通过 insert() 注入边界标记，
+        # 如果直接操作 session.context.messages 的活引用，边界消息会永久积累导致
+        # 连续 user 角色消息 → API 报错 / 模型混乱 / 工具重复执行
+        session_messages = list(session_messages)
         topic_changed = False
         if session and len(session_messages) >= 4:
             try:
@@ -3734,9 +3738,22 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
         # 如果有历史消息，给当前用户消息加上连续提示前缀
         if _has_history and compiled_message:
             compiled_message = (
-                "[以上是之前的对话历史，请基于这些上下文继续对话。以下是我的最新消息：]\n"
+                "[以上是之前的对话历史，仅供参考。"
+                "请直接回应我的最新消息，不要重复或重新执行历史中已完成的操作：]\n"
                 + compiled_message
             )
+
+        # === 角色交替保护 ===
+        # 如果历史末尾是 user 消息（通常由上下文边界标记产生），
+        # 将其文本合并到当前消息前缀，避免连续同角色消息导致 API 错误或模型混乱
+        if messages and messages[-1]["role"] == "user":
+            _trailing_user = messages.pop()
+            _trailing_text = _trailing_user.get("content", "")
+            if isinstance(_trailing_text, str) and _trailing_text:
+                compiled_message = _trailing_text + "\n" + compiled_message
+            elif _trailing_text:
+                # 非字符串内容（如多模态 list），无法文本合并，恢复原位
+                messages.append(_trailing_user)
 
         # Desktop Chat 附件处理（与 IM 的 pending_images 对齐）
         if attachments and not pending_images:
