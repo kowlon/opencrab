@@ -305,7 +305,13 @@ class Settings(BaseSettings):
 
     # OneBot 协议（通用）
     onebot_enabled: bool = Field(default=False, description="是否启用 OneBot")
-    onebot_ws_url: str = Field(default="ws://127.0.0.1:8080", description="OneBot WebSocket URL")
+    onebot_mode: str = Field(
+        default="reverse",
+        description="OneBot 连接模式: reverse（反向WS，推荐）或 forward（正向WS）",
+    )
+    onebot_ws_url: str = Field(default="ws://127.0.0.1:8080", description="OneBot 正向 WS 地址（仅 forward 模式）")
+    onebot_reverse_host: str = Field(default="0.0.0.0", description="OneBot 反向 WS 监听地址")
+    onebot_reverse_port: int = Field(default=6700, description="OneBot 反向 WS 监听端口")
     onebot_access_token: str = Field(default="", description="OneBot 访问令牌（可选）")
 
     # QQ 官方机器人

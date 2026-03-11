@@ -462,7 +462,7 @@ async def health_check_im(workspace_dir: str, channel: str | None) -> None:
             "id": "onebot",
             "name": "OneBot",
             "enabled_key": "ONEBOT_ENABLED",
-            "required_keys": ["ONEBOT_WS_URL"],
+            "required_keys": [],  # 动态：forward 需要 WS_URL，reverse 需要端口
         },
         {
             "id": "qqbot",
@@ -552,14 +552,21 @@ async def health_check_im(workspace_dir: str, channel: str | None) -> None:
                     if not data.get("accessToken"):
                         raise Exception(data.get("message", "钉钉验证失败"))
                 elif ch["id"] == "onebot":
-                    # OneBot WebSocket: 验证 URL 格式并尝试连接
-                    ws_url = env.get("ONEBOT_WS_URL", "")
-                    if not ws_url.startswith(("ws://", "wss://")):
-                        raise Exception(f"无效的 WebSocket URL: {ws_url}")
-                    # 尝试 HTTP 连接到 OneBot
-                    http_url = ws_url.replace("ws://", "http://").replace("wss://", "https://")
-                    resp = await client.get(http_url, timeout=5)
-                    # OneBot 即使返回非 200 也算可达
+                    ob_mode = env.get("ONEBOT_MODE", "reverse").strip().lower()
+                    if ob_mode == "forward":
+                        ws_url = env.get("ONEBOT_WS_URL", "")
+                        if not ws_url.startswith(("ws://", "wss://")):
+                            raise Exception(f"无效的 WebSocket URL: {ws_url}")
+                        http_url = ws_url.replace("ws://", "http://").replace("wss://", "https://")
+                        resp = await client.get(http_url, timeout=5)
+                    else:
+                        port_str = env.get("ONEBOT_REVERSE_PORT", "6700").strip()
+                        try:
+                            port = int(port_str)
+                            if not (1 <= port <= 65535):
+                                raise ValueError
+                        except (ValueError, TypeError):
+                            raise Exception(f"无效的端口: {port_str}")
                 elif ch["id"] == "qqbot":
                     # QQ 官方机器人：验证 AppID/AppSecret 能获取 Access Token
                     app_id = env["QQBOT_APP_ID"]
@@ -674,6 +681,7 @@ def ensure_channel_deps(workspace_dir: str) -> None:
         "dingtalk": [("dingtalk_stream", "dingtalk-stream")],
         "wework": [("aiohttp", "aiohttp"), ("Crypto", "pycryptodome")],
         "onebot": [("websockets", "websockets")],
+        "onebot_reverse": [("websockets", "websockets")],
         "qqbot": [("botpy", "qq-botpy"), ("pilk", "pilk")],
     }
 
@@ -682,6 +690,7 @@ def ensure_channel_deps(workspace_dir: str) -> None:
         "dingtalk": "DINGTALK_ENABLED",
         "wework": "WEWORK_ENABLED",
         "onebot": "ONEBOT_ENABLED",
+        "onebot_reverse": "ONEBOT_ENABLED",
         "qqbot": "QQBOT_ENABLED",
     }
 

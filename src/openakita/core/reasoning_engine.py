@@ -817,10 +817,13 @@ class ReasoningEngine:
             # === IM 进度: LLM 推理意图 ===
             _decision_text_run = (decision.text_content or "").strip().replace("\n", " ")
             if _decision_text_run and decision.type == DecisionType.TOOL_CALLS:
-                _text_preview = _decision_text_run[:300]
-                if len(_decision_text_run) > 300:
-                    _text_preview += "..."
-                await _emit_progress(_text_preview)
+                _stripped = _decision_text_run.lstrip()
+                _looks_like_json = _stripped[:1] in ("{", "[") or "```" in _stripped[:50]
+                if not _looks_like_json:
+                    _text_preview = _decision_text_run[:300]
+                    if len(_decision_text_run) > 300:
+                        _text_preview += "..."
+                    await _emit_progress(_text_preview)
 
             if task_monitor:
                 task_monitor.end_iteration(decision.text_content or "")

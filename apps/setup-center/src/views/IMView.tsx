@@ -69,7 +69,7 @@ type AgentProfile = {
 
 const DEFAULT_API = "http://127.0.0.1:18900";
 
-const BOT_TYPES = ["feishu", "telegram", "dingtalk", "wework", "wework_ws", "onebot", "qqbot"] as const;
+const BOT_TYPES = ["feishu", "telegram", "dingtalk", "wework", "wework_ws", "onebot", "onebot_reverse", "qqbot"] as const;
 
 const BOT_TYPE_LABELS: Record<string, string> = {
   feishu: "飞书",
@@ -77,11 +77,13 @@ const BOT_TYPE_LABELS: Record<string, string> = {
   dingtalk: "钉钉",
   wework: "企业微信(HTTP)",
   wework_ws: "企业微信(WS)",
-  onebot: "OneBot (QQ)",
+  onebot: "OneBot (正向WS)",
+  onebot_reverse: "OneBot (反向WS)",
   qqbot: "QQ 官方机器人",
 };
 
 const WEWORK_TYPES = new Set(["wework", "wework_ws"]);
+const ONEBOT_TYPES = new Set(["onebot", "onebot_reverse"]);
 
 const CREDENTIAL_FIELDS: Record<string, { key: string; label: string; secret?: boolean }[]> = {
   feishu: [
@@ -109,6 +111,11 @@ const CREDENTIAL_FIELDS: Record<string, { key: string; label: string; secret?: b
   ],
   onebot: [
     { key: "ws_url", label: "WebSocket URL" },
+    { key: "access_token", label: "Access Token", secret: true },
+  ],
+  onebot_reverse: [
+    { key: "reverse_host", label: "Listen Host" },
+    { key: "reverse_port", label: "Listen Port" },
     { key: "access_token", label: "Access Token", secret: true },
   ],
   qqbot: [
@@ -906,7 +913,7 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
             <label style={{ display: "block", marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{t("im.botType")}</div>
               <select
-                value={WEWORK_TYPES.has(editingBot.type) ? "wework_ws" : editingBot.type}
+                value={WEWORK_TYPES.has(editingBot.type) ? "wework_ws" : ONEBOT_TYPES.has(editingBot.type) ? "onebot_reverse" : editingBot.type}
                 onChange={(e) => {
                   const val = e.target.value;
                   setEditingBot((p) => ({ ...p, type: val, credentials: {} }));
@@ -918,8 +925,10 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
                   fontSize: 13, boxSizing: "border-box",
                 }}
               >
-                {BOT_TYPES.filter((bt) => bt !== "wework").map((bt) => (
-                  <option key={bt} value={bt}>{bt === "wework_ws" ? "企业微信" : (BOT_TYPE_LABELS[bt] || bt)}</option>
+                {BOT_TYPES.filter((bt) => bt !== "wework" && bt !== "onebot").map((bt) => (
+                  <option key={bt} value={bt}>
+                    {bt === "wework_ws" ? "企业微信" : bt === "onebot_reverse" ? "OneBot" : (BOT_TYPE_LABELS[bt] || bt)}
+                  </option>
                 ))}
               </select>
             </label>
@@ -964,6 +973,39 @@ function BotConfigTab({ apiBase, multiAgentEnabled }: { apiBase: string; multiAg
                 }} />
               </div>
             </div>
+
+            {/* OneBot mode selector */}
+            {ONEBOT_TYPES.has(editingBot.type) && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{t("config.imOneBotMode")}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                  {(["onebot_reverse", "onebot"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      className={editingBot.type === m ? "capChipActive" : "capChip"}
+                      onClick={() => {
+                        if (editingBot.type !== m) {
+                          setEditingBot((p) => ({ ...p, type: m, credentials: {} }));
+                        }
+                      }}
+                      style={{
+                        padding: "4px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer",
+                        border: editingBot.type === m ? "1px solid var(--accent)" : "1px solid var(--line)",
+                        background: editingBot.type === m ? "var(--accent-bg, rgba(59,130,246,0.1))" : "transparent",
+                        color: editingBot.type === m ? "var(--accent, #3b82f6)" : "inherit",
+                        fontWeight: editingBot.type === m ? 600 : 400,
+                      }}
+                    >
+                      {m === "onebot_reverse" ? t("config.imOneBotModeReverse") : t("config.imOneBotModeForward")}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                  {editingBot.type === "onebot_reverse" ? t("config.imOneBotModeReverseHint") : t("config.imOneBotModeForwardHint")}
+                </div>
+              </div>
+            )}
 
             {/* WeWork mode selector */}
             {WEWORK_TYPES.has(editingBot.type) && (

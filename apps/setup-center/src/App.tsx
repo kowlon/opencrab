@@ -2934,7 +2934,7 @@ export function App() {
           "WEWORK_TOKEN", "WEWORK_ENCODING_AES_KEY", "WEWORK_CALLBACK_PORT", "WEWORK_CALLBACK_HOST",
           "WEWORK_MODE", "WEWORK_WS_ENABLED", "WEWORK_WS_BOT_ID", "WEWORK_WS_SECRET",
           "DINGTALK_ENABLED", "DINGTALK_CLIENT_ID", "DINGTALK_CLIENT_SECRET",
-          "ONEBOT_ENABLED", "ONEBOT_WS_URL", "ONEBOT_ACCESS_TOKEN",
+          "ONEBOT_ENABLED", "ONEBOT_MODE", "ONEBOT_WS_URL", "ONEBOT_REVERSE_HOST", "ONEBOT_REVERSE_PORT", "ONEBOT_ACCESS_TOKEN",
           "QQBOT_ENABLED", "QQBOT_APP_ID", "QQBOT_APP_SECRET", "QQBOT_SANDBOX", "QQBOT_MODE", "QQBOT_WEBHOOK_PORT", "QQBOT_WEBHOOK_PATH",
         ];
       case "tools":
@@ -3792,7 +3792,7 @@ export function App() {
       { k: "WEWORK_ENABLED", name: t("status.wework"), required: ["WEWORK_CORP_ID", "WEWORK_TOKEN", "WEWORK_ENCODING_AES_KEY"] },
       { k: "WEWORK_WS_ENABLED", name: t("status.weworkWs"), required: ["WEWORK_WS_BOT_ID", "WEWORK_WS_SECRET"] },
       { k: "DINGTALK_ENABLED", name: t("status.dingtalk"), required: ["DINGTALK_CLIENT_ID", "DINGTALK_CLIENT_SECRET"] },
-      { k: "ONEBOT_ENABLED", name: "OneBot", required: ["ONEBOT_WS_URL"] },
+      { k: "ONEBOT_ENABLED", name: "OneBot", required: [] },
       { k: "QQBOT_ENABLED", name: "QQ 机器人", required: ["QQBOT_APP_ID", "QQBOT_APP_SECRET"] },
     ];
     const imStatus = im.map((c) => {
@@ -6082,7 +6082,10 @@ export function App() {
       "DINGTALK_CLIENT_ID",
       "DINGTALK_CLIENT_SECRET",
       "ONEBOT_ENABLED",
+      "ONEBOT_MODE",
       "ONEBOT_WS_URL",
+      "ONEBOT_REVERSE_HOST",
+      "ONEBOT_REVERSE_PORT",
       "ONEBOT_ACCESS_TOKEN",
       "QQBOT_ENABLED",
       "QQBOT_APP_ID",
@@ -6305,17 +6308,41 @@ export function App() {
                   </>
                 ),
               },
-              {
-                title: "OneBot（需要 openakita[onebot] + NapCat/Lagrange）",
-                enabledKey: "ONEBOT_ENABLED",
-                apply: "https://github.com/botuniverse/onebot-11",
-                body: (
-                  <>
-                    <FT k="ONEBOT_WS_URL" label="WebSocket URL" placeholder="ws://127.0.0.1:8080" />
-                    <FT k="ONEBOT_ACCESS_TOKEN" label="Access Token" type="password" placeholder={t("config.imOneBotTokenHint")} />
-                  </>
-                ),
-              },
+              (() => {
+                const obMode = (envDraft["ONEBOT_MODE"] || "reverse") as "reverse" | "forward";
+                const isReverse = obMode === "reverse";
+                return {
+                  title: "OneBot（需要 openakita[onebot] + NapCat/Lagrange）",
+                  enabledKey: "ONEBOT_ENABLED",
+                  apply: "https://github.com/botuniverse/onebot-11",
+                  body: (
+                    <>
+                      <div style={{ marginBottom: 8 }}>
+                        <div className="label">{t("config.imOneBotMode")}</div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                          {(["reverse", "forward"] as const).map((m) => (
+                            <button key={m} className={obMode === m ? "capChipActive" : "capChip"}
+                              onClick={() => setEnvDraft((d) => ({ ...d, ONEBOT_MODE: m }))}
+                            >{m === "reverse" ? t("config.imOneBotModeReverse") : t("config.imOneBotModeForward")}</button>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                          {isReverse ? t("config.imOneBotModeReverseHint") : t("config.imOneBotModeForwardHint")}
+                        </div>
+                      </div>
+                      {isReverse ? (
+                        <>
+                          <FT k="ONEBOT_REVERSE_HOST" label={t("config.imOneBotReverseHost")} placeholder="0.0.0.0" />
+                          <FT k="ONEBOT_REVERSE_PORT" label={t("config.imOneBotReversePort")} placeholder="6700" />
+                        </>
+                      ) : (
+                        <FT k="ONEBOT_WS_URL" label="WebSocket URL" placeholder="ws://127.0.0.1:8080" />
+                      )}
+                      <FT k="ONEBOT_ACCESS_TOKEN" label="Access Token" type="password" placeholder={t("config.imOneBotTokenHint")} />
+                    </>
+                  ),
+                };
+              })(),
             ].map((c) => {
               const enabled = envGet(envDraft, c.enabledKey, "false").toLowerCase() === "true";
               return (

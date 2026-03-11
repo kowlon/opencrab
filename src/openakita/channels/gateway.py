@@ -2449,10 +2449,12 @@ class MessageGateway:
         adapter = self._adapters.get(message.channel)
         if adapter and hasattr(adapter, "send_text"):
             try:
+                _meta = {"is_group": message.metadata.get("is_group", message.chat_type == "group")}
                 await adapter.send_text(
                     chat_id=message.chat_id,
                     text=text,
                     reply_to=message.channel_message_id,
+                    metadata=_meta,
                 )
             except Exception as e:
                 logger.warning(f"[Feedback] Failed to send feedback to {message.channel}: {e}")
@@ -2800,6 +2802,7 @@ class MessageGateway:
                             await adapter.send_text(
                                 chat_id=original.chat_id,
                                 text=f"消息发送失败（第 {i + 1}/{len(messages)} 段），请稍后重试。",
+                                metadata=outgoing_meta,
                             )
 
     async def _send_error(self, original: UnifiedMessage, error: str) -> None:
@@ -2811,10 +2814,12 @@ class MessageGateway:
             return
 
         try:
+            _meta = {"is_group": original.metadata.get("is_group", original.chat_type == "group")}
             await adapter.send_text(
                 chat_id=original.chat_id,
                 text=f"❌ 处理出错: {error}",
                 reply_to=original.channel_message_id,
+                metadata=_meta,
             )
         except Exception as e:
             logger.error(f"Failed to send error message: {e}")
@@ -2890,18 +2895,19 @@ class MessageGateway:
 
                 header = f"📋 每日系统自检报告（{report_date}）\n\n"
                 full_text = header + report_md
+                _meta = {"is_group": message.metadata.get("is_group", message.chat_type == "group")}
 
                 # 分段发送（兼容 Telegram 4096 限制）
                 max_len = 3500
                 text = full_text
                 while text:
                     if len(text) <= max_len:
-                        await adapter.send_text(message.chat_id, text)
+                        await adapter.send_text(message.chat_id, text, metadata=_meta)
                         break
                     cut = text.rfind("\n", 0, max_len)
                     if cut < 1000:
                         cut = max_len
-                    await adapter.send_text(message.chat_id, text[:cut].rstrip())
+                    await adapter.send_text(message.chat_id, text[:cut].rstrip(), metadata=_meta)
                     text = text[cut:].lstrip()
 
                 # 标记为已推送
@@ -3030,6 +3036,8 @@ class MessageGateway:
         throttle = self._progress_throttle_seconds if throttle_seconds is None else throttle_seconds
 
         buf = self._progress_buffers.setdefault(session_key, [])
+        if buf and buf[-1] == text:
+            return  # 连续相同消息去重
         buf.append(text)
 
         existing = self._progress_flush_tasks.get(session_key)

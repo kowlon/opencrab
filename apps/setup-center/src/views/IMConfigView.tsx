@@ -165,20 +165,44 @@ export function IMConfigView(props: IMConfigViewProps) {
         </>
       ),
     },
-    {
-      title: "OneBot",
-      appType: t("config.imTypeOneBot"),
-      logo: <LogoQQ size={22} />,
-      enabledKey: "ONEBOT_ENABLED",
-      docUrl: "https://github.com/botuniverse/onebot-11",
-      needPublicIp: false,
-      body: (
-        <>
-          <FT k="ONEBOT_WS_URL" label="WebSocket URL" placeholder="ws://127.0.0.1:8080" />
-          <FT k="ONEBOT_ACCESS_TOKEN" label="Access Token" type="password" placeholder={t("config.imOneBotTokenHint")} />
-        </>
-      ),
-    },
+    (() => {
+      const obMode = (envDraft["ONEBOT_MODE"] || "reverse") as "reverse" | "forward";
+      const isReverse = obMode === "reverse";
+      return {
+        title: "OneBot",
+        appType: isReverse ? t("config.imTypeOneBotReverse") : t("config.imTypeOneBotForward"),
+        logo: <LogoQQ size={22} />,
+        enabledKey: "ONEBOT_ENABLED",
+        docUrl: "https://github.com/botuniverse/onebot-11",
+        needPublicIp: false,
+        body: (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              <div className="label">{t("config.imOneBotMode")}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                {(["reverse", "forward"] as const).map((m) => (
+                  <button key={m} className={obMode === m ? "capChipActive" : "capChip"}
+                    onClick={() => setEnvDraft((d) => ({ ...d, ONEBOT_MODE: m }))}
+                  >{m === "reverse" ? t("config.imOneBotModeReverse") : t("config.imOneBotModeForward")}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+                {isReverse ? t("config.imOneBotModeReverseHint") : t("config.imOneBotModeForwardHint")}
+              </div>
+            </div>
+            {isReverse ? (
+              <>
+                <FT k="ONEBOT_REVERSE_HOST" label={t("config.imOneBotReverseHost")} placeholder="0.0.0.0" />
+                <FT k="ONEBOT_REVERSE_PORT" label={t("config.imOneBotReversePort")} placeholder="6700" />
+              </>
+            ) : (
+              <FT k="ONEBOT_WS_URL" label="WebSocket URL" placeholder="ws://127.0.0.1:8080" />
+            )}
+            <FT k="ONEBOT_ACCESS_TOKEN" label="Access Token" type="password" placeholder={t("config.imOneBotTokenHint")} />
+          </>
+        ),
+      };
+    })(),
   ];
 
   return (

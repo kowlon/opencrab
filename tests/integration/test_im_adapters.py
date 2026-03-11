@@ -82,6 +82,33 @@ class TestOneBotAdapterInit:
         from openakita.channels.adapters.onebot import OneBotAdapter
         adapter = OneBotAdapter()
         assert adapter.channel_name == "onebot"
+        assert adapter.config.mode == "reverse"
+
+    def test_init_forward_mode(self):
+        from openakita.channels.adapters.onebot import OneBotAdapter
+        adapter = OneBotAdapter(mode="forward", ws_url="ws://localhost:9999")
+        assert adapter.config.mode == "forward"
+        assert adapter.config.ws_url == "ws://localhost:9999"
+
+    def test_init_reverse_mode(self):
+        from openakita.channels.adapters.onebot import OneBotAdapter
+        adapter = OneBotAdapter(mode="reverse", reverse_port=7700, access_token="test-token")
+        assert adapter.config.mode == "reverse"
+        assert adapter.config.reverse_port == 7700
+        assert adapter.config.access_token == "test-token"
+
+    def test_cq_code_entity_decoding(self):
+        from openakita.channels.adapters.onebot import OneBotAdapter
+        adapter = OneBotAdapter()
+        segments = adapter._parse_cq_code("hello&#44; world&#91;test&#93;&amp;ok")
+        assert segments[0]["data"]["text"] == "hello, world[test]&ok"
+
+    def test_message_dedup(self):
+        from openakita.channels.adapters.onebot import OneBotAdapter
+        adapter = OneBotAdapter()
+        assert "123" not in adapter._seen_message_ids
+        adapter._seen_message_ids["123"] = None
+        assert "123" in adapter._seen_message_ids
 
 
 class TestWeWorkAdapterInit:
