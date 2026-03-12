@@ -3965,30 +3965,26 @@ export function App() {
             )}
           </div>
 
-          {/* Workspace */}
-          <div className="statusCard">
+          {/* Auto-update toggle — desktop only */}
+          {IS_TAURI && <div className="statusCard">
             <div className="statusCardHead">
-              <span className="statusCardLabel">{t("config.step.workspace")}</span>
+              <span className="statusCardLabel">{t("status.autoUpdate")}</span>
+              {autoUpdateEnabled ? <DotGreen /> : <DotGray />}
             </div>
-            <div className="statusCardValue">{currentWorkspaceId || "—"}</div>
-            <div className="statusCardSub" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{ws?.path || ""}</span>
-              {ws?.path && (
-                <button
-                  className="btnIconInline"
-                  title={t("status.openFolder")}
-                  onClick={async () => {
-                    const { openFileWithDefault } = await import("./platform");
-                    try { await openFileWithDefault(ws.path); } catch (e) { logger.error("App", "openFileWithDefault failed", { error: String(e) }); }
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                  </svg>
-                </button>
-              )}
+            <div className="statusCardValue">{autoUpdateEnabled ? t("status.on") : t("status.off")}</div>
+            <div className="statusCardSub">{t("status.autoUpdateHint")}</div>
+            <div className="statusCardActions">
+              <button className="btnSmall" onClick={async () => {
+                setBusy(t("common.loading")); setError(null);
+                try {
+                  const next = !autoUpdateEnabled;
+                  await invoke("set_auto_update", { enabled: next });
+                  setAutoUpdateEnabled(next);
+                  if (!next) { setNewRelease(null); setUpdateAvailable(null); setUpdateProgress({ status: "idle" }); }
+                } catch (e) { setError(String(e)); } finally { setBusy(null); }
+              }} disabled={autoUpdateEnabled === null || !!busy}>{autoUpdateEnabled ? t("status.off") : t("status.on")}</button>
             </div>
-          </div>
+          </div>}
 
           {/* Autostart (= desktop autostart + backend auto-launch) — desktop only */}
           {IS_TAURI && <div className="statusCard">
@@ -4006,27 +4002,30 @@ export function App() {
             </div>
           </div>}
 
-          {/* Auto-update toggle — desktop only */}
-          {IS_TAURI && <div className="statusCard">
+          {/* Workspace */}
+          <div className="statusCard" style={{ gridColumn: "1 / -1" }}>
             <div className="statusCardHead">
-              <span className="statusCardLabel">{t("status.autoUpdate")}</span>
-              {autoUpdateEnabled ? <DotGreen /> : <DotGray />}
+              <span className="statusCardLabel">{t("config.step.workspace")}</span>
             </div>
-            <div className="statusCardValue">{autoUpdateEnabled ? t("status.on") : t("status.off")}</div>
-            <div className="statusCardSub">{t("status.autoUpdateHint")}</div>
-            <div className="statusCardActions">
-              <button className="btnSmall" onClick={async () => {
-                setBusy(t("common.loading")); setError(null);
-                try {
-                  const next = !autoUpdateEnabled;
-                  await invoke("set_auto_update", { enabled: next });
-                  setAutoUpdateEnabled(next);
-                  // 关闭时清除已有的更新通知
-                  if (!next) { setNewRelease(null); setUpdateAvailable(null); setUpdateProgress({ status: "idle" }); }
-                } catch (e) { setError(String(e)); } finally { setBusy(null); }
-              }} disabled={autoUpdateEnabled === null || !!busy}>{autoUpdateEnabled ? t("status.off") : t("status.on")}</button>
+            <div className="statusCardValue">{currentWorkspaceId || "—"}</div>
+            <div className="statusCardSub" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{ws?.path || ""}</span>
+              {ws?.path && (
+                <button
+                  className="btnIconInline"
+                  title={t("status.openFolder")}
+                  onClick={async () => {
+                    const { openFileWithDefault } = await import("./platform");
+                    try { await openFileWithDefault(ws.path); } catch (e) { logger.error("App", "openFileWithDefault failed", { error: String(e) }); }
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </button>
+              )}
             </div>
-          </div>}
+          </div>
         </div>
 
         {/* LLM Endpoints compact table */}
