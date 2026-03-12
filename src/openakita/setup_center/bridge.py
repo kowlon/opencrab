@@ -166,9 +166,18 @@ async def _list_models_openai(api_key: str, base_url: str, provider_slug: str | 
     url = base_url.rstrip("/") + "/models"
     # 本地服务（Ollama/LM Studio 等）不需要真实 API Key，使用 placeholder
     effective_key = api_key.strip() or "local"
-    async with httpx.AsyncClient(timeout=30) as client:
+    auth_header = f"Bearer {effective_key}"
+
+    async def _ensure_auth(request: httpx.Request):
+        request.headers.setdefault("Authorization", auth_header)
+
+    async with httpx.AsyncClient(
+        timeout=30,
+        follow_redirects=True,
+        event_hooks={"request": [_ensure_auth]},
+    ) as client:
         try:
-            resp = await client.get(url, headers={"Authorization": f"Bearer {effective_key}"})
+            resp = await client.get(url, headers={"Authorization": auth_header})
             resp.raise_for_status()
             data = resp.json()
         except httpx.HTTPStatusError:
