@@ -40,6 +40,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import logoUrl from "./assets/logo.png";
 import "highlight.js/styles/github.css";
@@ -4280,65 +4282,87 @@ export function App() {
 
         {/* ── Compiler endpoints ── */}
         <div className="card" style={{ marginTop: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div>
-              <div className="statusCardLabel">{t("llm.compiler")}</div>
-              <div className="cardHint" style={{ fontSize: 11 }}>{t("llm.compilerHint")}</div>
+              <div className="cardTitle" style={{ marginBottom: 2 }}>{t("llm.compiler")}</div>
+              <div className="cardHint">{t("llm.compilerHint")}</div>
             </div>
             <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 hover:text-primary" onClick={() => { if (providers.length === 0) doLoadProviders(); setCompilerProviderSlug(""); setCompilerApiType("openai"); setCompilerBaseUrl(""); setCompilerApiKeyEnv(""); setCompilerApiKeyValue(""); setCompilerModel(""); setCompilerEndpointName(""); setCompilerCodingPlan(false); setCompilerModels([]); setAddCompDialogOpen(true); }} disabled={!!busy}>
               + {t("llm.addEndpoint")}
             </Button>
           </div>
           {savedCompilerEndpoints.length === 0 ? (
-            <div className="cardHint">{t("llm.noCompiler")}</div>
+            <div className="text-sm text-muted-foreground text-center py-6">{t("llm.noEndpoints")}</div>
           ) : (
-            <div style={{ display: "grid", gap: 6 }}>
-              {savedCompilerEndpoints.map((e) => (
-                <div key={e.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", ...(e.enabled === false ? { opacity: 0.45 } : {}) }}>
-                  <div>
-                    <span style={{ fontWeight: 700, fontSize: 13 }}>{e.name}</span>
-                    <span style={{ color: "var(--muted)", fontSize: 11, marginLeft: 8 }}>{e.model} · {e.provider}</span>
-                    {e.enabled === false && <span style={{ marginLeft: 6, color: "var(--muted)", fontSize: 10, fontWeight: 700 }}>{t("llm.disabled")}</span>}
-                  </div>
-                  <span style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <Button variant="ghost" size="icon-sm" className={e.enabled !== false ? "text-primary" : "text-muted-foreground"} onClick={() => doToggleEndpointEnabled(e.name, "compiler_endpoints")} disabled={!!busy} title={e.enabled === false ? t("llm.enable") : t("llm.disable")}>{e.enabled !== false ? <IconPower size={14} /> : <IconCircle size={14} />}</Button>
-                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => askConfirm(`${t("common.confirmDeleteMsg")} "${e.name}"?`, () => doDeleteCompilerEndpoint(e.name))} disabled={!!busy} title={t("common.delete")}><IconTrash size={14} /></Button>
-                  </span>
-                </div>
-              ))}
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>{t("status.endpoint")}</TableHead>
+                  <TableHead>{t("status.model")}</TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {savedCompilerEndpoints.map((e) => (
+                  <TableRow key={e.name} className={e.enabled === false ? "opacity-45" : undefined}>
+                    <TableCell className="font-semibold">
+                      {e.name}
+                      {e.enabled === false && <span className="ml-1.5 text-[10px] font-bold text-muted-foreground">{t("llm.disabled")}</span>}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{e.model}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1 justify-end">
+                        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" onClick={() => doToggleEndpointEnabled(e.name, "compiler_endpoints")} disabled={!!busy} title={e.enabled === false ? t("llm.enable") : t("llm.disable")}>{e.enabled !== false ? <IconPower size={14} /> : <IconCircle size={14} />}</Button>
+                        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => askConfirm(`${t("common.confirmDeleteMsg")} "${e.name}"?`, () => doDeleteCompilerEndpoint(e.name))} disabled={!!busy} title={t("common.delete")}><IconTrash size={14} /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </div>
 
         {/* ── STT endpoints ── */}
         <div className="card" style={{ marginTop: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div>
-              <div className="statusCardLabel">{t("llm.stt")}</div>
-              <div className="cardHint" style={{ fontSize: 11 }}>{t("llm.sttHint")}</div>
+              <div className="cardTitle" style={{ marginBottom: 2 }}>{t("llm.stt")}</div>
+              <div className="cardHint">{t("llm.sttHint")}</div>
             </div>
             <Button variant="outline" size="sm" className="border-primary/50 text-primary hover:bg-primary/10 hover:text-primary" onClick={() => { if (providers.length === 0) doLoadProviders(); setSttProviderSlug(""); setSttApiType("openai"); setSttBaseUrl(""); setSttApiKeyEnv(""); setSttApiKeyValue(""); setSttModel(""); setSttEndpointName(""); setSttModels([]); setAddSttDialogOpen(true); }} disabled={!!busy}>
-              + {t("llm.addStt")}
+              + {t("llm.addEndpoint")}
             </Button>
           </div>
           {savedSttEndpoints.length === 0 ? (
-            <div className="cardHint">{t("llm.noStt")}</div>
+            <div className="text-sm text-muted-foreground text-center py-6">{t("llm.noEndpoints")}</div>
           ) : (
-            <div style={{ display: "grid", gap: 6 }}>
-              {savedSttEndpoints.map((e) => (
-                <div key={e.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(0,0,0,0.04)", ...(e.enabled === false ? { opacity: 0.45 } : {}) }}>
-                  <div>
-                    <span style={{ fontWeight: 700, fontSize: 13 }}>{e.name}</span>
-                    <span style={{ color: "var(--muted)", fontSize: 11, marginLeft: 8 }}>{e.model} · {e.provider}</span>
-                    {e.enabled === false && <span style={{ marginLeft: 6, color: "var(--muted)", fontSize: 10, fontWeight: 700 }}>{t("llm.disabled")}</span>}
-                  </div>
-                  <span style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <Button variant="ghost" size="icon-sm" className={e.enabled !== false ? "text-primary" : "text-muted-foreground"} onClick={() => doToggleEndpointEnabled(e.name, "stt_endpoints")} disabled={!!busy} title={e.enabled === false ? t("llm.enable") : t("llm.disable")}>{e.enabled !== false ? <IconPower size={14} /> : <IconCircle size={14} />}</Button>
-                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => askConfirm(`${t("common.confirmDeleteMsg")} "${e.name}"?`, () => doDeleteSttEndpoint(e.name))} disabled={!!busy} title={t("common.delete")}><IconTrash size={14} /></Button>
-                  </span>
-                </div>
-              ))}
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>{t("status.endpoint")}</TableHead>
+                  <TableHead>{t("status.model")}</TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {savedSttEndpoints.map((e) => (
+                  <TableRow key={e.name} className={e.enabled === false ? "opacity-45" : undefined}>
+                    <TableCell className="font-semibold">
+                      {e.name}
+                      {e.enabled === false && <span className="ml-1.5 text-[10px] font-bold text-muted-foreground">{t("llm.disabled")}</span>}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{e.model}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1 justify-end">
+                        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" onClick={() => doToggleEndpointEnabled(e.name, "stt_endpoints")} disabled={!!busy} title={e.enabled === false ? t("llm.enable") : t("llm.disable")}>{e.enabled !== false ? <IconPower size={14} /> : <IconCircle size={14} />}</Button>
+                        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => askConfirm(`${t("common.confirmDeleteMsg")} "${e.name}"?`, () => doDeleteSttEndpoint(e.name))} disabled={!!busy} title={t("common.delete")}><IconTrash size={14} /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </div>
 
@@ -4367,13 +4391,13 @@ export function App() {
 
               {/* Coding Plan toggle */}
               {selectedProvider?.coding_plan_base_url && (
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" checked={codingPlanMode} onChange={(e) => { setCodingPlanMode(e.target.checked); setBaseUrlTouched(false); }} className="size-4 accent-primary" />
-                    <span className="text-sm font-medium">{t("llm.codingPlan")}</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground pl-6">{t("llm.codingPlanHint")}</p>
-                </div>
+                <label htmlFor="coding-plan-add" className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3 cursor-pointer select-none hover:bg-accent/50 transition-colors">
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-medium">{t("llm.codingPlan")}</div>
+                    <div className="text-xs text-muted-foreground">{t("llm.codingPlanHint")}</div>
+                  </div>
+                  <Switch id="coding-plan-add" checked={codingPlanMode} onCheckedChange={(v) => { setCodingPlanMode(v); setBaseUrlTouched(false); }} />
+                </label>
               )}
 
               {/* Base URL */}
@@ -4791,30 +4815,24 @@ export function App() {
 
               {/* Coding Plan toggle */}
               {(() => { const cp = providers.find((x) => x.slug === compilerProviderSlug); return cp?.coding_plan_base_url ? (
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={compilerCodingPlan}
-                      onChange={(e) => {
-                        const on = e.target.checked;
-                        setCompilerCodingPlan(on);
-                        if (cp) {
-                          if (on && cp.coding_plan_base_url) {
-                            setCompilerBaseUrl(cp.coding_plan_base_url);
-                            setCompilerApiType("anthropic");
-                          } else {
-                            setCompilerBaseUrl(cp.default_base_url || "");
-                            setCompilerApiType((cp.api_type as "openai" | "anthropic") || "openai");
-                          }
-                        }
-                      }}
-                      className="size-4 accent-primary"
-                    />
-                    <span className="text-sm font-medium">{t("llm.codingPlan")}</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground pl-6">{t("llm.codingPlanHint")}</p>
-                </div>
+                <label htmlFor="coding-plan-comp" className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3 cursor-pointer select-none hover:bg-accent/50 transition-colors">
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-medium">{t("llm.codingPlan")}</div>
+                    <div className="text-xs text-muted-foreground">{t("llm.codingPlanHint")}</div>
+                  </div>
+                  <Switch id="coding-plan-comp" checked={compilerCodingPlan} onCheckedChange={(v) => {
+                    setCompilerCodingPlan(v);
+                    if (cp) {
+                      if (v && cp.coding_plan_base_url) {
+                        setCompilerBaseUrl(cp.coding_plan_base_url);
+                        setCompilerApiType("anthropic");
+                      } else {
+                        setCompilerBaseUrl(cp.default_base_url || "");
+                        setCompilerApiType((cp.api_type as "openai" | "anthropic") || "openai");
+                      }
+                    }
+                  }} />
+                </label>
               ) : null; })()}
 
               {/* Base URL */}
