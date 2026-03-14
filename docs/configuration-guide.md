@@ -624,7 +624,6 @@ OpenAkita 内置多种预设角色人格：
 | 配置项 | 默认值 |
 |--------|--------|
 | MCP_ENABLED | `true` |
-| MCP_BROWSER_ENABLED | `true` |
 | DESKTOP_ENABLED | `true` |
 
 ### 日志

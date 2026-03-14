@@ -29,17 +29,6 @@ MCP (Model Context Protocol) is a standard protocol for connecting AI models to 
 MCP_ENABLED=true
 ```
 
-### Browser MCP
-
-```bash
-# Install Playwright browsers
-playwright install chromium
-
-# Enable browser MCP
-MCP_BROWSER_ENABLED=true
-```
-
-
 ## Using MCP Tools
 
 ### Browser Automation

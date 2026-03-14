@@ -1082,7 +1082,6 @@ export function App() {
     }
     // Set sensible defaults for first-time setup
     const defaults: Record<string, string> = {
-      MCP_BROWSER_ENABLED: "true",
       DESKTOP_ENABLED: "true",
       MCP_ENABLED: "true",
     };
@@ -2987,7 +2986,7 @@ export function App() {
           "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "FORCE_IPV4",
           "TOOL_MAX_PARALLEL", "FORCE_TOOL_CALL_MAX_RETRIES",
           "ALLOW_PARALLEL_TOOLS_WITH_INTERRUPT_CHECKS",
-          "MCP_ENABLED", "MCP_TIMEOUT", "MCP_BROWSER_ENABLED",
+          "MCP_ENABLED", "MCP_TIMEOUT",
           "DESKTOP_ENABLED", "DESKTOP_DEFAULT_MONITOR", "DESKTOP_COMPRESSION_QUALITY",
           "DESKTOP_MAX_WIDTH", "DESKTOP_MAX_HEIGHT", "DESKTOP_CACHE_TTL",
           "DESKTOP_UIA_TIMEOUT", "DESKTOP_UIA_RETRY_INTERVAL", "DESKTOP_UIA_MAX_RETRIES",
@@ -5113,7 +5112,7 @@ export function App() {
     const keysTools = [
       "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "FORCE_IPV4",
       "TOOL_MAX_PARALLEL", "FORCE_TOOL_CALL_MAX_RETRIES", "ALLOW_PARALLEL_TOOLS_WITH_INTERRUPT_CHECKS",
-      "MCP_ENABLED", "MCP_TIMEOUT", "MCP_BROWSER_ENABLED",
+      "MCP_ENABLED", "MCP_TIMEOUT",
       "DESKTOP_ENABLED", "DESKTOP_DEFAULT_MONITOR", "DESKTOP_COMPRESSION_QUALITY",
       "DESKTOP_MAX_WIDTH", "DESKTOP_MAX_HEIGHT", "DESKTOP_CACHE_TTL",
       "DESKTOP_UIA_TIMEOUT", "DESKTOP_UIA_RETRY_INTERVAL", "DESKTOP_UIA_MAX_RETRIES",
@@ -5141,9 +5140,8 @@ export function App() {
               {t("config.toolsMCP")}
             </summary>
             <div className="flex flex-col gap-2.5 px-4 py-3 border-t border-border">
-              {FB({ k: "MCP_ENABLED", label: t("config.toolsMCPEnable"), help: t("config.toolsMCPEnableHelp") })}
               <div className="grid2">
-                {FB({ k: "MCP_BROWSER_ENABLED", label: "Browser MCP", help: t("config.toolsMCPBrowserHelp") })}
+                {FB({ k: "MCP_ENABLED", label: t("config.toolsMCPEnable"), help: t("config.toolsMCPEnableHelp") })}
                 {FT({ k: "MCP_TIMEOUT", label: "Timeout (s)", placeholder: "60" })}
               </div>
             </div>
@@ -6100,7 +6098,6 @@ export function App() {
       // MCP (docs/mcp-integration.md)
       "MCP_ENABLED",
       "MCP_TIMEOUT",
-      "MCP_BROWSER_ENABLED",
       // Desktop automation
       "DESKTOP_ENABLED",
       "DESKTOP_DEFAULT_MONITOR",
@@ -6384,9 +6381,8 @@ export function App() {
                 <div className="label" style={{ marginBottom: 8 }}>
                   MCP
                 </div>
-                {FB({ k: "MCP_ENABLED", label: "启用 MCP", help: "连接外部 MCP 服务/工具" })}
-                <div className="grid2" style={{ marginTop: 10 }}>
-                  {FB({ k: "MCP_BROWSER_ENABLED", label: "Browser MCP", help: "Playwright 浏览器自动化" })}
+                <div className="grid2">
+                  {FB({ k: "MCP_ENABLED", label: "启用 MCP", help: "连接外部 MCP 服务/工具" })}
                   {FT({ k: "MCP_TIMEOUT", label: "MCP_TIMEOUT", placeholder: "60" })}
                 </div>
               </div>
