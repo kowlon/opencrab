@@ -7,7 +7,6 @@ import logging
 from collections.abc import AsyncIterator
 
 from .card_builder import CardBuilder
-from .seecrab_models import FilterResult
 from .step_aggregator import StepAggregator
 from .step_filter import StepFilter
 from .timer_tracker import TimerTracker

@@ -178,7 +178,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 ensure_ascii=False,
             )
             yield f"data: {err}\n\n"
-            yield f'data: {{"type": "done"}}\n\n'
+            yield 'data: {"type": "done"}\n\n'
         finally:
             # Cleanup: flush aggregator to cancel any pending title tasks
             if adapter is not None:
