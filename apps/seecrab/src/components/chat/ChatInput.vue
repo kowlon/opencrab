@@ -1,6 +1,6 @@
 <template>
   <div class="chat-input-container">
-    <div class="input-wrapper">
+    <div class="input-wrapper" :class="{ focused: isFocused }">
       <textarea
         ref="inputRef"
         v-model="inputText"
@@ -8,6 +8,8 @@
         rows="1"
         @keydown.enter.exact.prevent="send"
         @input="autoResize"
+        @focus="isFocused = true"
+        @blur="isFocused = false"
       />
       <button class="send-btn" :disabled="!inputText.trim() || isStreaming" @click="send">
         <span class="material-symbols-rounded">send</span>
@@ -27,6 +29,7 @@ const sessionStore = useSessionStore()
 const inputText = ref('')
 const inputRef = ref<HTMLTextAreaElement>()
 const isStreaming = ref(false)
+const isFocused = ref(false)
 
 function autoResize() {
   const el = inputRef.value
@@ -47,20 +50,65 @@ defineExpose({ prefill: (text: string) => { inputText.value = text } })
 </script>
 
 <style scoped>
-.chat-input-container { padding: 16px; max-width: var(--chat-max-width); margin: 0 auto; width: 100%; }
+.chat-input-container {
+  padding: 16px 24px 24px;
+  width: 100%;
+  max-width: var(--chat-max-width);
+  margin: 0 auto;
+}
 .input-wrapper {
-  display: flex; align-items: flex-end; gap: 8px;
-  background: var(--bg-tertiary); border-radius: 12px; padding: 8px 12px;
-  border: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  padding: 12px 14px 12px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.25s var(--ease-out);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+.input-wrapper.focused {
+  border-color: var(--border-accent);
+  box-shadow: 0 0 0 3px var(--accent-dim), 0 4px 24px rgba(0, 0, 0, 0.3);
+  background: var(--bg-hover);
 }
 textarea {
-  flex: 1; background: none; border: none; color: var(--text-primary);
-  font-size: 14px; resize: none; outline: none; max-height: 120px;
-  font-family: inherit; line-height: 1.5;
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-bright);
+  font-size: 15px;
+  resize: none;
+  outline: none;
+  max-height: 120px;
+  font-family: inherit;
+  line-height: 1.5;
 }
+textarea::placeholder { color: var(--text-muted); }
 .send-btn {
-  background: var(--accent); border: none; color: white; border-radius: 8px;
-  width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  background: var(--accent);
+  border: none;
+  color: var(--bg-abyss);
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  transition: all 0.15s var(--ease-out);
 }
-.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.send-btn .material-symbols-rounded { font-size: 18px; }
+.send-btn:hover:not(:disabled) {
+  background: var(--accent-bright);
+  transform: scale(1.08);
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+.send-btn:disabled {
+  background: var(--bg-surface);
+  color: var(--text-ghost);
+  cursor: not-allowed;
+}
 </style>

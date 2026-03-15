@@ -4,6 +4,7 @@ export type SSEEventType =
   | 'thinking' | 'plan_checklist' | 'step_card' | 'ai_text'
   | 'ask_user' | 'agent_header' | 'artifact'
   | 'timer_update' | 'heartbeat' | 'done' | 'error'
+  | 'session_title'
 
 export interface SSEEvent {
   type: SSEEventType

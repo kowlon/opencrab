@@ -228,3 +228,4 @@ openakita-release.keystore
 ppt_build/
 .superpowers
 devops/.pids
+*.png

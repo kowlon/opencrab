@@ -99,14 +99,28 @@ class SeeCrabAdapter:
                 logger.warning("[SeeCrab] plan_step_updated with empty stepId, skipping")
                 return []
             step_index = self.aggregator._plan_id_to_index.get(raw_step_id, 0)
-            if step_index == 0 and "_" in raw_step_id:
-                # Fallback: parse "step_N" → N
-                try:
-                    step_index = int(raw_step_id.split("_")[-1])
-                except (ValueError, IndexError):
-                    pass
+            if step_index == 0:
+                # Fallback 1: parse "step_N" → N
+                if "_" in raw_step_id:
+                    try:
+                        step_index = int(raw_step_id.split("_")[-1])
+                    except (ValueError, IndexError):
+                        pass
+                # Fallback 2: try direct integer parse
+                if step_index == 0:
+                    try:
+                        step_index = int(raw_step_id)
+                    except (ValueError, TypeError):
+                        pass
+                # Fallback 3: try step_index field directly as integer
+                if step_index == 0:
+                    si = event.get("step_index", event.get("stepIndex", 0))
+                    if isinstance(si, int) and si > 0:
+                        step_index = si
             if step_index <= 0:
-                logger.warning(f"[SeeCrab] plan_step_updated: unknown stepId={raw_step_id!r}, skipping")
+                logger.warning(
+                    f"[SeeCrab] plan_step_updated: unknown stepId={raw_step_id!r}, skipping"
+                )
                 return []
             status = event.get("status", "")
             return await self.aggregator.on_plan_step_updated(step_index, status)

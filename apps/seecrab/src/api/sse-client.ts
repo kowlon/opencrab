@@ -3,8 +3,6 @@ import { useChatStore } from '@/stores/chat'
 
 export class SSEClient {
   private abortController: AbortController | null = null
-  private reconnectAttempts = 0
-  private maxReconnectDelay = 30_000
 
   async sendMessage(message: string, conversationId?: string): Promise<void> {
     this.abort()
@@ -49,7 +47,6 @@ export class SSEClient {
           }
         }
       }
-      this.reconnectAttempts = 0
     } catch (err: any) {
       if (err.name === 'AbortError') return
       console.error('[SSE] Connection error:', err)

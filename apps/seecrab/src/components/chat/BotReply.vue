@@ -22,5 +22,8 @@ defineProps<{ reply: ReplyState }>()
 </script>
 
 <style scoped>
-.bot-reply { padding: 12px 0; }
+.bot-reply {
+  padding: 14px 0;
+  animation: fadeIn 0.4s var(--ease-out) both;
+}
 </style>

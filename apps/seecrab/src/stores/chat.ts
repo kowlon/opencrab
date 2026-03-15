@@ -1,6 +1,7 @@
 // apps/seecrab/src/stores/chat.ts
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useSessionStore } from './session'
 import type { Message, ReplyState, StepCard, PlanStep, SSEEvent } from '@/types'
 
 export const useChatStore = defineStore('chat', () => {
@@ -12,7 +13,7 @@ export const useChatStore = defineStore('chat', () => {
     currentReply.value = {
       replyId,
       agentId: 'main',
-      agentName: 'OpenAkita',
+      agentName: 'openCrab',
       thinking: '',
       thinkingDone: false,
       planChecklist: null,
@@ -30,6 +31,17 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function dispatchEvent(event: SSEEvent) {
+    // session_title can arrive independently of a reply
+    if (event.type === 'session_title') {
+      const sessionStore = useSessionStore()
+      const sid = (event as any).session_id ?? sessionStore.activeSessionId
+      const title = (event as any).title ?? ''
+      if (sid && title) {
+        sessionStore.updateSessionTitle(sid, title)
+      }
+      return
+    }
+
     if (!currentReply.value) {
       startNewReply(`reply_${Date.now()}`)
     }
@@ -40,9 +52,15 @@ export const useChatStore = defineStore('chat', () => {
         reply.thinking += (event as any).content ?? ''
         break
 
-      case 'step_card':
+      case 'step_card': {
         _upsertStepCard(reply, event as any)
+        // Track step count in session
+        const sessionStore = useSessionStore()
+        if (sessionStore.activeSessionId && (event as any).status === 'completed') {
+          sessionStore.incrementStepCount(sessionStore.activeSessionId)
+        }
         break
+      }
 
       case 'ai_text':
         reply.summaryText += (event as any).content ?? ''
@@ -85,6 +103,13 @@ export const useChatStore = defineStore('chat', () => {
           timestamp: Date.now(),
           reply: { ...reply },
         })
+        // Update session lastMessage with assistant summary
+        if (reply.summaryText) {
+          const sessionStore = useSessionStore()
+          if (sessionStore.activeSessionId) {
+            sessionStore.updateLastMessage(sessionStore.activeSessionId, reply.summaryText)
+          }
+        }
         currentReply.value = null
         break
 
@@ -137,12 +162,22 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function addUserMessage(content: string) {
+    // On first user message, set session title from message content
+    const sessionStore = useSessionStore()
+    const isFirstMessage = messages.value.length === 0
     messages.value.push({
       id: `user_${Date.now()}`,
       role: 'user',
       content,
       timestamp: Date.now(),
     })
+    if (sessionStore.activeSessionId) {
+      sessionStore.updateLastMessage(sessionStore.activeSessionId, content)
+      if (isFirstMessage) {
+        const title = content.length > 30 ? content.substring(0, 30) + '...' : content
+        sessionStore.updateSessionTitle(sessionStore.activeSessionId, title)
+      }
+    }
     startNewReply(`reply_${Date.now()}`)
   }
 

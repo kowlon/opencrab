@@ -1,8 +1,11 @@
 <template>
   <div class="app-layout">
+    <div class="bg-mesh" aria-hidden="true"></div>
     <LeftSidebar class="sidebar" />
     <ChatArea class="main" />
-    <RightPanel v-if="uiStore.rightPanelOpen" class="detail" />
+    <transition name="slide-panel">
+      <RightPanel v-if="uiStore.rightPanelOpen" class="detail" />
+    </transition>
   </div>
 </template>
 
@@ -20,17 +23,52 @@ const uiStore = useUIStore()
   display: flex;
   height: 100vh;
   overflow: hidden;
+  position: relative;
 }
+
+.bg-mesh {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 10% 90%, rgba(56, 189, 204, 0.03), transparent),
+    radial-gradient(ellipse 500px 500px at 85% 20%, rgba(240, 128, 108, 0.02), transparent),
+    radial-gradient(ellipse 800px 600px at 50% 50%, rgba(56, 189, 204, 0.015), transparent);
+}
+
 .sidebar {
-  width: 260px;
+  width: 280px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 .main {
   flex: 1;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
+
+/* Right panel as a proper third column */
 .detail {
-  width: 400px;
+  width: 420px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+}
+
+/* Panel slide transition */
+.slide-panel-enter-active {
+  transition: width 0.3s var(--ease-out), opacity 0.3s var(--ease-out);
+}
+.slide-panel-leave-active {
+  transition: width 0.2s ease-in, opacity 0.2s ease-in;
+}
+.slide-panel-enter-from,
+.slide-panel-leave-to {
+  width: 0;
+  opacity: 0;
 }
 </style>

@@ -15,6 +15,13 @@ export const useSessionStore = defineStore('session', () => {
 
   async function createSession() {
     const { session_id } = await httpClient.createSession()
+    sessions.value.unshift({
+      id: session_id,
+      title: '',
+      lastMessage: '',
+      updatedAt: Date.now(),
+      messageCount: 0,
+    })
     activeSessionId.value = session_id
     return session_id
   }
@@ -23,5 +30,32 @@ export const useSessionStore = defineStore('session', () => {
     activeSessionId.value = id
   }
 
-  return { sessions, activeSessionId, loadSessions, createSession, selectSession }
+  function updateSessionTitle(id: string, title: string) {
+    const session = sessions.value.find(s => s.id === id)
+    if (session) {
+      session.title = title
+    }
+  }
+
+  function incrementStepCount(id: string) {
+    const session = sessions.value.find(s => s.id === id)
+    if (session) {
+      session.messageCount += 1
+      session.updatedAt = Date.now()
+    }
+  }
+
+  function updateLastMessage(id: string, lastMessage: string) {
+    const session = sessions.value.find(s => s.id === id)
+    if (session) {
+      session.lastMessage = lastMessage.length > 60 ? lastMessage.substring(0, 60) + '...' : lastMessage
+      session.updatedAt = Date.now()
+    }
+  }
+
+  return {
+    sessions, activeSessionId,
+    loadSessions, createSession, selectSession,
+    updateSessionTitle, incrementStepCount, updateLastMessage,
+  }
 })

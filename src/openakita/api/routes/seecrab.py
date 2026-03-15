@@ -153,6 +153,20 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             except ImportError:
                 pass
 
+            # Emit session_title from first user message
+            is_first_message = len(user_messages) <= 1
+            if is_first_message and body.message:
+                title = body.message[:30] + ("..." if len(body.message) > 30 else "")
+                title_event = json.dumps({
+                    "type": "session_title",
+                    "session_id": conversation_id,
+                    "title": title,
+                }, ensure_ascii=False)
+                yield f"data: {title_event}\n\n"
+                # Persist title on session object
+                if session and hasattr(session, "__dict__"):
+                    session.title = title
+
             full_reply = ""
             async for event in adapter.transform(raw_stream, reply_id=reply_id):
                 if disconnect_event.is_set():
