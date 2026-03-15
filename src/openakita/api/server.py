@@ -280,6 +280,9 @@ def create_app(
     app.include_router(orgs.router, tags=["组织编排"])
     app.include_router(orgs.inbox_router, tags=["组织消息中心"])
 
+    from .routes import seecrab
+    app.include_router(seecrab.router, tags=["SeeCrab"])
+
     @app.get("/", tags=["系统"])
     async def root():
         # If web frontend is available, redirect to it
