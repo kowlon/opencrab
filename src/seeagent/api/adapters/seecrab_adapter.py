@@ -14,6 +14,8 @@ from .title_generator import TitleGenerator
 
 logger = logging.getLogger(__name__)
 
+_STREAM_DONE = object()
+
 
 class SeeCrabAdapter:
     """Core translation layer: raw reason_stream events → refined SSE events."""
@@ -38,12 +40,15 @@ class SeeCrabAdapter:
         self,
         raw_events: AsyncIterator[dict],
         reply_id: str,
+        event_bus: asyncio.Queue | None = None,
     ) -> AsyncIterator[dict]:
         """Consume raw events + title_update_queue, yield refined events."""
         self.timer.start(reply_id)
         yield self.timer.make_event("ttft", "running")
 
-        async for event in raw_events:
+        source = self._merge_sources(raw_events, event_bus) if event_bus else raw_events
+
+        async for event in source:
             for refined in await self._process_event(event):
                 yield refined
             # Drain any pending title updates between raw events
@@ -212,6 +217,63 @@ class SeeCrabAdapter:
             "question": event.get("question", ""),
             "options": mapped,
         }
+
+    async def _merge_sources(self, raw_events, event_bus):
+        """Merge raw_events + event_bus into a single async stream.
+
+        When raw_events blocks (during delegation), event_bus items
+        are still consumed.  After raw_events finishes, any remaining
+        items in event_bus are drained before the stream ends.
+        """
+        merged = asyncio.Queue()
+
+        async def _feed_raw():
+            try:
+                async for event in raw_events:
+                    await merged.put(event)
+                    # Yield control so _feed_bus can forward queued items
+                    await asyncio.sleep(0)
+            except Exception as e:
+                logger.error(f"[SeeCrab] raw_events feeder error: {e}")
+            finally:
+                await merged.put(_STREAM_DONE)
+
+        async def _feed_bus():
+            try:
+                while True:
+                    event = await event_bus.get()
+                    if event is _STREAM_DONE:
+                        break
+                    await merged.put(event)
+            except asyncio.CancelledError:
+                pass
+
+        raw_task = asyncio.create_task(_feed_raw())
+        bus_task = asyncio.create_task(_feed_bus())
+
+        try:
+            while True:
+                item = await merged.get()
+                if item is _STREAM_DONE:
+                    # Drain any remaining event_bus items that arrived
+                    # before raw_events finished
+                    while not event_bus.empty():
+                        try:
+                            leftover = event_bus.get_nowait()
+                            if leftover is not _STREAM_DONE:
+                                yield leftover
+                        except asyncio.QueueEmpty:
+                            break
+                    break
+                yield item
+        finally:
+            bus_task.cancel()
+            try:
+                await bus_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            if not raw_task.done():
+                raw_task.cancel()
 
     async def _handle_agent_switch(self, event: dict) -> list[dict]:
         """Handle agent switch: flush current aggregator, switch to new agent."""

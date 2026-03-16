@@ -156,3 +156,53 @@ class TestAgentHeader:
         step_cards = [e for e in events if e["type"] == "step_card"]
         assert len(step_cards) >= 1
         assert any("test" in c.get("title", "") for c in step_cards)
+
+
+class TestEventBusMerge:
+    @pytest.mark.asyncio
+    async def test_event_bus_events_merged_into_stream(self):
+        """Events put into event_bus should appear in the output."""
+        event_bus = asyncio.Queue()
+
+        async def raw():
+            # Simulate a blocking tool call — put sub-agent events into bus
+            yield {"type": "tool_call_start", "tool": "delegate_to_agent",
+                   "args": {"agent_id": "sub", "message": "task"}, "id": "t1"}
+            # Sub-agent events arrive via bus during the "blocking" period
+            await event_bus.put({
+                "type": "agent_header", "agent_id": "sub", "agent_name": "Sub",
+            })
+            await event_bus.put({
+                "type": "tool_call_start", "tool": "web_search",
+                "args": {"query": "test"}, "id": "t2",
+            })
+            await event_bus.put({
+                "type": "tool_call_end", "tool": "web_search",
+                "result": "found", "id": "t2", "is_error": False,
+            })
+            await event_bus.put({
+                "type": "agent_header", "agent_id": "main", "agent_name": "SeeAgent",
+            })
+            # Main agent resumes
+            yield {"type": "tool_call_end", "tool": "delegate_to_agent",
+                   "result": "done", "id": "t1", "is_error": False}
+            yield {"type": "text_delta", "content": "Summary"}
+
+        adapter = SeeCrabAdapter(brain=None, user_messages=[])
+        events = []
+        async for e in adapter.transform(raw(), reply_id="r1", event_bus=event_bus):
+            events.append(e)
+
+        headers = [e for e in events if e["type"] == "agent_header"]
+        assert len(headers) >= 2  # sub + main
+        step_cards = [e for e in events if e["type"] == "step_card"]
+        assert any("test" in c.get("title", "") for c in step_cards)
+
+    @pytest.mark.asyncio
+    async def test_no_event_bus_works_as_before(self):
+        """Without event_bus, transform should work identically to before."""
+        events = await _events_from([
+            {"type": "text_delta", "content": "Hello"},
+        ])
+        ai_texts = [e for e in events if e["type"] == "ai_text"]
+        assert len(ai_texts) == 1
