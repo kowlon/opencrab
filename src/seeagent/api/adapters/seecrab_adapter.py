@@ -290,6 +290,7 @@ class SeeCrabAdapter:
                 card_builder=self.card_builder,
                 timer=self.timer,
                 title_update_queue=self._title_queue,
+                agent_id=agent_id,
             )
         self._active_agent_id = agent_id
         self.aggregator = self._aggregators[agent_id]

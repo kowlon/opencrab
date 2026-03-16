@@ -22,11 +22,13 @@ class StepAggregator:
         card_builder: CardBuilder,
         timer: TimerTracker,
         title_update_queue: asyncio.Queue | None = None,
+        agent_id: str = "main",
     ):
         self.title_gen = title_gen
         self.card_builder = card_builder
         self.timer = timer
         self._title_update_queue = title_update_queue
+        self._agent_id = agent_id
         self.state = AggregatorState.IDLE
         self.pending_card: PendingCard | None = None
         # Plan mode state
@@ -104,6 +106,7 @@ class StepAggregator:
                 status=status,
                 source_type="tool",
                 tool_name=tool_name,
+                agent_id=self._agent_id,
                 duration=duration,
                 output_data=result[:2000] if result else None,
             )]
@@ -181,7 +184,7 @@ class StepAggregator:
             events.append(self.card_builder.build_step_card(
                 step_id=step_id, title=title, status="running",
                 source_type="plan_step", tool_name="",
-                plan_step_index=step_index,
+                plan_step_index=step_index, agent_id=self._agent_id,
             ))
             # Update checklist
             self._update_plan_step_status(step_index, "running")
@@ -198,6 +201,7 @@ class StepAggregator:
                     source_type="plan_step",
                     tool_name="",
                     plan_step_index=step_index,
+                    agent_id=self._agent_id,
                     duration=duration,
                     absorbed_calls=self._plan_step_card.absorbed_calls,
                 ))
@@ -267,6 +271,7 @@ class StepAggregator:
         return [self.card_builder.build_step_card(
             step_id=step_id, title=placeholder, status="running",
             source_type="skill", tool_name=tool_name,
+            agent_id=self._agent_id,
         )]
 
     async def _resolve_skill_title(self, step_id: str, meta: dict) -> None:
@@ -313,6 +318,7 @@ class StepAggregator:
         return [self.card_builder.build_step_card(
             step_id=step_id, title=placeholder, status="running",
             source_type="mcp", tool_name=tool_name,
+            agent_id=self._agent_id,
         )]
 
     async def _resolve_mcp_title(
@@ -347,7 +353,7 @@ class StepAggregator:
         return [self.card_builder.build_step_card(
             step_id=step_id, title=title, status="running",
             source_type="tool", tool_name=tool_name,
-            input_data=args,
+            agent_id=self._agent_id, input_data=args,
         )]
 
     def _start_agent_delegation(
@@ -377,7 +383,8 @@ class StepAggregator:
         self._delegation_title_tasks.append(task)
         return [self.card_builder.build_step_card(
             step_id=step_id, title=instant_title, status="running",
-            source_type="tool", tool_name=tool_name, input_data=args,
+            source_type="tool", tool_name=tool_name,
+            agent_id=self._agent_id, input_data=args,
         )]
 
     async def _resolve_delegation_title(
@@ -406,7 +413,7 @@ class StepAggregator:
                 "title": title, "status": "running",
                 "source_type": "tool", "card_type": "default",
                 "duration": None, "plan_step_index": None,
-                "agent_id": "main", "input": None,
+                "agent_id": self._agent_id, "input": None,
                 "output": None, "absorbed_calls": [],
             })
 
@@ -434,6 +441,7 @@ class StepAggregator:
             status="completed",
             source_type=self.pending_card.source_type,
             tool_name="",
+            agent_id=self._agent_id,
             duration=duration,
             absorbed_calls=self.pending_card.absorbed_calls,
         )
