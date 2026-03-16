@@ -123,7 +123,8 @@ class TitleGenerator:
         agent_id = args.get("agent_id", "专家")
         reason = (args.get("reason") or "").strip()
         message = (args.get("message") or "").strip()
-        desc = reason or (message[:15] + "..." if len(message) > 15 else message)
+        text = reason or message
+        desc = (text[:20] + "..." if len(text) > 20 else text) if text else ""
         return f"委派 {agent_id}: {desc}" if desc else f"委派 {agent_id} 处理"
 
     async def generate_delegation_title(
@@ -148,7 +149,8 @@ class TitleGenerator:
         name = agent_meta.get("name", "专家")
         reason = task_meta.get("reason", "")
         message = task_meta.get("message", "")
-        desc = reason or (message[:15] if message else "")
+        text = reason or message
+        desc = (text[:20] + "..." if len(text) > 20 else text) if text else ""
         return f"委派 {name}: {desc}" if desc else f"委派 {name} 处理"
 
     async def _call_llm(self, prompt: str, fallback: str) -> str:

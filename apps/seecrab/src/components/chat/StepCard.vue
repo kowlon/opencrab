@@ -1,5 +1,5 @@
 <template>
-  <div class="step-card" :class="[card.status]" @click="uiStore.selectStep(card.stepId)">
+  <div class="step-card" :class="[card.status, { 'is-sub-agent': card.agentId && card.agentId !== 'main' }]" @click="uiStore.selectStep(card.stepId)">
     <span class="status-icon material-symbols-rounded">
       {{ card.status === 'completed' ? 'check_circle' : card.status === 'failed' ? 'error' : 'pending' }}
     </span>
@@ -56,6 +56,9 @@ const cardTypeIcon = computed(() => {
 }
 .step-card.failed {
   border-left: 2px solid var(--error);
+}
+.step-card.is-sub-agent {
+  margin-left: 24px;
 }
 
 .status-icon { font-size: 15px; }
