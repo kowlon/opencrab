@@ -25,4 +25,13 @@ export const httpClient = {
       method: 'POST',
       body: JSON.stringify({ conversation_id: conversationId, answer }),
     }),
+  generateTitle: async (message: string, reply: string): Promise<{ title: string }> => {
+    const resp = await fetch('/api/sessions/generate-title', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, reply }),
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return resp.json()
+  },
 }

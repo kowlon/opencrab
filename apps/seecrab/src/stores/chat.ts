@@ -106,6 +106,20 @@ export const useChatStore = defineStore('chat', () => {
             sessionStore.updateLastMessage(sessionStore.activeSessionId, reply.summaryText)
           }
         }
+        // Generate LLM title after first round completes (1 user + 1 assistant = 2)
+        if (messages.value.length === 2) {
+          const sessionStore = useSessionStore()
+          const sid = sessionStore.activeSessionId
+          const userMsg = messages.value[0]?.content ?? ''
+          const aiReply = reply.summaryText ?? ''
+          if (sid && userMsg) {
+            httpClient.generateTitle(userMsg, aiReply).then(({ title }) => {
+              if (title && sessionStore.activeSessionId === sid) {
+                sessionStore.updateSessionTitle(sid, title)
+              }
+            }).catch(() => {})
+          }
+        }
         currentReply.value = null
         break
 
