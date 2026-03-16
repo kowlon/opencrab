@@ -1,6 +1,6 @@
 ---
 name: search-hub-agents
-description: Search for Agents on the OpenAkita Platform Agent Store
+description: Search for Agents on the SeeAgent Platform Agent Store
 system: true
 handler: agent_hub
 tool-name: search_hub_agents
@@ -9,11 +9,11 @@ category: Platform
 
 # search-hub-agents
 
-Search for Agents on the OpenAkita Platform Agent Store.
+Search for Agents on the SeeAgent Platform Agent Store.
 
 ## When to Use
 
-- User wants to find or browse Agents on the OpenAkita marketplace
+- User wants to find or browse Agents on the SeeAgent marketplace
 - User asks "有什么 Agent 可以用" or "搜索一个 XX Agent"
 - User wants to discover community-shared Agents by category
 

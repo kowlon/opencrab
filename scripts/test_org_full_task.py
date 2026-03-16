@@ -15,9 +15,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from openakita.orgs.manager import OrgManager
-from openakita.orgs.runtime import OrgRuntime
-from openakita.orgs.models import (
+from seeagent.orgs.manager import OrgManager
+from seeagent.orgs.runtime import OrgRuntime
+from seeagent.orgs.models import (
     EdgeType, NodeStatus, OrgEdge, OrgNode, OrgStatus, Organization,
 )
 

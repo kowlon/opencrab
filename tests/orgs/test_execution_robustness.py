@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.orgs.models import (
+from seeagent.orgs.models import (
     EdgeType,
     MsgType,
     NodeStatus,
@@ -23,7 +23,7 @@ from openakita.orgs.models import (
     OrgStatus,
     Organization,
 )
-from openakita.orgs.tool_handler import OrgToolHandler
+from seeagent.orgs.tool_handler import OrgToolHandler
 from .conftest import make_edge, make_node, make_org
 
 
@@ -46,7 +46,7 @@ class TestNodeErrorRecovery:
 
     async def test_frozen_node_rejects_activation(self, persisted_org, mock_runtime):
         """Frozen nodes should return error, not crash."""
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         persisted_org.nodes[1].status = NodeStatus.FROZEN
         rt = MagicMock(spec=OrgRuntime)
         rt.get_org = MagicMock(return_value=persisted_org)
@@ -147,13 +147,13 @@ class TestMessageFormatting:
     """Test _format_incoming_message covers all message types."""
 
     def _make_runtime(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         rt = MagicMock()
         rt._cascade_depth = {}
         return rt
 
     def test_task_assign_format(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         rt = MagicMock(spec=OrgRuntime)
         rt._format_incoming_message = OrgRuntime._format_incoming_message.__get__(rt)
 
@@ -169,7 +169,7 @@ class TestMessageFormatting:
         assert "org_submit_deliverable" in text
 
     def test_task_delivered_format(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         rt = MagicMock(spec=OrgRuntime)
         rt._format_incoming_message = OrgRuntime._format_incoming_message.__get__(rt)
 
@@ -184,7 +184,7 @@ class TestMessageFormatting:
         assert "org_accept_deliverable" in text
 
     def test_task_rejected_format(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         rt = MagicMock(spec=OrgRuntime)
         rt._format_incoming_message = OrgRuntime._format_incoming_message.__get__(rt)
 
@@ -199,7 +199,7 @@ class TestMessageFormatting:
         assert "org_submit_deliverable" in text
 
     def test_empty_chain_id_in_task_assign(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         rt = MagicMock(spec=OrgRuntime)
         rt._format_incoming_message = OrgRuntime._format_incoming_message.__get__(rt)
 
@@ -240,7 +240,7 @@ class TestAdaptiveHeartbeatEdgeCases:
 
     @pytest.fixture()
     def heartbeat(self, mock_runtime):
-        from openakita.orgs.heartbeat import OrgHeartbeat
+        from seeagent.orgs.heartbeat import OrgHeartbeat
         return OrgHeartbeat(mock_runtime)
 
     def test_very_recent_activity_clamps_to_300s(self, heartbeat, persisted_org):
@@ -405,7 +405,7 @@ class TestTimeoutDifferentiation:
 
     def test_run_agent_task_returns_str(self):
         """_run_agent_task should return str (no timeout wrapper)."""
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         sig = OrgRuntime._run_agent_task.__annotations__
         assert "return" in sig
         ret_type = sig["return"]

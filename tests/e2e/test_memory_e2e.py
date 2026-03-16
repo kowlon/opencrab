@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from openakita.memory.manager import MemoryManager
-from openakita.memory.retrieval import RetrievalEngine
-from openakita.memory.types import (
+from seeagent.memory.manager import MemoryManager
+from seeagent.memory.retrieval import RetrievalEngine
+from seeagent.memory.types import (
     Attachment,
     AttachmentDirection,
     ConversationTurn,
@@ -23,7 +23,7 @@ from openakita.memory.types import (
     MemoryType,
     SemanticMemory,
 )
-from openakita.memory.unified_store import UnifiedStore
+from seeagent.memory.unified_store import UnifiedStore
 
 
 @pytest.fixture
@@ -165,7 +165,7 @@ class TestConversationToMemoryExtraction:
 
     def test_add_memory_then_retrieve(self, manager):
         manager.add_memory(Memory(
-            content="用户的项目叫 OpenAkita",
+            content="用户的项目叫 SeeAgent",
             type=MemoryType.FACT,
         ))
         manager.add_memory(Memory(

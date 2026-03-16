@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openakita.orgs.heartbeat import OrgHeartbeat
-from openakita.orgs.models import OrgStatus
+from seeagent.orgs.heartbeat import OrgHeartbeat
+from seeagent.orgs.models import OrgStatus
 from .conftest import make_org
 
 
@@ -123,7 +123,7 @@ class TestHeartbeatWithCoreBusiness:
         assert "经营复盘" not in prompt
 
     async def test_heartbeat_uses_dynamic_persona_label(self, heartbeat: OrgHeartbeat, persisted_org, mock_runtime):
-        from openakita.orgs.models import UserPersona
+        from seeagent.orgs.models import UserPersona
         persisted_org.core_business = "内容运营"
         persisted_org.user_persona = UserPersona(title="出品人", display_name="出品人")
         mock_runtime.send_command = AsyncMock(return_value={"result": "ok"})

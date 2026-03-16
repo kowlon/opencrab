@@ -45,7 +45,7 @@ print()
 print("=== A2: config.py load_endpoints_config returns 3-tuple ===")
 import inspect
 sys.path.insert(0, "src")
-from openakita.llm.config import load_endpoints_config, save_endpoints_config, validate_config
+from seeagent.llm.config import load_endpoints_config, save_endpoints_config, validate_config
 
 sig = inspect.signature(load_endpoints_config)
 ret_str = str(sig.return_annotation)
@@ -57,10 +57,10 @@ test("save has compiler_endpoints param", "compiler_endpoints" in sig_save.param
 
 print()
 print("=== A2b: client.py and others use 3-tuple ===")
-client_src = read("src/openakita/llm/client.py")
+client_src = read("src/seeagent/llm/client.py")
 test("client.py uses _ for compiler_endpoints", "self._endpoints, _, self._settings = load_endpoints_config" in client_src)
 
-cli_src = read("src/openakita/llm/setup/cli.py")
+cli_src = read("src/seeagent/llm/setup/cli.py")
 test("setup/cli.py 3-tuple (1st call)", "_compiler_eps, settings = load_endpoints_config()" in cli_src)
 test("setup/cli.py 3-tuple (2nd call)", "compiler_eps, settings = load_endpoints_config()" in cli_src)
 
@@ -69,7 +69,7 @@ test("llm_diag.py uses 3-tuple", "_compiler_eps, _settings = load_endpoints_conf
 
 print()
 print("=== A3: brain.py has compiler_think and _compiler_client ===")
-brain_src = read("src/openakita/core/brain.py")
+brain_src = read("src/seeagent/core/brain.py")
 test("_compiler_client declaration", "_compiler_client: LLMClient | None = None" in brain_src)
 test("_init_compiler_client method", "def _init_compiler_client(self)" in brain_src)
 test("compiler_think method", "async def compiler_think(self" in brain_src)
@@ -80,7 +80,7 @@ test("imports load_endpoints_config", "from ..llm.config import get_default_conf
 
 print()
 print("=== A4: agent.py _compile_prompt uses compiler_think ===")
-agent_src = read("src/openakita/core/agent.py")
+agent_src = read("src/seeagent/core/agent.py")
 test("_compile_prompt calls brain.compiler_think", "await self.brain.compiler_think(" in agent_src)
 
 # Check brain.think is NOT in _compile_prompt
@@ -99,12 +99,12 @@ test("method is concise (< 15 lines)", method_body.count("\n") < 15, f"{method_b
 
 print()
 print("=== B2: vector_store async_search + async prompt build ===")
-vs_src = read("src/openakita/memory/vector_store.py")
+vs_src = read("src/seeagent/memory/vector_store.py")
 test("imports asyncio", "import asyncio" in vs_src)
 test("async_search method exists", "async def async_search(" in vs_src)
 test("uses asyncio.to_thread", "asyncio.to_thread" in vs_src)
 
-ret_src = read("src/openakita/prompt/retriever.py")
+ret_src = read("src/seeagent/prompt/retriever.py")
 test("async_search_related_memories exists", "async def async_search_related_memories(" in ret_src)
 test("retriever uses vector_store.async_search", "vector_store.async_search(" in ret_src)
 
@@ -114,7 +114,7 @@ test("async version passes precomputed_memory", "precomputed_memory=precomputed_
 
 print()
 print("=== C1+C3: system msg convention + msg typing rules ===")
-builder_src = read("src/openakita/prompt/builder.py")
+builder_src = read("src/seeagent/prompt/builder.py")
 test("system msg convention section", "## 系统消息约定" in builder_src)
 test("mentions [系统] prefix", "[系统]" in builder_src)
 test("mentions [系统提示] prefix", "[系统提示]" in builder_src)
@@ -167,7 +167,7 @@ test("tool pattern uses param hash", "round_signatures = [_make_tool_signature(t
 
 print()
 print("=== C8: interrupt mechanism fixed ===")
-gw_src = read("src/openakita/channels/gateway.py")
+gw_src = read("src/seeagent/channels/gateway.py")
 test("gateway detects stop commands", "is_stop_command(user_text)" in gw_src)
 test("gateway calls cancel_current_task", "cancel_current_task(" in gw_src)
 test("cancel check at main loop start", "C8: 每轮迭代开始时检查任务是否已被取消" in agent_src)
@@ -189,7 +189,7 @@ test("max 2 compiler endpoints", tsx_src.count("savedCompilerEndpoints.length < 
 
 print()
 print("=== A7: wizard.py compiler config ===")
-wiz_src = read("src/openakita/setup/wizard.py")
+wiz_src = read("src/seeagent/setup/wizard.py")
 test("_configure_compiler method", "def _configure_compiler(self)" in wiz_src)
 test("_write_llm_endpoints method", "def _write_llm_endpoints(self)" in wiz_src)
 test("_configure_compiler called in run()", "_configure_compiler()" in wiz_src)

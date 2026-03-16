@@ -18,8 +18,8 @@ import pytest
 
 from tests.fixtures.factories import create_test_session
 from tests.fixtures.mock_llm import MockBrain, MockLLMClient, MockResponse
-from openakita.core.agent_state import AgentState, TaskState, TaskStatus
-from openakita.llm.types import StopReason
+from seeagent.core.agent_state import AgentState, TaskState, TaskStatus
+from seeagent.llm.types import StopReason
 
 
 @pytest.fixture

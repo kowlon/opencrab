@@ -11,8 +11,8 @@ import os
 import pytest
 from pathlib import Path
 
-from openakita.setup.wizard import SetupWizard
-from openakita.llm.config import load_endpoints_config, validate_config
+from seeagent.setup.wizard import SetupWizard
+from seeagent.llm.config import load_endpoints_config, validate_config
 
 
 @pytest.fixture
@@ -154,17 +154,17 @@ class TestSetupAPIIntegration:
         values = dotenv_values(env_path)
         assert values.get("ANTHROPIC_API_KEY") == "sk-test-env"
         assert values.get("DEFAULT_MODEL") == "claude-sonnet-4-20250514"
-        assert values.get("AGENT_NAME") == "OpenAkita"
+        assert values.get("AGENT_NAME") == "SeeAgent"
 
 
 class TestCLISelfcheck:
     """Test selfcheck CLI command (non-LLM parts)."""
 
     def test_selfcheck_command_exists(self):
-        """openakita selfcheck --help should work."""
+        """seeagent selfcheck --help should work."""
         import subprocess, sys
         result = subprocess.run(
-            [sys.executable, "-m", "openakita", "selfcheck", "--help"],
+            [sys.executable, "-m", "seeagent", "selfcheck", "--help"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -174,10 +174,10 @@ class TestCLISelfcheck:
         assert "selfcheck" in output.lower() or "self" in output.lower()
 
     def test_init_command_exists(self):
-        """openakita init --help should work."""
+        """seeagent init --help should work."""
         import subprocess, sys
         result = subprocess.run(
-            [sys.executable, "-m", "openakita", "init", "--help"],
+            [sys.executable, "-m", "seeagent", "init", "--help"],
             capture_output=True,
             text=True,
             timeout=30,

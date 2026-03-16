@@ -7,7 +7,7 @@ IT-S01 ~ IT-S10, IT-R01 ~ IT-R05
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
-from openakita.llm.types import (
+from seeagent.llm.types import (
     LLMRequest,
     LLMResponse,
     Message,
@@ -27,7 +27,7 @@ from openakita.llm.types import (
     AllEndpointsFailedError,
     LLMError,
 )
-from openakita.llm.client import LLMClient
+from seeagent.llm.client import LLMClient
 
 
 @pytest.fixture
@@ -140,7 +140,7 @@ class TestCapabilityFiltering:
     @pytest.mark.asyncio
     async def test_it_s04_tools_filtering(self, multi_endpoint_client):
         """IT-S04: Tools 能力过滤"""
-        from openakita.llm.types import Tool
+        from seeagent.llm.types import Tool
         
         for name, provider in multi_endpoint_client.providers.items():
             provider.chat = AsyncMock(return_value=mock_successful_response())
@@ -176,7 +176,7 @@ class TestCapabilityFiltering:
     @pytest.mark.asyncio
     async def test_it_s06_combined_filtering(self, multi_endpoint_client):
         """IT-S06: 组合能力过滤"""
-        from openakita.llm.types import Tool
+        from seeagent.llm.types import Tool
         
         for name, provider in multi_endpoint_client.providers.items():
             provider.chat = AsyncMock(return_value=mock_successful_response())

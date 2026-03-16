@@ -20,7 +20,7 @@ Usage:
     # With CDN rewriting + index update
     python scripts/generate_release_manifest.py \\
         --tag v1.25.9 --channel release --output-dir ./out \\
-        --cdn-base-url https://dl-cn.openakita.ai \\
+        --cdn-base-url https://dl-cn.seeagent.ai \\
         --existing-index ./existing-versions.json
 """
 
@@ -41,7 +41,7 @@ except ImportError:
     pass
 
 GITHUB_API = "https://api.github.com"
-DEFAULT_REPO = "openakita/openakita"
+DEFAULT_REPO = "seeagent/seeagent"
 
 # ---------------------------------------------------------------------------
 # Tauri updater platform patterns (need .sig signature files)

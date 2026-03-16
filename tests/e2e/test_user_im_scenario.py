@@ -13,8 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.channels.types import UnifiedMessage, MessageContent, OutgoingMessage
-from openakita.sessions.session import Session
+from seeagent.channels.types import UnifiedMessage, MessageContent, OutgoingMessage
+from seeagent.sessions.session import Session
 
 
 def _create_unified_message(
@@ -52,7 +52,7 @@ def mock_adapter():
 
 @pytest.fixture
 def session_manager(tmp_path):
-    from openakita.sessions.manager import SessionManager
+    from seeagent.sessions.manager import SessionManager
     sm = SessionManager(storage_path=tmp_path / "sessions")
     return sm
 
@@ -157,7 +157,7 @@ class TestFullIMConversation:
 
         conversation = [
             ("user", "你好"),
-            ("assistant", "你好！我是 OpenAkita。"),
+            ("assistant", "你好！我是 SeeAgent。"),
             ("user", "你能做什么？"),
             ("assistant", "我可以帮你搜索、记忆、执行任务等。"),
             ("user", "帮我记住我的生日是3月15日"),
@@ -198,7 +198,7 @@ class TestIMStopCommand:
 
     async def test_stop_commands_recognized(self):
         """Common stop words should be detectable."""
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
         stop_cmds = Agent.STOP_COMMANDS
         assert "停止" in stop_cmds
         assert "stop" in stop_cmds
@@ -206,7 +206,7 @@ class TestIMStopCommand:
         assert "算了" in stop_cmds
 
     async def test_skip_commands_recognized(self):
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
         skip_cmds = Agent.SKIP_COMMANDS
         assert "跳过" in skip_cmds
         assert "skip" in skip_cmds

@@ -11,7 +11,7 @@ We release patches for security issues in the following versions:
 
 ## Reporting a Vulnerability
 
-We take security seriously. If you discover a security vulnerability within OpenAkita, please follow these steps:
+We take security seriously. If you discover a security vulnerability within SeeAgent, please follow these steps:
 
 ### 1. Do NOT Create a Public Issue
 
@@ -58,15 +58,15 @@ export ANTHROPIC_API_KEY=your-key
 
 ### File System Access
 
-OpenAkita has file system access. To limit exposure:
+SeeAgent has file system access. To limit exposure:
 
 ```bash
 # Run in a dedicated directory
-mkdir ~/openakita-workspace
-cd ~/openakita-workspace
+mkdir ~/seeagent-workspace
+cd ~/seeagent-workspace
 
 # Consider using Docker for isolation
-docker run --rm -it openakita
+docker run --rm -it seeagent
 ```
 
 ### Network Security
@@ -77,7 +77,7 @@ docker run --rm -it openakita
 
 ### Shell Command Execution
 
-OpenAkita can execute shell commands. Recommendations:
+SeeAgent can execute shell commands. Recommendations:
 
 - Review commands before execution (disable AUTO_CONFIRM)
 - Run with minimal required permissions
@@ -109,7 +109,7 @@ LOG_LEVEL=DEBUG
 
 ### LLM Prompt Injection
 
-As with any LLM-based system, OpenAkita may be susceptible to prompt injection. Mitigations:
+As with any LLM-based system, SeeAgent may be susceptible to prompt injection. Mitigations:
 
 - Validate and sanitize user inputs
 - Use the agent in controlled environments
@@ -133,8 +133,8 @@ Security updates will be released as:
 
 For security concerns, contact: **zacon365@gmail.com**
 
-For general questions, use [GitHub Discussions](https://github.com/openakita/openakita/discussions).
+For general questions, use [GitHub Discussions](https://github.com/seeagent/seeagent/discussions).
 
 ---
 
-Thank you for helping keep OpenAkita and its users safe!
+Thank you for helping keep SeeAgent and its users safe!

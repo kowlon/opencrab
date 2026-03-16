@@ -5,7 +5,7 @@ UT-M01 ~ UT-M15
 """
 
 import pytest
-from openakita.llm.types import (
+from seeagent.llm.types import (
     Message,
     TextBlock,
     ToolUseBlock,
@@ -19,7 +19,7 @@ from openakita.llm.types import (
     DocumentBlock,
     DocumentContent,
 )
-from openakita.llm.converters.messages import (
+from seeagent.llm.converters.messages import (
     convert_messages_to_openai,
     convert_messages_from_openai,
 )

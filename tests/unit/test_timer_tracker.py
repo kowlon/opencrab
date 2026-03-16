@@ -1,7 +1,7 @@
 """Tests for TimerTracker — TTFT/Total/Step Duration collection."""
 from __future__ import annotations
 
-from openakita.api.adapters.timer_tracker import TimerTracker
+from seeagent.api.adapters.timer_tracker import TimerTracker
 
 
 class TestStart:

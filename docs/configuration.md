@@ -1,10 +1,10 @@
 # Configuration Guide
 
-This document covers all configuration options for OpenAkita.
+This document covers all configuration options for SeeAgent.
 
 ## Environment Variables
 
-OpenAkita is configured primarily through environment variables, typically stored in a `.env` file.
+SeeAgent is configured primarily through environment variables, typically stored in a `.env` file.
 
 ### Required Settings
 
@@ -24,7 +24,7 @@ OpenAkita is configured primarily through environment variables, typically store
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AGENT_NAME` | `OpenAkita` | Display name |
+| `AGENT_NAME` | `SeeAgent` | Display name |
 | `MAX_ITERATIONS` | `100` | Max Ralph loop iterations |
 | `AUTO_CONFIRM` | `false` | Auto-confirm dangerous operations |
 
@@ -137,7 +137,7 @@ You can also use a YAML configuration file at `config/agent.yaml`:
 ```yaml
 # Agent settings
 agent:
-  name: OpenAkita
+  name: SeeAgent
   max_iterations: 100
   auto_confirm: false
 
@@ -180,7 +180,7 @@ The soul document defines core values. Generally should not be modified:
 ```markdown
 # Soul Overview
 
-OpenAkita is a self-evolving AI assistant...
+SeeAgent is a self-evolving AI assistant...
 
 ## Core Values
 1. Safety and human oversight
@@ -235,19 +235,19 @@ Working memory (auto-managed):
 
 ```bash
 # Override config file
-openakita --config /path/to/config.yaml
+seeagent --config /path/to/config.yaml
 
 # Override log level
-openakita --log-level DEBUG
+seeagent --log-level DEBUG
 
 # Override model
-openakita --model claude-opus-4-0-20250514
+seeagent --model claude-opus-4-0-20250514
 
 # Disable confirmation prompts
-openakita --auto-confirm
+seeagent --auto-confirm
 
 # Run in specific mode
-openakita --mode chat|task|test
+seeagent --mode chat|task|test
 ```
 
 ## Advanced Configuration
@@ -293,13 +293,13 @@ DISK_LIMIT=10240
 To validate your configuration:
 
 ```bash
-openakita config validate
+seeagent config validate
 ```
 
 To show current configuration:
 
 ```bash
-openakita config show
+seeagent config show
 ```
 
 ## Best Practices

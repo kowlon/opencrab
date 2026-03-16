@@ -8,7 +8,7 @@ import asyncio
 
 import pytest
 
-from openakita.core.agent_state import AgentState, TaskState, TaskStatus
+from seeagent.core.agent_state import AgentState, TaskState, TaskStatus
 
 
 class TestCancelFlow:

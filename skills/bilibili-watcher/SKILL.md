@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@bilibili-watcher
+name: seeagent/skills@bilibili-watcher
 description: Extract subtitles and transcripts from Bilibili and YouTube videos. Use when the user wants to get subtitles from B站 (Bilibili) or YouTube, extract Chinese/Japanese video transcripts, watch member-only Bilibili content, or perform Q&A on video content. Supports dual-platform subtitle extraction with yt-dlp.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
   based_on: openclaw/skills/bilibili-youtube-watcher
 ---

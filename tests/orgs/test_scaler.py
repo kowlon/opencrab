@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 
-from openakita.orgs.scaler import OrgScaler
-from openakita.orgs.inbox import OrgInbox
+from seeagent.orgs.scaler import OrgScaler
+from seeagent.orgs.inbox import OrgInbox
 
 
 @pytest.fixture()

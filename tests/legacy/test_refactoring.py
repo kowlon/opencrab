@@ -1,5 +1,5 @@
 """
-OpenAkita 架构重构功能自检测试
+SeeAgent 架构重构功能自检测试
 
 验证所有新模块和修改模块的基本功能：
 1. Phase 1: 基础设施 (AgentState, Tracing, ToolError)
@@ -72,7 +72,7 @@ print("\n📦 Phase 1: 基础设施")
 
 @test("AgentState 导入和状态机")
 def _():
-    from openakita.core.agent_state import AgentState, TaskState, TaskStatus
+    from seeagent.core.agent_state import AgentState, TaskState, TaskStatus
 
     state = AgentState()
     assert not state.initialized
@@ -112,7 +112,7 @@ def _():
 
 @test("Tracing 框架基本功能")
 def _():
-    from openakita.tracing.tracer import AgentTracer, SpanType, SpanStatus, get_tracer, set_tracer
+    from seeagent.tracing.tracer import AgentTracer, SpanType, SpanStatus, get_tracer, set_tracer
 
     tracer = AgentTracer(enabled=True)
     set_tracer(tracer)
@@ -141,14 +141,14 @@ def _():
 
 @test("Tracing Exporter")
 def _():
-    from openakita.tracing.exporter import FileExporter, ConsoleExporter, TraceExporter
+    from seeagent.tracing.exporter import FileExporter, ConsoleExporter, TraceExporter
     assert issubclass(FileExporter, TraceExporter)
     assert issubclass(ConsoleExporter, TraceExporter)
 
 
 @test("ToolError 结构化错误")
 def _():
-    from openakita.tools.errors import ToolError, ErrorType, classify_error
+    from seeagent.tools.errors import ToolError, ErrorType, classify_error
 
     # 测试直接创建
     err = ToolError(
@@ -179,13 +179,13 @@ print("\n🔧 Phase 2: Agent 子模块拆分")
 
 @test("ToolExecutor 导入")
 def _():
-    from openakita.core.tool_executor import ToolExecutor
+    from seeagent.core.tool_executor import ToolExecutor
     assert ToolExecutor is not None
 
 
 @test("ContextManager 基本功能")
 def _():
-    from openakita.core.context_manager import ContextManager
+    from seeagent.core.context_manager import ContextManager
 
     cm = ContextManager(brain=None)
     # 测试 token 估算
@@ -207,7 +207,7 @@ def _():
 
 @test("ResponseHandler 导入")
 def _():
-    from openakita.core.response_handler import (
+    from seeagent.core.response_handler import (
         ResponseHandler, clean_llm_response,
         strip_thinking_tags, strip_tool_simulation_text,
     )
@@ -220,19 +220,19 @@ def _():
 
 @test("SkillManager 导入")
 def _():
-    from openakita.core.skill_manager import SkillManager
+    from seeagent.core.skill_manager import SkillManager
     assert SkillManager is not None
 
 
 @test("PromptAssembler 导入")
 def _():
-    from openakita.core.prompt_assembler import PromptAssembler
+    from seeagent.core.prompt_assembler import PromptAssembler
     assert PromptAssembler is not None
 
 
 @test("ReasoningEngine 和 Checkpoint")
 def _():
-    from openakita.core.reasoning_engine import (
+    from seeagent.core.reasoning_engine import (
         ReasoningEngine, Decision, DecisionType, Checkpoint,
     )
     assert ReasoningEngine is not None
@@ -261,7 +261,7 @@ print("\n⚡ Phase 3: 增强功能")
 
 @test("MemoryStorage (SQLite 统一存储)")
 def _():
-    from openakita.memory.storage import MemoryStorage
+    from seeagent.memory.storage import MemoryStorage
 
     # 使用临时数据库（Windows 需要先关闭连接才能删除目录）
     tmpdir = tempfile.mkdtemp()
@@ -318,7 +318,7 @@ def _():
 
 @test("高频工具直接注入 (catalog)")
 def _():
-    from openakita.tools.catalog import HIGH_FREQ_TOOLS, ToolCatalog
+    from seeagent.tools.catalog import HIGH_FREQ_TOOLS, ToolCatalog
     assert len(HIGH_FREQ_TOOLS) == 4
     assert "run_shell" in HIGH_FREQ_TOOLS
     assert "read_file" in HIGH_FREQ_TOOLS
@@ -332,7 +332,7 @@ print("\n🚀 Phase 4: 高级功能")
 
 @test("评估框架 - Metrics")
 def _():
-    from openakita.evaluation.metrics import EvalMetrics, EvalResult, TraceMetrics
+    from seeagent.evaluation.metrics import EvalMetrics, EvalResult, TraceMetrics
 
     # 测试 TraceMetrics
     tm = TraceMetrics(
@@ -388,7 +388,7 @@ def _():
 
 @test("评估框架 - Judge")
 def _():
-    from openakita.evaluation.judge import Judge, JudgeResult
+    from seeagent.evaluation.judge import Judge, JudgeResult
 
     # 测试 JudgeResult 解析
     raw = '''```json
@@ -408,10 +408,10 @@ def _():
 
 @test("评估框架 - Optimizer")
 def _():
-    from openakita.evaluation.optimizer import (
+    from seeagent.evaluation.optimizer import (
         FeedbackAnalyzer, FeedbackOptimizer, OptimizationAction,
     )
-    from openakita.evaluation.metrics import EvalMetrics, EvalResult, TraceMetrics
+    from seeagent.evaluation.metrics import EvalMetrics, EvalResult, TraceMetrics
 
     analyzer = FeedbackAnalyzer()
 
@@ -443,7 +443,7 @@ print("\n🔗 集成测试")
 
 @test("Config 新增配置项")
 def _():
-    from openakita.config import settings
+    from seeagent.config import settings
 
     # 验证新增配置项存在
     assert hasattr(settings, "tracing_enabled")
@@ -457,7 +457,7 @@ def _():
 
 @test("main.py 追踪初始化")
 def _():
-    from openakita.tracing.tracer import get_tracer
+    from seeagent.tracing.tracer import get_tracer
     tracer = get_tracer()
     # main.py 的 _init_tracing 在 import 时已执行
     # tracing_enabled 默认 True（Agent Harness 轻量追踪模式）
@@ -467,7 +467,7 @@ def _():
 @test("Agent 子模块初始化检查")
 def _():
     """验证 Agent 类有初始化所有子模块的代码"""
-    from openakita.core.agent import Agent
+    from seeagent.core.agent import Agent
 
     # 通过检查 __init__ 源码来验证
     import inspect
@@ -484,7 +484,7 @@ def _():
 @test("Agent._chat_with_tools_and_context 委托给 ReasoningEngine")
 def _():
     """验证核心方法已委托"""
-    from openakita.core.agent import Agent
+    from seeagent.core.agent import Agent
     import inspect
     source = inspect.getsource(Agent._chat_with_tools_and_context)
     assert "self.reasoning_engine.run" in source, \
@@ -495,28 +495,28 @@ def _():
 def _():
     """验证所有新模块的完整导入链"""
     # Phase 1
-    from openakita.core.agent_state import AgentState, TaskState, TaskStatus
-    from openakita.tracing import AgentTracer, Span, SpanType, SpanStatus, Trace, get_tracer, set_tracer
-    from openakita.tracing.exporter import FileExporter, ConsoleExporter
-    from openakita.tools.errors import ToolError, ErrorType, classify_error
+    from seeagent.core.agent_state import AgentState, TaskState, TaskStatus
+    from seeagent.tracing import AgentTracer, Span, SpanType, SpanStatus, Trace, get_tracer, set_tracer
+    from seeagent.tracing.exporter import FileExporter, ConsoleExporter
+    from seeagent.tools.errors import ToolError, ErrorType, classify_error
 
     # Phase 2
-    from openakita.core.tool_executor import ToolExecutor
-    from openakita.core.context_manager import ContextManager
-    from openakita.core.response_handler import ResponseHandler
-    from openakita.core.skill_manager import SkillManager
-    from openakita.core.prompt_assembler import PromptAssembler
-    from openakita.core.reasoning_engine import ReasoningEngine, Checkpoint, Decision
+    from seeagent.core.tool_executor import ToolExecutor
+    from seeagent.core.context_manager import ContextManager
+    from seeagent.core.response_handler import ResponseHandler
+    from seeagent.core.skill_manager import SkillManager
+    from seeagent.core.prompt_assembler import PromptAssembler
+    from seeagent.core.reasoning_engine import ReasoningEngine, Checkpoint, Decision
 
     # Phase 3
-    from openakita.memory.storage import MemoryStorage
+    from seeagent.memory.storage import MemoryStorage
 
     # Phase 4
-    from openakita.evaluation.metrics import EvalMetrics, EvalResult, TraceMetrics
-    from openakita.evaluation.judge import Judge, JudgeResult
-    from openakita.evaluation.runner import EvalRunner
-    from openakita.evaluation.reporter import Reporter
-    from openakita.evaluation.optimizer import FeedbackAnalyzer, FeedbackOptimizer, DailyEvaluator
+    from seeagent.evaluation.metrics import EvalMetrics, EvalResult, TraceMetrics
+    from seeagent.evaluation.judge import Judge, JudgeResult
+    from seeagent.evaluation.runner import EvalRunner
+    from seeagent.evaluation.reporter import Reporter
+    from seeagent.evaluation.optimizer import FeedbackAnalyzer, FeedbackOptimizer, DailyEvaluator
 
 
 # ==================== 汇总 ====================

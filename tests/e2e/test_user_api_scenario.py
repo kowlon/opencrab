@@ -23,7 +23,7 @@ def _create_test_workspace(tmp_path: Path) -> Path:
         (ws / d).mkdir(parents=True, exist_ok=True)
     identity = ws / "identity"
     identity.mkdir()
-    (identity / "SOUL.md").write_text("# Soul\nI am OpenAkita.", encoding="utf-8")
+    (identity / "SOUL.md").write_text("# Soul\nI am SeeAgent.", encoding="utf-8")
     (identity / "AGENT.md").write_text("# Agent\n## Core\nHelp.\n## Tooling\nTools.", encoding="utf-8")
     (identity / "USER.md").write_text("# User\nTest.", encoding="utf-8")
     (identity / "personas").mkdir()
@@ -74,11 +74,11 @@ def _parse_sse_events(raw: str) -> list[dict]:
 async def api_client(tmp_path, monkeypatch):
     """Create a real FastAPI app with a real Agent (mocked brain), return httpx client."""
     ws = _create_test_workspace(tmp_path)
-    monkeypatch.setenv("OPENAKITA_PROJECT_ROOT", str(ws))
+    monkeypatch.setenv("SEEAGENT_PROJECT_ROOT", str(ws))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
 
-    import openakita.config as config_mod
-    from openakita.config import Settings
+    import seeagent.config as config_mod
+    from seeagent.config import Settings
     test_settings = Settings(
         project_root=ws,
         database_path="data/agent.db",
@@ -89,7 +89,7 @@ async def api_client(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(config_mod, "settings", test_settings)
 
-    from openakita.core.agent import Agent
+    from seeagent.core.agent import Agent
     agent = Agent(name="TestAgent")
 
     mock_client = MockLLMClient()
@@ -97,7 +97,7 @@ async def api_client(tmp_path, monkeypatch):
     agent._initialized = True
     agent.identity.load()
 
-    from openakita.api.server import create_app
+    from seeagent.api.server import create_app
     app = create_app()
     app.state.agent = agent
     app.state.session_manager = None  # SSE flow handles missing session_manager gracefully
@@ -114,7 +114,7 @@ class TestDesktopUserChatFlow:
 
     async def test_simple_message_returns_sse_stream(self, api_client):
         client, mock_llm = api_client
-        mock_llm.preset_response("你好！欢迎使用 OpenAkita。")
+        mock_llm.preset_response("你好！欢迎使用 SeeAgent。")
 
         resp = await client.post("/api/chat", json={"message": "你好"})
 
@@ -150,7 +150,7 @@ class TestDesktopUserChatFlow:
 
     async def test_error_when_no_agent(self, tmp_path, monkeypatch):
         """If agent is None, SSE should return an error event."""
-        from openakita.api.server import create_app
+        from seeagent.api.server import create_app
         app = create_app()
         app.state.agent = None
         app.state.session_manager = None

@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.orgs.manager import OrgManager
-from openakita.orgs.runtime import OrgRuntime
-from openakita.orgs.models import NodeStatus, OrgStatus
+from seeagent.orgs.manager import OrgManager
+from seeagent.orgs.runtime import OrgRuntime
+from seeagent.orgs.models import NodeStatus, OrgStatus
 from .conftest import make_org
 
 
@@ -21,14 +21,14 @@ def runtime(org_manager: OrgManager) -> OrgRuntime:
 
 class TestLifecycle:
     async def test_start_and_shutdown(self, runtime: OrgRuntime):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         assert runtime._started is True
         await runtime.shutdown()
         assert runtime._started is False
 
     async def test_start_org(self, runtime: OrgRuntime, org_manager: OrgManager):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org(name="运行测试").to_dict())
@@ -42,7 +42,7 @@ class TestLifecycle:
             await runtime.shutdown()
 
     async def test_stop_org(self, runtime: OrgRuntime, org_manager: OrgManager):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org(name="停止测试").to_dict())
@@ -58,7 +58,7 @@ class TestLifecycle:
 
 class TestGetAccessors:
     async def test_get_org(self, runtime: OrgRuntime, org_manager: OrgManager):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org(name="测试").to_dict())
@@ -70,7 +70,7 @@ class TestGetAccessors:
             await runtime.shutdown()
 
     async def test_get_blackboard(self, runtime: OrgRuntime, org_manager: OrgManager):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org().to_dict())
@@ -81,7 +81,7 @@ class TestGetAccessors:
             await runtime.shutdown()
 
     async def test_get_event_store(self, runtime: OrgRuntime, org_manager: OrgManager):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org().to_dict())
@@ -92,7 +92,7 @@ class TestGetAccessors:
             await runtime.shutdown()
 
     async def test_get_messenger(self, runtime: OrgRuntime, org_manager: OrgManager):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org().to_dict())
@@ -103,7 +103,7 @@ class TestGetAccessors:
             await runtime.shutdown()
 
     async def test_get_inbox(self, runtime: OrgRuntime, org_manager: OrgManager):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org().to_dict())
@@ -134,7 +134,7 @@ class TestGetAccessors:
         assert reporter is not None
 
     async def test_get_policies(self, runtime: OrgRuntime, org_manager: OrgManager):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org().to_dict())
@@ -149,7 +149,7 @@ class TestSendCommand:
     async def test_send_command_to_root(
         self, runtime: OrgRuntime, org_manager: OrgManager,
     ):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org(name="命令测试").to_dict())
@@ -177,7 +177,7 @@ class TestAutoKickoff:
     async def test_start_org_with_core_business_triggers_kickoff(
         self, runtime: OrgRuntime, org_manager: OrgManager,
     ):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org_data = make_org(name="自动启动测试").to_dict()
@@ -198,7 +198,7 @@ class TestAutoKickoff:
     async def test_start_org_without_core_business_no_kickoff(
         self, runtime: OrgRuntime, org_manager: OrgManager,
     ):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org_data = make_org(name="无业务测试").to_dict()
@@ -216,7 +216,7 @@ class TestAutoKickoff:
     async def test_auto_kickoff_prompt_uses_dynamic_role_title(
         self, runtime: OrgRuntime, org_manager: OrgManager,
     ):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org_data = make_org(name="主编团队").to_dict()
@@ -246,10 +246,10 @@ class TestAutoKickoff:
     async def test_auto_kickoff_prompt_uses_persona_label(
         self, runtime: OrgRuntime, org_manager: OrgManager,
     ):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
-            from openakita.orgs.models import UserPersona
+            from seeagent.orgs.models import UserPersona
             org_data = make_org(name="投资项目").to_dict()
             org_data["core_business"] = "AI 研究"
             org_data["operation_mode"] = "autonomous"
@@ -276,7 +276,7 @@ class TestAutoKickoff:
 
 class TestStateTransitions:
     async def test_pause_and_resume(self, runtime: OrgRuntime, org_manager: OrgManager):
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             org = org_manager.create(make_org().to_dict())

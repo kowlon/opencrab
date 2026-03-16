@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from openakita.orgs.messenger import NodeMailbox, OrgMessenger
-from openakita.orgs.models import MsgType, NodeStatus, OrgMessage
+from seeagent.orgs.messenger import NodeMailbox, OrgMessenger
+from seeagent.orgs.models import MsgType, NodeStatus, OrgMessage
 from .conftest import make_org, make_node, make_edge
 
 

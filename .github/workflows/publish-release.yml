@@ -151,7 +151,7 @@ jobs:
           if [ -n "${HAS_OSS_KEY}" ]; then
             INDEX_URL="https://${{ secrets.ALIYUN_OSS_CDN_DOMAIN }}/api/versions.json"
           else
-            INDEX_URL="https://openakita.ai/api/versions.json"
+            INDEX_URL="https://seeagent.ai/api/versions.json"
           fi
           if curl -sf "${INDEX_URL}" -o existing-versions.json 2>/dev/null; then
             EXISTING_INDEX_ARGS="--existing-index existing-versions.json"
@@ -289,9 +289,9 @@ jobs:
         run: |
           MD="$GITHUB_WORKSPACE/manifest-out"
 
-          git clone "https://x-access-token:${GH_TOKEN}@github.com/openakita/openakita-web.git" /tmp/openakita-web
-          mkdir -p /tmp/openakita-web/api/releases
-          cd /tmp/openakita-web
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/seeagent/seeagent-web.git" /tmp/seeagent-web
+          mkdir -p /tmp/seeagent-web/api/releases
+          cd /tmp/seeagent-web
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -302,7 +302,7 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "chore: update manifest for ${{ inputs.tag }} (${CHANNEL})"
             git push
-            echo "✅ Pushed to openakita-web"
+            echo "✅ Pushed to seeagent-web"
           else
             echo "No changes to push"
           fi

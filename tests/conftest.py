@@ -1,5 +1,5 @@
 """
-Global pytest fixtures for OpenAkita test suite.
+Global pytest fixtures for SeeAgent test suite.
 """
 
 from __future__ import annotations
@@ -63,10 +63,10 @@ def tmp_workspace(tmp_path: Path) -> Path:
 @pytest.fixture
 def test_settings(tmp_workspace: Path):
     """Test-specific Settings pointing to temp dirs, no external dependencies."""
-    os.environ["OPENAKITA_PROJECT_ROOT"] = str(tmp_workspace)
+    os.environ["SEEAGENT_PROJECT_ROOT"] = str(tmp_workspace)
     os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-placeholder")
 
-    from openakita.config import Settings
+    from seeagent.config import Settings
     settings = Settings(
         project_root=tmp_workspace,
         database_path=str(tmp_workspace / "data" / "agent.db"),
@@ -76,7 +76,7 @@ def test_settings(tmp_workspace: Path):
     )
     yield settings
 
-    os.environ.pop("OPENAKITA_PROJECT_ROOT", None)
+    os.environ.pop("SEEAGENT_PROJECT_ROOT", None)
 
 
 @pytest.fixture

@@ -1,7 +1,7 @@
 """Tests for CardBuilder — step card event assembly."""
 from __future__ import annotations
 
-from openakita.api.adapters.card_builder import CardBuilder
+from seeagent.api.adapters.card_builder import CardBuilder
 
 
 class TestBuildStepCard:

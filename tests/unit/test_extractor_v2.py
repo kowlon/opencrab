@@ -6,8 +6,8 @@ from datetime import datetime
 
 import pytest
 
-from openakita.memory.extractor import MemoryExtractor
-from openakita.memory.types import (
+from seeagent.memory.extractor import MemoryExtractor
+from seeagent.memory.types import (
     ConversationTurn,
     Episode,
     MemoryType,

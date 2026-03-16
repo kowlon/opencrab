@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from openakita.orgs.event_store import OrgEventStore
+from seeagent.orgs.event_store import OrgEventStore
 
 
 @pytest.fixture()

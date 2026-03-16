@@ -14,8 +14,8 @@ async def test_tool_parallel_execution_is_faster():
     - 使用 run_shell 执行两个独立的 sleep 命令
     """
 
-    from openakita.config import settings
-    from openakita.core.agent import Agent
+    from seeagent.config import settings
+    from seeagent.core.agent import Agent
 
     cmd_a = 'python -c "import time; time.sleep(2); print(\'A\')"'
     cmd_b = 'python -c "import time; time.sleep(2); print(\'B\')"'

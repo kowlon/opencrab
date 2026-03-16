@@ -1,4 +1,4 @@
-# 202603142112 — OpenAkita 多Agent模式：生命周期与上下文管理深度分析
+# 202603142112 — SeeAgent 多Agent模式：生命周期与上下文管理深度分析
 
 > 基于源码深度阅读，涵盖 Agent 实例从创建到销毁的完整生命周期，以及每一层上下文隔离机制。
 
@@ -175,7 +175,7 @@ t=0         创建           t=n         最后使用       t=n+30min    回收
 ### 3.1 AgentFactory.create() — 轻量初始化
 
 ```
-文件: src/openakita/agents/factory.py
+文件: src/seeagent/agents/factory.py
 ```
 
 ```python
@@ -194,7 +194,7 @@ async def create(self, profile: AgentProfile, **kwargs) -> Agent:
 ### 3.2 initialize() — 完整 vs 轻量
 
 ```
-文件: src/openakita/core/agent.py (line 789)
+文件: src/seeagent/core/agent.py (line 789)
 ```
 
 ```
@@ -220,7 +220,7 @@ async def create(self, profile: AgentProfile, **kwargs) -> Agent:
 ### 3.3 AgentInstancePool — 双重检查锁 + 版本感知
 
 ```
-文件: src/openakita/agents/factory.py
+文件: src/seeagent/agents/factory.py
 ```
 
 ```
@@ -448,7 +448,7 @@ agent.chat_with_session(message, session_messages, session)
 #### Layer 7: Session — 会话级隔离
 
 ```
-文件: src/openakita/sessions/session.py
+文件: src/seeagent/sessions/session.py
 ```
 
 ```python
@@ -490,7 +490,7 @@ Pool Key = "{session_id}::{profile_id}"
 #### Layer 5: Agent State — 任务级隔离
 
 ```
-文件: src/openakita/core/agent_state.py
+文件: src/seeagent/core/agent_state.py
 ```
 
 ```python
@@ -523,7 +523,7 @@ IDLE → COMPILING → REASONING → ACTING → OBSERVING → VERIFYING
 #### Layer 4: asyncio Task — 协程级隔离
 
 ```
-文件: src/openakita/core/agent.py (line 255-309)
+文件: src/seeagent/core/agent.py (line 255-309)
 ```
 
 ```python
@@ -576,7 +576,7 @@ def _current_session(self, value):
 #### Layer 3: IM Context — ContextVar 隔离
 
 ```
-文件: src/openakita/core/im_context.py
+文件: src/seeagent/core/im_context.py
 ```
 
 ```python
@@ -595,7 +595,7 @@ _cleanup_session_state:
 #### Layer 2: Working Messages — 调用级隔离
 
 ```
-文件: src/openakita/core/reasoning_engine.py (line 532)
+文件: src/seeagent/core/reasoning_engine.py (line 532)
 ```
 
 ```python
@@ -617,7 +617,7 @@ cp = Checkpoint(
 #### Layer 1: Memory Session — 记忆级隔离
 
 ```
-文件: src/openakita/memory/manager.py
+文件: src/seeagent/memory/manager.py
 ```
 
 每个 Agent 实例拥有独立的 MemoryManager，但**共享底层 SQLite 数据库**：
@@ -633,7 +633,7 @@ Agent A (code-assistant)          Agent B (browser-agent)
   └──────────┬──────────────────────┘
              │
              ▼
-      共享 SQLite (openakita.db)
+      共享 SQLite (seeagent.db)
       ├─ memories 表 (全局)
       ├─ episodes 表 (按 session_id 分)
       └─ turns 表 (按 session_id 分)
@@ -654,7 +654,7 @@ if memory_manager._current_session_id != conversation_safe_id:
 ## 6. 上下文压缩机制
 
 ```
-文件: src/openakita/core/context_manager.py
+文件: src/seeagent/core/context_manager.py
 ```
 
 ### 6.1 压缩触发条件
@@ -773,7 +773,7 @@ def release_large_buffers(self):
 ### 7.2 Pool Reaper — 闲置回收
 
 ```
-文件: src/openakita/agents/factory.py
+文件: src/seeagent/agents/factory.py
 ```
 
 ```
@@ -825,7 +825,7 @@ _update_sub_state(key, status="completed"):
 ## 8. 故障降级的生命周期影响
 
 ```
-文件: src/openakita/agents/fallback.py
+文件: src/seeagent/agents/fallback.py
 ```
 
 ```
@@ -872,7 +872,7 @@ _update_sub_state(key, status="completed"):
 ## 9. 并行委派的上下文隔离
 
 ```
-文件: src/openakita/tools/handlers/agent.py
+文件: src/seeagent/tools/handlers/agent.py
 ```
 
 ### 9.1 并行委派的克隆机制
@@ -1056,4 +1056,4 @@ async def _try_fallback_or(self, session, message, profile_id, depth, default):
 
 ---
 
-> 文档基于 OpenAkita v1.26.2 源码深度阅读，涉及 agents/, core/, sessions/, memory/, tools/ 下 25+ 核心文件。
+> 文档基于 SeeAgent v1.26.2 源码深度阅读，涉及 agents/, core/, sessions/, memory/, tools/ 下 25+ 核心文件。

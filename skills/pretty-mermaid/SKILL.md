@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@pretty-mermaid
+name: seeagent/skills@pretty-mermaid
 description: Generate professional Mermaid diagrams with multiple themes, SVG/ASCII output, batch rendering, and a built-in template library for common diagram patterns. Supports flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, C4 architecture, and Gantt charts.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

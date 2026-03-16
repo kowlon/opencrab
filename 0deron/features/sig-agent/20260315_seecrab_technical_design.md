@@ -1,6 +1,6 @@
 # SeeCrab 技术详细设计文档
 
-> **项目**: OpenAkita SeeCrab WebApp
+> **项目**: SeeAgent SeeCrab WebApp
 > **版本**: v1.0
 > **日期**: 2026-03-15
 > **作者**: 架构设计
@@ -12,7 +12,7 @@
 
 ### 1.1 项目定位
 
-SeeCrab 是 OpenAkita 的独立前端 Web 应用（`apps/seecrab/`），提供 Agent 执行过程的实时可视化界面。覆盖三个场景：
+SeeCrab 是 SeeAgent 的独立前端 Web 应用（`apps/seecrab/`），提供 Agent 执行过程的实时可视化界面。覆盖三个场景：
 
 | 场景 | 说明 |
 |------|------|
@@ -60,11 +60,11 @@ SeeCrab 是 OpenAkita 的独立前端 Web 应用（`apps/seecrab/`），提供 A
 ├───────┼─────────────────────────────────────────────────────────────────────┤
 │       │                                                                     │
 │       │         SeeCrab 后端 (FastAPI 新增路由)                               │
-│       │         src/openakita/api/routes/seecrab.py                         │
+│       │         src/seeagent/api/routes/seecrab.py                         │
 │       │                                                                     │
 │  ┌────┴─────────────────────────────────────────────────────────────────┐   │
 │  │                    SeeCrabAdapter (核心翻译层)                        │   │
-│  │         src/openakita/api/adapters/seecrab_adapter.py                │   │
+│  │         src/seeagent/api/adapters/seecrab_adapter.py                │   │
 │  │                                                                     │   │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                │   │
 │  │  │ StepFilter  │  │ StepAggre-  │  │ TimerTracker │                │   │
@@ -626,7 +626,7 @@ class StepTimer:
 ### 6.1 文件结构
 
 ```
-src/openakita/api/
+src/seeagent/api/
 ├── routes/
 │   └── seecrab.py                  # SeeCrab 专用路由
 ├── adapters/

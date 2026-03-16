@@ -2,7 +2,7 @@
 
 ## 基本信息
 
-- **Worker 地址**: `https://feedback.openakita.ai`（备用: `https://bug-report-worker.zacon365.workers.dev`）
+- **Worker 地址**: `https://feedback.seeagent.ai`（备用: `https://bug-report-worker.zacon365.workers.dev`）
 - **Admin API Key**: `bdce15d792befc17902c524996401f8c383c1dcd696e3a5208cf67735bfcae26`
 - **认证方式**: HTTP Header `Authorization: Bearer <ADMIN_API_KEY>`
 
@@ -12,7 +12,7 @@
 
 ```bash
 curl -s -H "Authorization: Bearer <ADMIN_API_KEY>" \
-  "https://feedback.openakita.ai/admin/reports" | python -m json.tool
+  "https://feedback.seeagent.ai/admin/reports" | python -m json.tool
 ```
 
 可选参数：
@@ -24,14 +24,14 @@ curl -s -H "Authorization: Bearer <ADMIN_API_KEY>" \
 
 ```bash
 curl -s -H "Authorization: Bearer <ADMIN_API_KEY>" \
-  "https://feedback.openakita.ai/admin/reports/<REPORT_ID>" | python -m json.tool
+  "https://feedback.seeagent.ai/admin/reports/<REPORT_ID>" | python -m json.tool
 ```
 
 ### 3. 下载反馈 zip 包
 
 ```bash
 curl -s -H "Authorization: Bearer <ADMIN_API_KEY>" \
-  "https://feedback.openakita.ai/admin/reports/<REPORT_ID>/download" \
+  "https://feedback.seeagent.ai/admin/reports/<REPORT_ID>/download" \
   -o <REPORT_ID>.zip
 ```
 
@@ -39,7 +39,7 @@ curl -s -H "Authorization: Bearer <ADMIN_API_KEY>" \
 
 ```bash
 curl -s -X DELETE -H "Authorization: Bearer <ADMIN_API_KEY>" \
-  "https://feedback.openakita.ai/admin/reports/<REPORT_ID>"
+  "https://feedback.seeagent.ai/admin/reports/<REPORT_ID>"
 ```
 
 ## Zip 包内容结构
@@ -52,7 +52,7 @@ curl -s -X DELETE -H "Authorization: Bearer <ADMIN_API_KEY>" \
 │   ├── 00_screenshot.png
 │   └── ...
 ├── logs/                  # 应用日志（最近 1MB）
-│   ├── openakita.log
+│   ├── seeagent.log
 │   └── error.log
 └── llm_debug/             # 最近 50 条 LLM 调试文件
     ├── 2026-02-25_xxx.json
@@ -71,7 +71,7 @@ curl -s -X DELETE -H "Authorization: Bearer <ADMIN_API_KEY>" \
   "system_info": {
     "os": "Windows 10 AMD64",
     "python": "3.11.9",
-    "openakita_version": "1.24.2+2fb7fb5",
+    "seeagent_version": "1.24.2+2fb7fb5",
     "git_version": "git version 2.43.0.windows.1",
     "packages": { "fastapi": "0.115.0", "...": "..." },
     "memory_total_gb": 16.0,
@@ -89,7 +89,7 @@ curl -s -X DELETE -H "Authorization: Bearer <ADMIN_API_KEY>" \
 ```bash
 # 设置 API Key
 API_KEY="<ADMIN_API_KEY>"
-WORKER="https://feedback.openakita.ai"
+WORKER="https://feedback.seeagent.ai"
 OUTDIR="bug-reports"
 mkdir -p $OUTDIR
 

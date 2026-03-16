@@ -82,7 +82,7 @@ The following skills are inspired by or adapted from the
 
 ---
 
-## OpenAkita Original Skills
+## SeeAgent Original Skills
 
 All skills under `skills/system/` and the following are original to this
 project, licensed under the same [Apache License 2.0](LICENSE) as the main project:

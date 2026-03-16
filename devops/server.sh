@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
 # ============================================================
-# OpenAkita 服务管理脚本
-# 管理后端 (openakita serve) 和前端 seecrab (npm run dev)
+# SeeAgent 服务管理脚本
+# 管理后端 (seeagent serve) 和前端 seecrab (npm run dev)
 # ============================================================
 
 set -euo pipefail
 
-# ---------- 配置 ----------
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Try to activate venv if present
+if [[ -f "$PROJECT_ROOT/.venv/bin/activate" ]]; then
+    source "$PROJECT_ROOT/.venv/bin/activate"
+elif [[ -f "$PROJECT_ROOT/venv/bin/activate" ]]; then
+    source "$PROJECT_ROOT/venv/bin/activate"
+fi
+
 FRONTEND_DIR="$PROJECT_ROOT/apps/seecrab"
 PID_DIR="$PROJECT_ROOT/devops/.pids"
 
@@ -75,7 +82,7 @@ start_backend() {
     log_info "启动后端服务 (port: $BACKEND_PORT) ..."
     cd "$PROJECT_ROOT"
 
-    openakita serve > "$BACKEND_LOG" 2>&1 &
+    seeagent serve > "$BACKEND_LOG" 2>&1 &
     local pid=$!
     echo "$pid" > "$BACKEND_PID_FILE"
 

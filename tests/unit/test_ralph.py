@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime
 
-from openakita.core.ralph import Task, TaskResult, TaskStatus, StopHook
+from seeagent.core.ralph import Task, TaskResult, TaskStatus, StopHook
 
 
 class TestRalphTask:

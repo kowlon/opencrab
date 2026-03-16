@@ -20,7 +20,7 @@ import os
 import httpx
 import pytest
 
-from openakita.api.server import create_app
+from seeagent.api.server import create_app
 
 
 @pytest.fixture
@@ -149,7 +149,7 @@ class TestTrustProxyDynamic:
 
 class TestWebSocketAuth:
     async def test_ws_local_direct_connects(self, app, monkeypatch):
-        from openakita.api.routes import websocket as ws_mod
+        from seeagent.api.routes import websocket as ws_mod
 
         monkeypatch.setattr(ws_mod, "_is_local_ws", lambda ws: True)
         from starlette.testclient import TestClient
@@ -161,7 +161,7 @@ class TestWebSocketAuth:
 
     async def test_ws_proxy_without_token_rejected(self, app, monkeypatch):
         monkeypatch.setenv("TRUST_PROXY", "true")
-        from openakita.api.routes import websocket as ws_mod
+        from seeagent.api.routes import websocket as ws_mod
 
         monkeypatch.setattr(ws_mod, "_is_local_ws", lambda ws: True)
         from starlette.testclient import TestClient
@@ -273,7 +273,7 @@ class TestTokenRefresh:
     async def test_refresh_returns_new_access_token(self, client, refresh_token):
         resp = await client.post(
             "/api/auth/refresh",
-            cookies={"openakita_refresh": refresh_token},
+            cookies={"seeagent_refresh": refresh_token},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -282,7 +282,7 @@ class TestTokenRefresh:
     async def test_refresh_with_invalid_token_fails(self, client):
         resp = await client.post(
             "/api/auth/refresh",
-            cookies={"openakita_refresh": "invalid.token.here"},
+            cookies={"seeagent_refresh": "invalid.token.here"},
         )
         assert resp.status_code == 401
 
@@ -292,7 +292,7 @@ class TestTokenRefresh:
         monkeypatch.setenv("TRUST_PROXY", "true")
         resp = await client.post(
             "/api/auth/refresh",
-            cookies={"openakita_refresh": refresh_token},
+            cookies={"seeagent_refresh": refresh_token},
         )
         assert resp.status_code == 200
         new_token = resp.json()["access_token"]

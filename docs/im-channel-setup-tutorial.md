@@ -1,13 +1,13 @@
 # IM 通道配置教程
 
-> 本教程详细介绍如何为 OpenAkita 配置各 IM 通道（Telegram、飞书、钉钉、企业微信、QQ 官方机器人、OneBot），包含平台端完整的申请流程和配置步骤。
+> 本教程详细介绍如何为 SeeAgent 配置各 IM 通道（Telegram、飞书、钉钉、企业微信、QQ 官方机器人、OneBot），包含平台端完整的申请流程和配置步骤。
 
 ---
 
 ## 目录
 
 - [平台概览](#平台概览)
-- [三种配置方式](#三种配置方式)（OpenAkita Desktop / CLI 向导 / 手动 .env）
+- [三种配置方式](#三种配置方式)（SeeAgent Desktop / CLI 向导 / 手动 .env）
 - [一、Telegram 配置教程](#一telegram-配置教程)
 - [二、飞书（Lark）配置教程](#二飞书lark配置教程)
 - [三、钉钉配置教程](#三钉钉配置教程)
@@ -23,11 +23,11 @@
 | 平台 | 状态 | 接入方式 | 需要公网 IP | 安装命令 | 配置难度 |
 |------|------|---------|------------|---------|---------|
 | Telegram | ✅ 稳定 | Long Polling | ❌ 不需要 | 默认包含 | ⭐ 最简单 |
-| 飞书 | ✅ 稳定 | WebSocket 长连接 | ❌ 不需要 | `pip install openakita[feishu]` | ⭐⭐ 简单 |
-| 钉钉 | ✅ 稳定 | Stream 模式 (WebSocket) | ❌ 不需要 | `pip install openakita[dingtalk]` | ⭐⭐ 简单 |
-| 企业微信 | ✅ 稳定 | HTTP 回调（智能机器人） | ⚠️ 需要公网 IP | `pip install openakita[wework]` | ⭐⭐⭐ 中等 |
-| QQ 官方机器人 | ✅ 稳定 | QQ 开放平台 API (WebSocket) | ❌ 不需要 | `pip install openakita[qqbot]` | ⭐⭐ 简单 |
-| OneBot | ✅ 稳定 | OneBot v11 (WebSocket) | ❌ 不需要 | `pip install openakita[onebot]` | ⭐⭐⭐ 中等 |
+| 飞书 | ✅ 稳定 | WebSocket 长连接 | ❌ 不需要 | `pip install seeagent[feishu]` | ⭐⭐ 简单 |
+| 钉钉 | ✅ 稳定 | Stream 模式 (WebSocket) | ❌ 不需要 | `pip install seeagent[dingtalk]` | ⭐⭐ 简单 |
+| 企业微信 | ✅ 稳定 | HTTP 回调（智能机器人） | ⚠️ 需要公网 IP | `pip install seeagent[wework]` | ⭐⭐⭐ 中等 |
+| QQ 官方机器人 | ✅ 稳定 | QQ 开放平台 API (WebSocket) | ❌ 不需要 | `pip install seeagent[qqbot]` | ⭐⭐ 简单 |
+| OneBot | ✅ 稳定 | OneBot v11 (WebSocket) | ❌ 不需要 | `pip install seeagent[onebot]` | ⭐⭐⭐ 中等 |
 
 ### 媒体类型支持一览
 
@@ -57,35 +57,35 @@
 
 ### 快速安装
 
-> **提示**：如果你使用 **OpenAkita Desktop** 桌面程序安装，依赖会自动处理，无需手动执行 pip 命令。以下仅适用于手动 pip 部署的用户。
+> **提示**：如果你使用 **SeeAgent Desktop** 桌面程序安装，依赖会自动处理，无需手动执行 pip 命令。以下仅适用于手动 pip 部署的用户。
 
 ```bash
 # 安装所有 IM 通道依赖（一步到位）
-pip install openakita[all]
+pip install seeagent[all]
 
 # 或按需安装
-pip install openakita[feishu]      # 飞书
-pip install openakita[dingtalk]    # 钉钉
-pip install openakita[wework]      # 企业微信
-pip install openakita[qqbot]       # QQ 官方机器人
-pip install openakita[onebot]      # OneBot（通用协议）
+pip install seeagent[feishu]      # 飞书
+pip install seeagent[dingtalk]    # 钉钉
+pip install seeagent[wework]      # 企业微信
+pip install seeagent[qqbot]       # QQ 官方机器人
+pip install seeagent[onebot]      # OneBot（通用协议）
 
 # 组合安装
-pip install openakita[feishu,dingtalk,qqbot]
+pip install seeagent[feishu,dingtalk,qqbot]
 ```
 
 ---
 
 ## 三种配置方式
 
-OpenAkita 提供了三种方式来配置 IM 通道，你可以选择最适合自己的方式：
+SeeAgent 提供了三种方式来配置 IM 通道，你可以选择最适合自己的方式：
 
-### 方式一：桌面终端程序（OpenAkita Desktop）— 推荐新手
+### 方式一：桌面终端程序（SeeAgent Desktop）— 推荐新手
 
-OpenAkita Desktop 是 OpenAkita 提供的可视化桌面安装程序（基于 Tauri），提供图形化界面完成所有配置，无需手动编辑文件。
+SeeAgent Desktop 是 SeeAgent 提供的可视化桌面安装程序（基于 Tauri），提供图形化界面完成所有配置，无需手动编辑文件。
 
-<!-- 📸 配图：OpenAkita Desktop 主界面全貌截图 -->
-> **[配图位]** OpenAkita Desktop 桌面程序主界面
+<!-- 📸 配图：SeeAgent Desktop 主界面全貌截图 -->
+> **[配图位]** SeeAgent Desktop 桌面程序主界面
 
 **特点**：
 - 🖱️ 可视化表单，点选操作
@@ -94,29 +94,29 @@ OpenAkita Desktop 是 OpenAkita 提供的可视化桌面安装程序（基于 Ta
 - 📦 集成了依赖安装、环境检测、端点管理等完整流程
 
 **使用方式**：
-1. 启动 OpenAkita Desktop 桌面程序
+1. 启动 SeeAgent Desktop 桌面程序
 2. 在左侧导航栏找到 **「IM 通道」** 配置步骤
 3. 按平台分组，填入对应的凭证信息（如 Token、App ID 等）
 4. 开关 `*_ENABLED` 启用对应通道
 5. 保存后自动写入 `.env`，可一键重启服务生效
 
-<!-- 📸 配图：OpenAkita Desktop 中 IM 通道配置的步骤页面截图 -->
-> **[配图位]** OpenAkita Desktop — IM 通道配置步骤页面
+<!-- 📸 配图：SeeAgent Desktop 中 IM 通道配置的步骤页面截图 -->
+> **[配图位]** SeeAgent Desktop — IM 通道配置步骤页面
 
-<!-- 📸 配图：OpenAkita Desktop 中 Telegram 配置表单的截图 -->
-> **[配图位]** OpenAkita Desktop — Telegram 配置表单示例
+<!-- 📸 配图：SeeAgent Desktop 中 Telegram 配置表单的截图 -->
+> **[配图位]** SeeAgent Desktop — Telegram 配置表单示例
 
-<!-- 📸 配图：OpenAkita Desktop 状态页面中 IM 通道健康检查的截图 -->
-> **[配图位]** OpenAkita Desktop — 状态页面的 IM 通道健康检查
+<!-- 📸 配图：SeeAgent Desktop 状态页面中 IM 通道健康检查的截图 -->
+> **[配图位]** SeeAgent Desktop — 状态页面的 IM 通道健康检查
 
-> **提示**：OpenAkita Desktop 的状态页面会显示每个通道的实时连接状态（🟢 在线 / 🔴 离线 / ⚪ 未启用），可以随时检查配置是否正确。
+> **提示**：SeeAgent Desktop 的状态页面会显示每个通道的实时连接状态（🟢 在线 / 🔴 离线 / ⚪ 未启用），可以随时检查配置是否正确。
 
 ### 方式二：CLI 交互式向导 — 适合命令行用户
 
 通过命令行运行安装向导，交互式完成配置：
 
 ```bash
-openakita setup
+seeagent setup
 ```
 
 向导会引导你逐步完成：
@@ -156,7 +156,7 @@ code .env    # VS Code
 vim .env     # Vim
 ```
 
-> **提示**：三种方式最终都是写入同一个 `.env` 文件，可以随时切换使用。例如先用 OpenAkita Desktop 完成基本配置，再手动编辑 `.env` 微调参数。
+> **提示**：三种方式最终都是写入同一个 `.env` 文件，可以随时切换使用。例如先用 SeeAgent Desktop 完成基本配置，再手动编辑 `.env` 微调参数。
 
 ---
 
@@ -181,8 +181,8 @@ vim .env     # Vim
 #### 第二步：创建新机器人
 
 1. 向 BotFather 发送 `/newbot` 命令
-2. BotFather 会要求你为机器人设置一个**显示名称**（name），例如 `My OpenAkita Bot`
-3. 接着要求设置一个**用户名**（username），必须以 `bot` 结尾，例如 `my_openakita_bot`
+2. BotFather 会要求你为机器人设置一个**显示名称**（name），例如 `My SeeAgent Bot`
+3. 接着要求设置一个**用户名**（username），必须以 `bot` 结尾，例如 `my_seeagent_bot`
 
 <!-- 📸 配图：与 BotFather 对话创建机器人的完整流程截图 -->
 > **[配图位]** 与 BotFather 对话，创建机器人的完整流程
@@ -220,13 +220,13 @@ vim .env     # Vim
 
 > **注意**：关闭隐私模式后，机器人会收到群聊中的所有消息，请根据实际需要决定。
 
-### 1.3 OpenAkita 配置
+### 1.3 SeeAgent 配置
 
-在平台端获取 Bot Token 后，通过以下任一方式配置 OpenAkita：
+在平台端获取 Bot Token 后，通过以下任一方式配置 SeeAgent：
 
-#### 方式 A：OpenAkita Desktop 桌面程序（推荐）
+#### 方式 A：SeeAgent Desktop 桌面程序（推荐）
 
-1. 打开 OpenAkita Desktop
+1. 打开 SeeAgent Desktop
 2. 进入 **「IM 通道」** 配置步骤（或在配置页面切换到 IM 标签）
 3. 在 **Telegram** 区域：
    - 将 `TELEGRAM_ENABLED` 开关打开
@@ -234,16 +234,16 @@ vim .env     # Vim
    - 如需代理，在 `TELEGRAM_PROXY` 中填写代理地址
 4. 点击 **「保存」**
 
-<!-- 📸 配图：OpenAkita Desktop 中 Telegram 配置表单的截图，标注 Token 和 Proxy 输入框 -->
-> **[配图位]** OpenAkita Desktop — Telegram 配置表单，填入 Bot Token 和代理地址
+<!-- 📸 配图：SeeAgent Desktop 中 Telegram 配置表单的截图，标注 Token 和 Proxy 输入框 -->
+> **[配图位]** SeeAgent Desktop — Telegram 配置表单，填入 Bot Token 和代理地址
 
-<!-- 📸 配图：OpenAkita Desktop 状态页面显示 Telegram 通道在线状态 -->
-> **[配图位]** OpenAkita Desktop — 保存后状态页面显示 Telegram 在线 🟢
+<!-- 📸 配图：SeeAgent Desktop 状态页面显示 Telegram 通道在线状态 -->
+> **[配图位]** SeeAgent Desktop — 保存后状态页面显示 Telegram 在线 🟢
 
 #### 方式 B：CLI 交互式向导
 
 ```bash
-openakita setup
+seeagent setup
 ```
 
 在 Step 4（IM Channels）中选择 `[1] Telegram`，按提示输入：
@@ -294,7 +294,7 @@ TELEGRAM_PAIRING_CODE=your-secret-code
 
 ### 1.5 验证与测试
 
-1. 启动 OpenAkita
+1. 启动 SeeAgent
 2. 在 Telegram 中搜索你的机器人用户名，点击进入对话
 3. 点击 **Start** 按钮（或发送 `/start`）
 4. 如果启用了配对机制，按提示输入配对码
@@ -337,7 +337,7 @@ TELEGRAM_PAIRING_CODE=your-secret-code
 1. 点击页面顶部的 **「开发者后台」**（或直接访问 https://open.feishu.cn/app）
 2. 点击 **「创建企业自建应用」** 按钮
 3. 填写应用信息：
-   - **应用名称**：如 `OpenAkita Bot`
+   - **应用名称**：如 `SeeAgent Bot`
    - **应用描述**：如 `AI 智能助手`
    - **应用图标**：上传一个合适的图标（可选）
 4. 点击 **「创建」**
@@ -421,19 +421,19 @@ TELEGRAM_PAIRING_CODE=your-secret-code
 
 > **提示**：如果你的飞书组织较小或你是管理员，审批通常可以立即通过。如果遇到审批问题，请联系组织的飞书管理员。
 
-### 2.3 OpenAkita 配置
+### 2.3 SeeAgent 配置
 
-先安装飞书依赖（OpenAkita Desktop 用户可跳过，依赖会自动安装）：
+先安装飞书依赖（SeeAgent Desktop 用户可跳过，依赖会自动安装）：
 
 ```bash
-pip install openakita[feishu]
+pip install seeagent[feishu]
 ```
 
 然后通过以下任一方式填入凭证：
 
-#### 方式 A：OpenAkita Desktop 桌面程序（推荐）
+#### 方式 A：SeeAgent Desktop 桌面程序（推荐）
 
-1. 打开 OpenAkita Desktop
+1. 打开 SeeAgent Desktop
 2. 进入 **「IM 通道」** 配置步骤
 3. 在 **飞书** 区域：
    - 将 `FEISHU_ENABLED` 开关打开
@@ -441,16 +441,16 @@ pip install openakita[feishu]
    - 在 `FEISHU_APP_SECRET` 中粘贴 App Secret
 4. 点击 **「保存」**
 
-<!-- 📸 配图：OpenAkita Desktop 中飞书配置表单的截图，标注 App ID 和 App Secret 输入框 -->
-> **[配图位]** OpenAkita Desktop — 飞书配置表单
+<!-- 📸 配图：SeeAgent Desktop 中飞书配置表单的截图，标注 App ID 和 App Secret 输入框 -->
+> **[配图位]** SeeAgent Desktop — 飞书配置表单
 
-<!-- 📸 配图：OpenAkita Desktop 状态页面显示飞书通道在线状态 -->
-> **[配图位]** OpenAkita Desktop — 保存后状态页面显示飞书在线 🟢
+<!-- 📸 配图：SeeAgent Desktop 状态页面显示飞书通道在线状态 -->
+> **[配图位]** SeeAgent Desktop — 保存后状态页面显示飞书在线 🟢
 
 #### 方式 B：CLI 交互式向导
 
 ```bash
-openakita setup
+seeagent setup
 ```
 
 在 Step 4（IM Channels）中选择 `[2] Feishu (Lark)`，按提示输入：
@@ -475,11 +475,11 @@ FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxx  # 替换为你的 App Secret
 
 ### 2.4 验证与测试
 
-1. 启动 OpenAkita，观察日志输出，应出现：
+1. 启动 SeeAgent，观察日志输出，应出现：
    ```
    Feishu adapter: WebSocket started in background
    ```
-2. 打开飞书，在搜索栏中搜索你创建的应用名称（如 `OpenAkita Bot`）
+2. 打开飞书，在搜索栏中搜索你创建的应用名称（如 `SeeAgent Bot`）
 3. 点击进入对话，发送一条消息
 4. 观察日志和机器人回复
 
@@ -522,7 +522,7 @@ FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxx  # 替换为你的 App Secret
 2. 选择 **「企业内部开发」**
 3. 点击 **「创建应用」** 按钮
 4. 填写应用信息：
-   - **应用名称**：如 `OpenAkita Bot`
+   - **应用名称**：如 `SeeAgent Bot`
    - **应用描述**：如 `AI 智能助手`
    - **应用图标**：上传图标（可选）
 5. 点击 **「确定创建」**
@@ -549,7 +549,7 @@ FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxx  # 替换为你的 App Secret
 1. 在左侧菜单中找到 **「应用功能」→「机器人」**
 2. 点击开启 **「机器人配置」** 开关
 3. 填写机器人基本信息：
-   - **机器人名称**：如 `OpenAkita`
+   - **机器人名称**：如 `SeeAgent`
    - **机器人图标**：上传图标
    - **机器人简介**：简要描述机器人功能
 
@@ -597,19 +597,19 @@ FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxx  # 替换为你的 App Secret
 <!-- 📸 配图：发布应用的界面截图 -->
 > **[配图位]** 发布应用并设置可见范围
 
-### 3.3 OpenAkita 配置
+### 3.3 SeeAgent 配置
 
-先安装钉钉依赖（OpenAkita Desktop 用户可跳过，依赖会自动安装）：
+先安装钉钉依赖（SeeAgent Desktop 用户可跳过，依赖会自动安装）：
 
 ```bash
-pip install openakita[dingtalk]
+pip install seeagent[dingtalk]
 ```
 
 然后通过以下任一方式填入凭证：
 
-#### 方式 A：OpenAkita Desktop 桌面程序（推荐）
+#### 方式 A：SeeAgent Desktop 桌面程序（推荐）
 
-1. 打开 OpenAkita Desktop
+1. 打开 SeeAgent Desktop
 2. 进入 **「IM 通道」** 配置步骤
 3. 在 **钉钉** 区域：
    - 将 `DINGTALK_ENABLED` 开关打开
@@ -617,16 +617,16 @@ pip install openakita[dingtalk]
    - 在 `DINGTALK_CLIENT_SECRET` 中粘贴 AppSecret / Client Secret
 4. 点击 **「保存」**
 
-<!-- 📸 配图：OpenAkita Desktop 中钉钉配置表单的截图 -->
-> **[配图位]** OpenAkita Desktop — 钉钉配置表单
+<!-- 📸 配图：SeeAgent Desktop 中钉钉配置表单的截图 -->
+> **[配图位]** SeeAgent Desktop — 钉钉配置表单
 
-<!-- 📸 配图：OpenAkita Desktop 状态页面显示钉钉通道在线状态 -->
-> **[配图位]** OpenAkita Desktop — 保存后状态页面显示钉钉在线 🟢
+<!-- 📸 配图：SeeAgent Desktop 状态页面显示钉钉通道在线状态 -->
+> **[配图位]** SeeAgent Desktop — 保存后状态页面显示钉钉在线 🟢
 
 #### 方式 B：CLI 交互式向导
 
 ```bash
-openakita setup
+seeagent setup
 ```
 
 在 Step 4（IM Channels）中选择 `[4] DingTalk (钉钉)`，按提示输入：
@@ -651,7 +651,7 @@ DINGTALK_CLIENT_SECRET=xxxxxxxxxxxxxxxxxx  # 替换为你的 AppSecret / Client 
 
 ### 3.4 验证与测试
 
-1. 启动 OpenAkita，观察日志输出，应出现：
+1. 启动 SeeAgent，观察日志输出，应出现：
    ```
    DingTalk Stream client starting...
    ```
@@ -669,7 +669,7 @@ DINGTALK_CLIENT_SECRET=xxxxxxxxxxxxxxxxxx  # 替换为你的 AppSecret / Client 
 2. 点击群设置（右上角 `⋮` 或群名称）
 3. 找到 **「机器人」** → **「添加机器人」**
 4. 在列表中找到你创建的机器人，点击添加
-5. 在群中发送 `@OpenAkita 你好` 即可触发回复
+5. 在群中发送 `@SeeAgent 你好` 即可触发回复
 
 <!-- 📸 配图：在群聊中添加机器人的操作截图 -->
 > **[配图位]** 将机器人拉入群聊
@@ -688,7 +688,7 @@ DINGTALK_CLIENT_SECRET=xxxxxxxxxxxxxxxxxx  # 替换为你的 AppSecret / Client 
 
 ## 四、企业微信配置教程
 
-> 企业微信通过 HTTP 回调接入，**需要公网可访问的 URL**。配置流程需要注意顺序：先配 OpenAkita，再创建机器人。
+> 企业微信通过 HTTP 回调接入，**需要公网可访问的 URL**。配置流程需要注意顺序：先配 SeeAgent，再创建机器人。
 
 ### 4.1 前置条件
 
@@ -752,7 +752,7 @@ custom_domains = your-domain.com
 
 ### 4.3 平台端申请步骤
 
-> ⚠️ **重要顺序提醒**：企业微信创建机器人时会**立即验证回调 URL**，所以必须**先完成 4.4 节的 OpenAkita 配置并启动服务**，确保回调端口可从公网访问，**然后再执行以下步骤**。
+> ⚠️ **重要顺序提醒**：企业微信创建机器人时会**立即验证回调 URL**，所以必须**先完成 4.4 节的 SeeAgent 配置并启动服务**，确保回调端口可从公网访问，**然后再执行以下步骤**。
 
 #### 第一步：获取企业 ID（Corp ID）
 
@@ -765,15 +765,15 @@ custom_domains = your-domain.com
 <!-- 📸 配图：企业微信管理后台「我的企业 → 企业信息」页面，标注企业 ID 位置 -->
 > **[配图位]** 在企业微信管理后台获取企业 ID
 
-#### 第二步：配置 OpenAkita 并启动（先于创建机器人！）
+#### 第二步：配置 SeeAgent 并启动（先于创建机器人！）
 
-⚠️ 请先跳到 **4.4 节** 完成 `.env` 配置并启动 OpenAkita，确保回调端口已监听。
+⚠️ 请先跳到 **4.4 节** 完成 `.env` 配置并启动 SeeAgent，确保回调端口已监听。
 
 ```bash
 # 先在 .env 中配好参数（见 4.4 节），然后启动
-python -m openakita
+python -m seeagent
 # 或
-openakita start
+seeagent start
 ```
 
 确认日志中出现 `WeWorkBot adapter started`，端口 9880 已在监听。
@@ -784,7 +784,7 @@ openakita start
 2. 找到 **「智能机器人」** 板块
 3. 点击 **「创建」** 按钮
 4. 填写机器人基本信息：
-   - **机器人名称**：如 `OpenAkita`
+   - **机器人名称**：如 `SeeAgent`
    - **机器人描述**：如 `AI 智能助手`
    - **机器人头像**：上传图标
 
@@ -805,9 +805,9 @@ openakita start
 <!-- 📸 配图：接收消息服务器配置界面，标注 URL、Token、EncodingAESKey 三个字段 -->
 > **[配图位]** 配置回调 URL、Token 和 EncodingAESKey
 
-> ⚠️ 点击保存时，企业微信会立即向你的 URL 发送 GET 验证请求。如果 OpenAkita 未启动或网络不通，会提示"网络失败"。
+> ⚠️ 点击保存时，企业微信会立即向你的 URL 发送 GET 验证请求。如果 SeeAgent 未启动或网络不通，会提示"网络失败"。
 
-保存成功后，**将 Token 和 EncodingAESKey 更新到 `.env` 文件中**，并重启 OpenAkita。
+保存成功后，**将 Token 和 EncodingAESKey 更新到 `.env` 文件中**，并重启 SeeAgent。
 
 #### 第五步：设置可见范围（必须！）
 
@@ -828,21 +828,21 @@ openakita start
 | **不在可见范围的员工** | ❌ 看不到机器人 |
 | **企业外部人员** | ❌ 无法使用 |
 
-### 4.4 OpenAkita 配置
+### 4.4 SeeAgent 配置
 
-先安装企业微信依赖（OpenAkita Desktop 用户可跳过，依赖会自动安装）：
+先安装企业微信依赖（SeeAgent Desktop 用户可跳过，依赖会自动安装）：
 
 ```bash
-pip install openakita[wework]
+pip install seeagent[wework]
 ```
 
 然后通过以下任一方式填入凭证：
 
-> ⚠️ **注意**：企业微信需要先配好 OpenAkita 并启动，再去管理后台创建机器人（创建时会验证回调 URL），所以建议先填好 Corp ID 和端口，启动服务后再补充 Token 和 AES Key。
+> ⚠️ **注意**：企业微信需要先配好 SeeAgent 并启动，再去管理后台创建机器人（创建时会验证回调 URL），所以建议先填好 Corp ID 和端口，启动服务后再补充 Token 和 AES Key。
 
-#### 方式 A：OpenAkita Desktop 桌面程序（推荐）
+#### 方式 A：SeeAgent Desktop 桌面程序（推荐）
 
-1. 打开 OpenAkita Desktop
+1. 打开 SeeAgent Desktop
 2. 进入 **「IM 通道」** 配置步骤
 3. 在 **企业微信** 区域：
    - 将 `WEWORK_ENABLED` 开关打开
@@ -852,16 +852,16 @@ pip install openakita[wework]
    - `WEWORK_CALLBACK_PORT` 默认 9880，如有端口冲突可修改
 4. 点击 **「保存」** 并启动/重启服务
 
-<!-- 📸 配图：OpenAkita Desktop 中企业微信配置表单的截图，标注各个输入框 -->
-> **[配图位]** OpenAkita Desktop — 企业微信配置表单，填入 Corp ID、Token、AES Key
+<!-- 📸 配图：SeeAgent Desktop 中企业微信配置表单的截图，标注各个输入框 -->
+> **[配图位]** SeeAgent Desktop — 企业微信配置表单，填入 Corp ID、Token、AES Key
 
-<!-- 📸 配图：OpenAkita Desktop 状态页面显示企业微信通道在线状态 -->
-> **[配图位]** OpenAkita Desktop — 保存后状态页面显示企业微信在线 🟢
+<!-- 📸 配图：SeeAgent Desktop 状态页面显示企业微信通道在线状态 -->
+> **[配图位]** SeeAgent Desktop — 保存后状态页面显示企业微信在线 🟢
 
 #### 方式 B：CLI 交互式向导
 
 ```bash
-openakita setup
+seeagent setup
 ```
 
 在 Step 4（IM Channels）中选择 `[3] WeCom (企业微信)`，按提示输入：
@@ -909,13 +909,13 @@ WEWORK_CALLBACK_PORT=9880                 # 回调监听端口，默认 9880
 │                          ↓                                  │
 │ 3. 准备公网访问（直接公网 / ngrok / frp）                     │
 │                          ↓                                  │
-│ 4. 启动 OpenAkita，确认回调端口已监听                         │
+│ 4. 启动 SeeAgent，确认回调端口已监听                         │
 │                          ↓                                  │
 │ 5. 去管理后台创建智能机器人                                   │
 │                          ↓                                  │
 │ 6. 配置回调 URL，获取 Token 和 EncodingAESKey                │
 │                          ↓                                  │
-│ 7. 将 Token 和 EncodingAESKey 更新到 .env，重启 OpenAkita    │
+│ 7. 将 Token 和 EncodingAESKey 更新到 .env，重启 SeeAgent    │
 │                          ↓                                  │
 │ 8. 设置机器人可见范围                                        │
 │                          ↓                                  │
@@ -928,7 +928,7 @@ WEWORK_CALLBACK_PORT=9880                 # 回调监听端口，默认 9880
 企业微信智能机器人使用 **stream 流式被动回复** 机制：
 
 ```
-用户发消息 → 企业微信推送加密 JSON → OpenAkita 回调接收
+用户发消息 → 企业微信推送加密 JSON → SeeAgent 回调接收
                                         ↓
                            创建 stream 流式会话
                                         ↓
@@ -969,7 +969,7 @@ WEWORK_CALLBACK_PORT=9880                 # 回调监听端口，默认 9880
 
 | 问题 | 解决方案 |
 |------|---------|
-| 创建机器人时提示"网络失败" | 回调 URL 不通，确保 OpenAkita 已启动，端口已监听，公网可访问 |
+| 创建机器人时提示"网络失败" | 回调 URL 不通，确保 SeeAgent 已启动，端口已监听，公网可访问 |
 | URL 验证失败 | 确认 Token 和 EncodingAESKey 与企业微信后台一致 |
 | 签名校验失败 | 检查 Corp ID 是否正确 |
 | 端口被占用 | 修改 `WEWORK_CALLBACK_PORT` 为其他端口 |
@@ -1006,19 +1006,19 @@ WEWORK_CALLBACK_PORT=9880                 # 回调监听端口，默认 9880
 
 > **沙箱模式**：开发调试阶段建议先开启沙箱模式。沙箱环境仅限沙箱频道内可用，不会影响正式环境。
 
-### 5.3 OpenAkita 配置
+### 5.3 SeeAgent 配置
 
-先安装 QQ 官方机器人依赖（OpenAkita Desktop 用户可跳过，依赖会自动安装）：
+先安装 QQ 官方机器人依赖（SeeAgent Desktop 用户可跳过，依赖会自动安装）：
 
 ```bash
-pip install openakita[qqbot]
+pip install seeagent[qqbot]
 ```
 
 然后通过以下任一方式配置：
 
-#### 方式 A：OpenAkita Desktop 桌面程序（推荐）
+#### 方式 A：SeeAgent Desktop 桌面程序（推荐）
 
-1. 打开 OpenAkita Desktop
+1. 打开 SeeAgent Desktop
 2. 进入 **「IM 通道」** 配置步骤
 3. 在 **QQ 官方机器人** 区域：
    - 将 `QQBOT_ENABLED` 开关打开
@@ -1027,13 +1027,13 @@ pip install openakita[qqbot]
    - 如需沙箱测试，勾选 `QQBOT_SANDBOX`
 4. 点击 **「保存」**
 
-<!-- 📸 配图：OpenAkita Desktop 中 QQ 官方机器人配置表单的截图 -->
-> **[配图位]** OpenAkita Desktop — QQ 官方机器人配置表单
+<!-- 📸 配图：SeeAgent Desktop 中 QQ 官方机器人配置表单的截图 -->
+> **[配图位]** SeeAgent Desktop — QQ 官方机器人配置表单
 
 #### 方式 B：CLI 交互式向导
 
 ```bash
-openakita setup
+seeagent setup
 ```
 
 在 Step 4（IM Channels）中选择 `[5] QQ 官方机器人`，按提示输入：
@@ -1062,7 +1062,7 @@ QQBOT_SANDBOX=false          # 设为 true 开启沙箱模式
 
 ### 5.4 验证与测试
 
-1. 启动 OpenAkita，日志应显示：
+1. 启动 SeeAgent，日志应显示：
    ```
    QQ Official Bot ready (user: 你的机器人名称)
    ```
@@ -1092,8 +1092,8 @@ QQ 官方 API 在不同聊天场景下的富媒体支持有差异：
 | 频繁断线重连 | 适配器支持自动重连（指数退避，初始 5 秒，最大 120 秒），连接成功后重置 |
 | 群聊收不到消息 | 确认机器人已上线审核通过或在沙箱环境中配置了测试群 |
 | 图片发不出去 | 群聊/单聊需要公网 URL，本地文件上传暂不支持 |
-| 语音发不出去 | 需要 silk 格式 + 公网 URL，目前 OpenAkita 会降级为文本提示 |
-| 文件发不出去 | QQ 官方 API `file_type=4` 暂未开放，OpenAkita 会降级为文本提示 |
+| 语音发不出去 | 需要 silk 格式 + 公网 URL，目前 SeeAgent 会降级为文本提示 |
+| 文件发不出去 | QQ 官方 API `file_type=4` 暂未开放，SeeAgent 会降级为文本提示 |
 | 沙箱模式下无法群聊 | 沙箱仅限频道测试，群聊需要正式上线 |
 
 ---
@@ -1105,11 +1105,11 @@ QQ 官方 API 在不同聊天场景下的富媒体支持有差异：
 ### 6.1 前置条件
 
 - 一个 **QQ 账号**（或其他 OneBot 兼容平台的账号）
-- 一台部署 OneBot 服务的机器（可以和 OpenAkita 在同一台）
+- 一台部署 OneBot 服务的机器（可以和 SeeAgent 在同一台）
 
 ### 6.2 部署 OneBot 服务器
 
-OpenAkita 通过 OneBot v11 协议的 WebSocket 与中间层通信。你需要先部署一个 OneBot 实现。
+SeeAgent 通过 OneBot v11 协议的 WebSocket 与中间层通信。你需要先部署一个 OneBot 实现。
 
 #### 方案一：NapCat（推荐）
 
@@ -1146,19 +1146,19 @@ Lagrange 是另一个 OneBot 实现，使用 .NET 开发。
 <!-- 📸 配图：Lagrange 配置页面截图 -->
 > **[配图位]** Lagrange.OneBot 配置界面
 
-### 6.3 OpenAkita 配置
+### 6.3 SeeAgent 配置
 
-先安装 OneBot 依赖（OpenAkita Desktop 用户可跳过，依赖会自动安装）：
+先安装 OneBot 依赖（SeeAgent Desktop 用户可跳过，依赖会自动安装）：
 
 ```bash
-pip install openakita[onebot]
+pip install seeagent[onebot]
 ```
 
 然后通过以下任一方式配置：
 
-#### 方式 A：OpenAkita Desktop 桌面程序（推荐）
+#### 方式 A：SeeAgent Desktop 桌面程序（推荐）
 
-1. 打开 OpenAkita Desktop
+1. 打开 SeeAgent Desktop
 2. 进入 **「IM 通道」** 配置步骤
 3. 在 **OneBot** 区域：
    - 将 `ONEBOT_ENABLED` 开关打开
@@ -1166,13 +1166,13 @@ pip install openakita[onebot]
    - （可选）在 `ONEBOT_ACCESS_TOKEN` 中填写访问令牌
 4. 点击 **「保存」**
 
-<!-- 📸 配图：OpenAkita Desktop 中 OneBot 配置表单的截图 -->
-> **[配图位]** OpenAkita Desktop — OneBot 配置表单
+<!-- 📸 配图：SeeAgent Desktop 中 OneBot 配置表单的截图 -->
+> **[配图位]** SeeAgent Desktop — OneBot 配置表单
 
 #### 方式 B：CLI 交互式向导
 
 ```bash
-openakita setup
+seeagent setup
 ```
 
 在 Step 4（IM Channels）中选择 `[6] OneBot（通用协议）`，按提示输入：
@@ -1199,12 +1199,12 @@ ONEBOT_WS_URL=ws://127.0.0.1:8080     # OneBot WebSocket 地址
 ONEBOT_ACCESS_TOKEN=                    # 可选，用于连接鉴权
 ```
 
-> 如果 OneBot 服务和 OpenAkita 不在同一台机器上，请将 `127.0.0.1` 替换为 OneBot 服务器的实际 IP。
+> 如果 OneBot 服务和 SeeAgent 不在同一台机器上，请将 `127.0.0.1` 替换为 OneBot 服务器的实际 IP。
 
 ### 6.4 验证与测试
 
 1. **先启动 OneBot 服务器**（如 NapCat），确认 WebSocket 监听正常
-2. 启动 OpenAkita，日志应显示：
+2. 启动 SeeAgent，日志应显示：
    ```
    OneBot adapter connected to ws://127.0.0.1:8080
    ```
@@ -1230,7 +1230,7 @@ ONEBOT_ACCESS_TOKEN=                    # 可选，用于连接鉴权
 
 ### Q1：如何同时启用多个 IM 通道？
 
-在 `.env` 中将多个通道的 `*_ENABLED` 设为 `true` 即可。OpenAkita 会同时连接所有启用的通道。
+在 `.env` 中将多个通道的 `*_ENABLED` 设为 `true` 即可。SeeAgent 会同时连接所有启用的通道。
 
 ```bash
 TELEGRAM_ENABLED=true
@@ -1261,7 +1261,7 @@ Agent 回复 ← Adapter (发送) ← OutgoingMessage ← Gateway (路由)
 ### Q5：如何查看 IM 通道状态？
 
 - **日志**：启动时会打印各通道的连接状态
-- **OpenAkita Desktop**：在 OpenAkita 的 Web 管理界面中查看通道状态和会话列表
+- **SeeAgent Desktop**：在 SeeAgent 的 Web 管理界面中查看通道状态和会话列表
 - **API**：`GET /api/im/channels` 接口返回所有通道的状态
 
 ### Q6：代理设置对哪些通道有效？
@@ -1277,20 +1277,20 @@ Agent 回复 ← Adapter (发送) ← OutgoingMessage ← Gateway (路由)
 
 ### Q7：有桌面安装中心吗？
 
-有。OpenAkita 提供了 **OpenAkita Desktop** 桌面应用（基于 Tauri），可以通过图形界面完成所有 IM 通道的配置，无需手动编辑 `.env` 文件。详见本教程的 [三种配置方式](#三种配置方式) 章节。
+有。SeeAgent 提供了 **SeeAgent Desktop** 桌面应用（基于 Tauri），可以通过图形界面完成所有 IM 通道的配置，无需手动编辑 `.env` 文件。详见本教程的 [三种配置方式](#三种配置方式) 章节。
 
-OpenAkita Desktop 提供以下 IM 相关能力：
+SeeAgent Desktop 提供以下 IM 相关能力：
 - **配置步骤页**：分通道的表单，开关 + 输入框，保存自动写入 `.env`
 - **状态页**：实时显示每个通道的连接状态（🟢 在线 / 🔴 离线 / ⚪ 未启用），支持一键刷新
 - **服务管理**：配置修改后可一键重启服务，无需回到命令行
 - **IM 会话查看器**：查看各通道的活跃会话和消息历史
 
-<!-- 📸 配图：OpenAkita Desktop 完整的 IM 通道管理界面截图（包含配置 + 状态 + 会话） -->
-> **[配图位]** OpenAkita Desktop 的 IM 通道完整管理界面
+<!-- 📸 配图：SeeAgent Desktop 完整的 IM 通道管理界面截图（包含配置 + 状态 + 会话） -->
+> **[配图位]** SeeAgent Desktop 的 IM 通道完整管理界面
 
-### Q8：OpenAkita Desktop 和 .env 手动编辑会冲突吗？
+### Q8：SeeAgent Desktop 和 .env 手动编辑会冲突吗？
 
-不会。OpenAkita Desktop 的配置最终也是写入 `.env` 文件，两种方式操作的是同一份文件。你可以先用 OpenAkita Desktop 完成基本配置，再手动编辑 `.env` 微调高级参数（如 `TELEGRAM_WEBHOOK_URL`、`WEWORK_CALLBACK_PORT` 等）。修改 `.env` 后重启服务即可生效。
+不会。SeeAgent Desktop 的配置最终也是写入 `.env` 文件，两种方式操作的是同一份文件。你可以先用 SeeAgent Desktop 完成基本配置，再手动编辑 `.env` 微调高级参数（如 `TELEGRAM_WEBHOOK_URL`、`WEWORK_CALLBACK_PORT` 等）。修改 `.env` 后重启服务即可生效。
 
 ---
 
@@ -1307,30 +1307,30 @@ TELEGRAM_PROXY=
 # TELEGRAM_REQUIRE_PAIRING=true
 # TELEGRAM_PAIRING_CODE=
 
-# --- 飞书（需要 openakita[feishu]）---
+# --- 飞书（需要 seeagent[feishu]）---
 FEISHU_ENABLED=false
 FEISHU_APP_ID=
 FEISHU_APP_SECRET=
 
-# --- 钉钉（需要 openakita[dingtalk]）---
+# --- 钉钉（需要 seeagent[dingtalk]）---
 DINGTALK_ENABLED=false
 DINGTALK_CLIENT_ID=
 DINGTALK_CLIENT_SECRET=
 
-# --- 企业微信（需要 openakita[wework]）---
+# --- 企业微信（需要 seeagent[wework]）---
 WEWORK_ENABLED=false
 WEWORK_CORP_ID=
 WEWORK_TOKEN=
 WEWORK_ENCODING_AES_KEY=
 # WEWORK_CALLBACK_PORT=9880
 
-# --- QQ 官方机器人（需要 openakita[qqbot]）---
+# --- QQ 官方机器人（需要 seeagent[qqbot]）---
 QQBOT_ENABLED=false
 QQBOT_APP_ID=
 QQBOT_APP_SECRET=
 QQBOT_SANDBOX=false
 
-# --- OneBot（需要 openakita[onebot] + NapCat/Lagrange）---
+# --- OneBot（需要 seeagent[onebot] + NapCat/Lagrange）---
 ONEBOT_ENABLED=false
 ONEBOT_WS_URL=ws://127.0.0.1:8080
 ONEBOT_ACCESS_TOKEN=
@@ -1341,4 +1341,4 @@ ONEBOT_ACCESS_TOKEN=
 
 > **文档版本**：v1.0  
 > **最后更新**：2026-02-13  
-> **适用版本**：OpenAkita v0.x+
+> **适用版本**：SeeAgent v0.x+

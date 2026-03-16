@@ -16,20 +16,20 @@ try:
 except ImportError:
     pytest.skip("httpx not installed", allow_module_level=True)
 
-from openakita.orgs.manager import OrgManager
-from openakita.orgs.models import OrgStatus
+from seeagent.orgs.manager import OrgManager
+from seeagent.orgs.models import OrgStatus
 
 
 @pytest.fixture()
 async def app_client(tmp_data_dir: Path):
     """Create a test FastAPI app with OrgManager wired up."""
-    from openakita.api.routes.orgs import router as org_router, inbox_router
+    from seeagent.api.routes.orgs import router as org_router, inbox_router
     from fastapi import FastAPI
 
     app = FastAPI()
     manager = OrgManager(tmp_data_dir)
 
-    from openakita.orgs.runtime import OrgRuntime
+    from seeagent.orgs.runtime import OrgRuntime
     runtime = OrgRuntime(manager)
 
     app.state.org_manager = manager
@@ -90,7 +90,7 @@ class TestOrgCRUDRoutes:
 class TestTemplateRoutes:
     async def test_list_templates(self, app_client):
         client, manager, _ = app_client
-        from openakita.orgs.templates import ensure_builtin_templates
+        from seeagent.orgs.templates import ensure_builtin_templates
         ensure_builtin_templates(manager._templates_dir)
 
         resp = await client.get("/api/orgs/templates")
@@ -100,7 +100,7 @@ class TestTemplateRoutes:
 
     async def test_create_from_template(self, app_client):
         client, manager, _ = app_client
-        from openakita.orgs.templates import ensure_builtin_templates
+        from seeagent.orgs.templates import ensure_builtin_templates
         ensure_builtin_templates(manager._templates_dir)
 
         resp = await client.post(
@@ -158,7 +158,7 @@ class TestPolicyRoutes:
         org = manager.create(make_org().to_dict())
         manager.invalidate_cache(org.id)
 
-        from openakita.orgs.policies import OrgPolicies
+        from seeagent.orgs.policies import OrgPolicies
         policies = OrgPolicies(manager._org_dir(org.id))
         policies.write_policy("a.md", "# A")
 
@@ -173,7 +173,7 @@ class TestLifecycleRoutes:
         from .conftest import make_org
         org = manager.create(make_org().to_dict())
 
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
 
         try:
@@ -189,7 +189,7 @@ class TestLifecycleRoutes:
 class TestInboxRoutes:
     async def test_global_inbox(self, app_client):
         client, manager, runtime = app_client
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             resp = await client.get("/api/org-inbox")
@@ -201,7 +201,7 @@ class TestInboxRoutes:
 
     async def test_unread_count(self, app_client):
         client, _, runtime = app_client
-        with patch("openakita.orgs.templates.ensure_builtin_templates"):
+        with patch("seeagent.orgs.templates.ensure_builtin_templates"):
             await runtime.start()
         try:
             resp = await client.get("/api/org-inbox/unread-count")

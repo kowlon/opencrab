@@ -16,9 +16,9 @@ import os
 import time
 from dataclasses import asdict
 
-from openakita.llm.client import LLMClient
-from openakita.llm.config import load_endpoints_config
-from openakita.llm.types import LLMRequest, Message
+from seeagent.llm.client import LLMClient
+from seeagent.llm.config import load_endpoints_config
+from seeagent.llm.types import LLMRequest, Message
 
 
 def _reset_env(keys: list[str]) -> None:
@@ -73,7 +73,7 @@ def _print_env_snapshot() -> None:
         "NO_PROXY",
         "FORCE_IPV4",
         "LLM_DISABLE_PROXY",
-        "OPENAKITA_DISABLE_PROXY",
+        "SEEAGENT_DISABLE_PROXY",
         "DISABLE_PROXY",
     ]
     snapshot = {k: os.environ.get(k) for k in keys if os.environ.get(k) is not None}

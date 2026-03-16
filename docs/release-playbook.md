@@ -1,4 +1,4 @@
-# Release Playbook — OpenAkita 发布操作手册
+# Release Playbook — SeeAgent 发布操作手册
 
 > **面向 Agent 的交互式操作手册。**
 > Agent 阅读此文档后，应先向用户提问选择哪种操作模式，再收集该模式所需的参数，确认后自动执行全部步骤。
@@ -11,8 +11,8 @@
 
 | 仓库 | 用途 |
 |------|------|
-| `openakita/openakita` | 主仓库（后端 + Desktop + 移动端） |
-| `openakita/openakita-web` | 官网（下载页） |
+| `seeagent/seeagent` | 主仓库（后端 + Desktop + 移动端） |
+| `seeagent/seeagent-web` | 官网（下载页） |
 
 ### 分支约定
 
@@ -59,7 +59,7 @@ python scripts/version.py check          # 校验所有文件版本是否一致
 ### 环境注意事项
 
 - **Shell**：Windows PowerShell，`&&` 不可用，命令必须分步执行。
-- **Python**：系统 `python` 为 2.7，需使用 `r:\OpenAkita\.venv\Scripts\python.exe`。
+- **Python**：系统 `python` 为 2.7，需使用 `r:\SeeAgent\.venv\Scripts\python.exe`。
 - **文件同步**：跨分支复制文件用 `git checkout {branch} -- {file}`，**禁止**用 `git show > file`（PowerShell 会写 UTF-16）。
 
 ---
@@ -126,7 +126,7 @@ STEP 4 — 同步到版本分支
     git push origin v{X}.x
 
 STEP 5 — 回填 manifest 使新渠道生效
-  gh workflow run backfill-oss.yml --repo openakita/openakita --ref main -f upload_binaries=false -f dry_run=false
+  gh workflow run backfill-oss.yml --repo seeagent/seeagent --ref main -f upload_binaries=false -f dry_run=false
 
 STEP 6 — 验证
   curl OSS 上的 release.json / pre-release.json，确认 version 和 channel 正确
@@ -171,7 +171,7 @@ STEP 1 — 切换到版本分支并拉取最新
   git pull origin {BRANCH}
 
 STEP 2 — 使用 version.py 修改版本号
-  r:\OpenAkita\.venv\Scripts\python.exe scripts/version.py set {BARE_VERSION}
+  r:\SeeAgent\.venv\Scripts\python.exe scripts/version.py set {BARE_VERSION}
   → 输出会显示所有被修改的文件
 
 STEP 3 — 提交版本号变更
@@ -184,22 +184,22 @@ STEP 4 — 打 tag 并推送
   git push origin {TAG}
 
 STEP 5 — 触发 Desktop 构建
-  gh workflow run release.yml --repo openakita/openakita --ref {BRANCH} -f tag={TAG}
+  gh workflow run release.yml --repo seeagent/seeagent --ref {BRANCH} -f tag={TAG}
 
 STEP 5b —（如果 INCLUDE_MOBILE=是）触发移动端构建
-  gh workflow run mobile.yml --repo openakita/openakita --ref {BRANCH} -f tag={TAG}
+  gh workflow run mobile.yml --repo seeagent/seeagent --ref {BRANCH} -f tag={TAG}
 
 STEP 6 — 等待构建完成（轮询检查，约 15-30 分钟）
-  反复执行 gh run list --repo openakita/openakita --workflow=release.yml --limit 1
+  反复执行 gh run list --repo seeagent/seeagent --workflow=release.yml --limit 1
   直到状态为 ✓ completed
   如果 INCLUDE_MOBILE=是，也要等 mobile.yml 完成
 
 STEP 7 — 触发发布（自动推断渠道）
-  gh workflow run publish-release.yml --repo openakita/openakita --ref {BRANCH} -f tag={TAG}
+  gh workflow run publish-release.yml --repo seeagent/seeagent --ref {BRANCH} -f tag={TAG}
   → 等待完成
 
 STEP 8 — 验证
-  gh release view {TAG} --repo openakita/openakita
+  gh release view {TAG} --repo seeagent/seeagent
   检查 OSS manifest 是否更新（根据渠道检查对应 JSON）
 ```
 
@@ -245,9 +245,9 @@ STEP 2 — 切换到分支并拉取最新
   git pull origin {BRANCH}
 
 STEP 3 — 确保版本号一致
-  r:\OpenAkita\.venv\Scripts\python.exe scripts/version.py check --expected {TAG}
+  r:\SeeAgent\.venv\Scripts\python.exe scripts/version.py check --expected {TAG}
   → 如果不一致，先执行 version.py set 并提交：
-    r:\OpenAkita\.venv\Scripts\python.exe scripts/version.py set {BARE_VERSION}
+    r:\SeeAgent\.venv\Scripts\python.exe scripts/version.py set {BARE_VERSION}
     git add -A
     git commit -m "chore: align version to {BARE_VERSION}"
     git push origin {BRANCH}
@@ -257,22 +257,22 @@ STEP 4 — 强制移动 tag 到分支最新提交
   git push origin {TAG} --force
 
 STEP 5 — 删除 GitHub 上的旧 Release（如果存在），让构建工作流重新创建 Draft
-  gh release delete {TAG} --repo openakita/openakita --yes --cleanup-tag=false
+  gh release delete {TAG} --repo seeagent/seeagent --yes --cleanup-tag=false
   （如果 release 不存在则忽略错误）
 
 STEP 6 — 触发 Desktop 构建
-  gh workflow run release.yml --repo openakita/openakita --ref {BRANCH} -f tag={TAG}
+  gh workflow run release.yml --repo seeagent/seeagent --ref {BRANCH} -f tag={TAG}
 
 STEP 6b —（如果 INCLUDE_MOBILE=是）触发移动端构建
-  gh workflow run mobile.yml --repo openakita/openakita --ref {BRANCH} -f tag={TAG}
+  gh workflow run mobile.yml --repo seeagent/seeagent --ref {BRANCH} -f tag={TAG}
 
 STEP 7 — 等待构建完成（轮询，约 15-30 分钟）
 
 STEP 8 — 触发发布（强制覆盖 manifest）
-  gh workflow run publish-release.yml --repo openakita/openakita --ref {BRANCH} -f tag={TAG} -f force_update=true
+  gh workflow run publish-release.yml --repo seeagent/seeagent --ref {BRANCH} -f tag={TAG} -f force_update=true
 
 STEP 9 — 验证
-  gh release view {TAG} --repo openakita/openakita
+  gh release view {TAG} --repo seeagent/seeagent
   检查 OSS manifest 版本和日期是否已更新
 ```
 
@@ -301,7 +301,7 @@ STEP 9 — 验证
 ```
 STEP 1 — 触发回填工作流
   gh workflow run backfill-oss.yml \
-    --repo openakita/openakita \
+    --repo seeagent/seeagent \
     --ref main \
     -f upload_binaries={true|false} \
     -f min_version={MIN_VERSION 或空} \
@@ -311,7 +311,7 @@ STEP 2 — 监控执行
   仅 manifest：约 1 分钟完成
   含安装包：可能需要 2-3 小时（67 个版本 × 多平台安装包）
 
-  gh run list --repo openakita/openakita --workflow=backfill-oss.yml --limit 1
+  gh run list --repo seeagent/seeagent --workflow=backfill-oss.yml --limit 1
   → 反复轮询直到完成
 
 STEP 3 — 验证
@@ -330,19 +330,19 @@ Agent 在任何模式执行完毕后，都应运行以下验证：
 $channels = @("release", "pre-release", "dev", "latest")
 foreach ($ch in $channels) {
   try {
-    $r = Invoke-WebRequest -Uri "https://dl-openakita.fzstack.com/api/$ch.json" -UseBasicParsing -ErrorAction Stop
+    $r = Invoke-WebRequest -Uri "https://dl-seeagent.fzstack.com/api/$ch.json" -UseBasicParsing -ErrorAction Stop
     $j = $r.Content | ConvertFrom-Json
     Write-Host "$ch.json : v$($j.version) channel=$($j.channel) date=$($j.pub_date.Substring(0,10))"
   } catch { Write-Host "$ch.json : NOT FOUND" }
 }
 
 # 检查 versions.json
-$r = Invoke-WebRequest -Uri "https://dl-openakita.fzstack.com/api/versions.json" -UseBasicParsing
+$r = Invoke-WebRequest -Uri "https://dl-seeagent.fzstack.com/api/versions.json" -UseBasicParsing
 $j = $r.Content | ConvertFrom-Json
 Write-Host "versions.json: release=$($j.release.Count) pre_release=$($j.pre_release.Count) dev=$($j.dev.Count)"
 
 # 检查 GitHub 最新 Release
-gh release list --repo openakita/openakita --limit 5
+gh release list --repo seeagent/seeagent --limit 5
 
 # 检查渠道配置
 Get-Content .github/release-channels.json

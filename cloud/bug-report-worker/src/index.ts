@@ -128,7 +128,7 @@ async function sendNotification(
         Authorization: `Bearer ${env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "OpenAkita Feedback <onboarding@resend.dev>",
+        from: "SeeAgent Feedback <onboarding@resend.dev>",
         to: [env.NOTIFY_EMAIL],
         subject: `[${typeLabel}] ${title}`,
         html: `

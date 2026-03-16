@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from openakita.orgs.identity import OrgIdentity, ResolvedIdentity
-from openakita.orgs.models import Organization, OrgNode
+from seeagent.orgs.identity import OrgIdentity, ResolvedIdentity
+from seeagent.orgs.models import Organization, OrgNode
 from .conftest import make_org, make_node, make_edge
 
 
@@ -119,7 +119,7 @@ class TestCoreBusiness:
         assert "连续工作职责" not in prompt
 
     def test_root_prompt_uses_dynamic_persona_label(self, identity: OrgIdentity):
-        from openakita.orgs.models import UserPersona
+        from seeagent.orgs.models import UserPersona
         org = make_org(
             core_business="研发 AI 产品",
             user_persona=UserPersona(title="投资人", display_name="王总"),
@@ -167,7 +167,7 @@ class TestUserPersonaInPrompt:
     """Tests for user_persona in org prompt (v1.1)."""
 
     def test_root_shows_persona_as_superior(self, identity: OrgIdentity):
-        from openakita.orgs.models import UserPersona
+        from seeagent.orgs.models import UserPersona
         org = make_org(user_persona=UserPersona(title="甲方", display_name="客户A"))
         root = org.nodes[0]
         resolved = identity.resolve(root, org)

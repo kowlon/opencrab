@@ -25,7 +25,7 @@ priority: high
 
 ```json
 {
-  "prompt": "一张极简风格的产品海报，白色背景，中心是一只橘猫的线稿，标题“OPENAKITA”",
+  "prompt": "一张极简风格的产品海报，白色背景，中心是一只橘猫的线稿，标题“SEEAGENT”",
   "model": "qwen-image-max",
   "size": "1328*1328",
   "prompt_extend": true,

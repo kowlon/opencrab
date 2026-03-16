@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-OpenAkita 测试运行脚本
+SeeAgent 测试运行脚本
 """
 
 import asyncio
@@ -10,12 +10,12 @@ from pathlib import Path
 # 确保项目在 path 中 (脚本在 scripts/ 目录下)
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from openakita.tools.shell import ShellTool
-from openakita.tools.file import FileTool
-from openakita.tools.web import WebTool
-from openakita.testing.judge import Judge
-from openakita.core.agent import Agent
-from openakita.prompt.retriever import retrieve_memory
+from seeagent.tools.shell import ShellTool
+from seeagent.tools.file import FileTool
+from seeagent.tools.web import WebTool
+from seeagent.testing.judge import Judge
+from seeagent.core.agent import Agent
+from seeagent.prompt.retriever import retrieve_memory
 
 
 async def test_shell():
@@ -66,14 +66,14 @@ async def test_file():
     
     # 写入测试
     print("\n  测试: 写入文件")
-    await file.write("/tmp/openakita_test.txt", "Hello OpenAkita!")
+    await file.write("/tmp/seeagent_test.txt", "Hello SeeAgent!")
     print("  结果: ✓ PASS")
     passed += 1
     
     # 读取测试
     print("\n  测试: 读取文件")
-    content = await file.read("/tmp/openakita_test.txt")
-    if content == "Hello OpenAkita!":
+    content = await file.read("/tmp/seeagent_test.txt")
+    if content == "Hello SeeAgent!":
         print("  结果: ✓ PASS")
         passed += 1
     else:
@@ -81,7 +81,7 @@ async def test_file():
     
     # 存在测试
     print("\n  测试: 检查存在")
-    exists = await file.exists("/tmp/openakita_test.txt")
+    exists = await file.exists("/tmp/seeagent_test.txt")
     if exists:
         print("  结果: ✓ PASS")
         passed += 1
@@ -176,7 +176,7 @@ async def test_prompt_and_memory():
 
 async def main():
     print("=" * 60)
-    print("OpenAkita 功能测试")
+    print("SeeAgent 功能测试")
     print("=" * 60)
     
     total_passed = 0

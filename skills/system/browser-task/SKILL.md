@@ -102,13 +102,13 @@ browser_task(task="打开百度搜索福建福州，截图保存")
 
 ## 技术细节
 
-- 通过 CDP (Chrome DevTools Protocol) 复用 OpenAkita 已启动的浏览器
-- 自动继承 OpenAkita 系统配置的 LLM（来自 llm_endpoints.json）
+- 通过 CDP (Chrome DevTools Protocol) 复用 SeeAgent 已启动的浏览器
+- 自动继承 SeeAgent 系统配置的 LLM（来自 llm_endpoints.json）
 - 基于 [browser-use](https://github.com/browser-use/browser-use) 开源项目
 
 ## 高级：操作用户已打开的 Chrome
 
-如果想让 OpenAkita 操作你已打开的 Chrome 页面，需要以调试模式启动 Chrome：
+如果想让 SeeAgent 操作你已打开的 Chrome 页面，需要以调试模式启动 Chrome：
 
 **Windows:**
 ```cmd
@@ -125,7 +125,7 @@ browser_task(task="打开百度搜索福建福州，截图保存")
 google-chrome --remote-debugging-port=9222
 ```
 
-启动后，OpenAkita 会自动检测并连接，可以操作你已打开的标签页。
+启动后，SeeAgent 会自动检测并连接，可以操作你已打开的标签页。
 
 ## 相关技能
 

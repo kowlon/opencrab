@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.core.agent_state import AgentState, TaskState, TaskStatus
-from openakita.core.reasoning_engine import DecisionType
+from seeagent.core.agent_state import AgentState, TaskState, TaskStatus
+from seeagent.core.reasoning_engine import DecisionType
 
 
 class TestDecisionType:

@@ -4,7 +4,7 @@
       <div class="logo-mark">
         <span class="material-symbols-rounded logo-icon">smart_toy</span>
       </div>
-      <h1 class="title">OpenCrab</h1>
+      <h1 class="title">SeeAgent</h1>
       <p class="subtitle">
         自进化 AI Agent — 永不放弃的 Ralph Wiggum 模式<br>
         支持自主学习、记忆管理、多 LLM 端点

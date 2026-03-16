@@ -27,7 +27,7 @@ def test_session_create_and_messages():
     print("测试 1: CLI Session 创建和消息管理")
     print("=" * 60)
 
-    from openakita.sessions.session import Session
+    from seeagent.sessions.session import Session
 
     # 创建 CLI Session
     session = Session.create(channel="cli", chat_id="cli", user_id="user")
@@ -66,7 +66,7 @@ def test_session_dedup_logic():
     print("测试 2: 消息去重逻辑验证")
     print("=" * 60)
 
-    from openakita.sessions.session import Session
+    from seeagent.sessions.session import Session
 
     session = Session.create(channel="cli", chat_id="cli", user_id="user")
 
@@ -116,7 +116,7 @@ def test_im_context_conditional():
     print("测试 3: IM Context 条件设置")
     print("=" * 60)
 
-    from openakita.core.im_context import set_im_context, get_im_session, get_im_gateway, reset_im_context
+    from seeagent.core.im_context import set_im_context, get_im_session, get_im_gateway, reset_im_context
 
     # 场景 A: CLI 模式 (gateway=None)
     # 应该不暴露 session 给 IM 工具
@@ -156,7 +156,7 @@ def test_session_type_detection():
     print("测试 4: session_type 自动检测")
     print("=" * 60)
 
-    from openakita.sessions.session import Session
+    from seeagent.sessions.session import Session
 
     # CLI Session
     cli_session = Session.create(channel="cli", chat_id="cli", user_id="user")
@@ -185,7 +185,7 @@ def test_clear_command_logic():
     print("测试 5: /clear 命令逻辑")
     print("=" * 60)
 
-    from openakita.sessions.session import Session
+    from seeagent.sessions.session import Session
 
     # 模拟 Agent 对象
     class MockAgent:
@@ -232,7 +232,7 @@ def test_selfcheck_clearing():
     print("测试 6: self_check 上下文清理")
     print("=" * 60)
 
-    from openakita.sessions.session import Session
+    from seeagent.sessions.session import Session
 
     # 模拟 Agent
     class MockAgent:
@@ -280,7 +280,7 @@ async def test_chat_delegation():
     print("测试 7: chat() 委托逻辑 (mock chat_with_session)")
     print("=" * 60)
 
-    from openakita.sessions.session import Session
+    from seeagent.sessions.session import Session
 
     # 创建一个最小化的 Agent mock，只测试 chat() 的委托逻辑
     class MinimalAgent:

@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from openakita.llm.types import (
+from seeagent.llm.types import (
     ContentBlockType,
     LLMResponse,
     StopReason,
@@ -144,7 +144,7 @@ class MockLLMClient:
             return self._responses.pop(0).to_llm_response()
         if self._default_response:
             return self._default_response.to_llm_response()
-        from openakita.llm.types import LLMResponse
+        from seeagent.llm.types import LLMResponse
         return MockResponse(content="No mock response configured").to_llm_response()
 
     async def chat_stream(
@@ -229,7 +229,7 @@ class MockBrain:
         )
 
     async def think(self, prompt: str, **kwargs: Any) -> LLMResponse:
-        from openakita.llm.types import Message
+        from seeagent.llm.types import Message
         return await self.llm_client.chat(
             messages=[Message(role="user", content=prompt)],
         )

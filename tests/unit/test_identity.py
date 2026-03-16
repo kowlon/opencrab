@@ -3,14 +3,14 @@
 import pytest
 from pathlib import Path
 
-from openakita.core.identity import Identity
+from seeagent.core.identity import Identity
 
 
 @pytest.fixture
 def identity_dir(tmp_path):
     d = tmp_path / "identity"
     d.mkdir()
-    (d / "SOUL.md").write_text("# Soul\n\n你是 OpenAkita，一只忠诚的秋田犬AI助手。", encoding="utf-8")
+    (d / "SOUL.md").write_text("# Soul\n\n你是 SeeAgent，一只忠诚的秋田犬AI助手。", encoding="utf-8")
     (d / "AGENT.md").write_text("# Agent\n\n## Core\n永不放弃。\n\n## Tooling\n善用工具。", encoding="utf-8")
     (d / "USER.md").write_text("# User\n\n用户是一名开发者。", encoding="utf-8")
     (d / "MEMORY.md").write_text("# Memory\n\n用户喜欢 Python。", encoding="utf-8")
@@ -26,7 +26,7 @@ class TestIdentityLoading:
             memory_path=identity_dir / "MEMORY.md",
         )
         identity.load()
-        assert "OpenAkita" in identity.soul or "秋田犬" in identity.soul
+        assert "SeeAgent" in identity.soul or "秋田犬" in identity.soul
         assert len(identity.agent) > 0
         assert "开发者" in identity.user
 

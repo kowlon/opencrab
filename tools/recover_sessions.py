@@ -195,7 +195,7 @@ def recover_sessions(workspace_path: str, output_path: str | None = None):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("用法: python recover_sessions.py <workspace_path> [output_path]")
-        print("示例: python recover_sessions.py C:\\Users\\xxx\\.openakita\\workspaces\\default")
+        print("示例: python recover_sessions.py C:\\Users\\xxx\\.seeagent\\workspaces\\default")
         sys.exit(1)
 
     workspace = sys.argv[1]

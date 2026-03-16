@@ -24,12 +24,12 @@ import pytest
 # ---------------------------------------------------------------------------
 
 def _make_session_manager(tmp_path, **kwargs):
-    from openakita.sessions import SessionManager
+    from seeagent.sessions import SessionManager
     return SessionManager(storage_path=tmp_path, **kwargs)
 
 
 def _make_unified_store(tmp_path):
-    from openakita.memory.unified_store import UnifiedStore
+    from seeagent.memory.unified_store import UnifiedStore
     db_path = tmp_path / "test.db"
     return UnifiedStore(db_path=db_path)
 
@@ -73,7 +73,7 @@ class TestNoSessionExpiry:
 
     def test_load_sessions_preserves_messages(self, tmp_path):
         """_load_sessions should NOT clear messages for stale sessions."""
-        from openakita.sessions.session import Session, SessionConfig, SessionContext
+        from seeagent.sessions.session import Session, SessionConfig, SessionContext
 
         session = Session(
             id="test_id",
@@ -102,7 +102,7 @@ class TestNoSessionExpiry:
 class TestMaxHistoryTruncation:
 
     def test_truncation_fires_at_limit(self, tmp_path):
-        from openakita.sessions.session import Session, SessionConfig
+        from seeagent.sessions.session import Session, SessionConfig
 
         session = Session(
             id="trunc_test",
@@ -138,7 +138,7 @@ class TestTurnIndexContinuity:
         for i in range(3):
             store.save_turn(session_id="telegram__123__user1", turn_index=i, role="user", content=f"m{i}")
 
-        from openakita.memory.manager import MemoryManager
+        from seeagent.memory.manager import MemoryManager
         mm = MemoryManager.__new__(MemoryManager)
         mm.store = store
         mm._current_session_id = None
@@ -155,8 +155,8 @@ class TestTurnIndexContinuity:
         for i in range(3):
             store.save_turn(session_id="s1", turn_index=i, role="user", content=f"old{i}")
 
-        from openakita.memory.manager import MemoryManager
-        from openakita.memory.consolidator import MemoryConsolidator
+        from seeagent.memory.manager import MemoryManager
+        from seeagent.memory.consolidator import MemoryConsolidator
 
         mm = MemoryManager.__new__(MemoryManager)
         mm.store = store
@@ -182,8 +182,8 @@ class TestTurnIndexContinuity:
         store = _make_unified_store(tmp_path)
         store.save_turn(session_id="s1", turn_index=0, role="user", content="original")
 
-        from openakita.memory.manager import MemoryManager
-        from openakita.memory.consolidator import MemoryConsolidator
+        from seeagent.memory.manager import MemoryManager
+        from seeagent.memory.consolidator import MemoryConsolidator
 
         mm = MemoryManager.__new__(MemoryManager)
         mm.store = store
@@ -231,7 +231,7 @@ class TestGetRecentTurns:
 class TestGetChatHistoryFallback:
 
     def test_fallback_method_returns_none_without_memory_manager(self):
-        from openakita.tools.handlers.im_channel import IMChannelHandler
+        from seeagent.tools.handlers.im_channel import IMChannelHandler
 
         agent = MagicMock()
         agent.memory_manager = None
@@ -243,7 +243,7 @@ class TestGetChatHistoryFallback:
         assert result is None
 
     def test_fallback_method_returns_data(self, tmp_path):
-        from openakita.tools.handlers.im_channel import IMChannelHandler
+        from seeagent.tools.handlers.im_channel import IMChannelHandler
 
         store = _make_unified_store(tmp_path)
         store.save_turn(session_id="telegram__123__user1", turn_index=0, role="user", content="hello world")
@@ -265,7 +265,7 @@ class TestGetChatHistoryFallback:
         assert "持久化存储恢复" in result
 
     def test_fallback_safe_id_sanitization(self, tmp_path):
-        from openakita.tools.handlers.im_channel import IMChannelHandler
+        from seeagent.tools.handlers.im_channel import IMChannelHandler
 
         store = _make_unified_store(tmp_path)
         store.save_turn(session_id="desktop__conv_123__desktop_user", turn_index=0,
@@ -292,8 +292,8 @@ class TestGetChatHistoryFallback:
 class TestSearchMemorySemantic:
 
     def test_uses_retrieval_engine_when_available(self):
-        from openakita.tools.handlers.memory import MemoryHandler
-        from openakita.memory.retrieval import RetrievalCandidate
+        from seeagent.tools.handlers.memory import MemoryHandler
+        from seeagent.memory.retrieval import RetrievalCandidate
 
         candidate = RetrievalCandidate(
             content="用户喜欢Python编程",
@@ -317,8 +317,8 @@ class TestSearchMemorySemantic:
         engine.retrieve_candidates.assert_called_once()
 
     def test_falls_back_to_substring_on_no_engine(self):
-        from openakita.tools.handlers.memory import MemoryHandler
-        from openakita.memory.types import Memory, MemoryType
+        from seeagent.tools.handlers.memory import MemoryHandler
+        from seeagent.memory.types import Memory, MemoryType
 
         mm = MagicMock()
         mm.retrieval_engine = None
@@ -335,8 +335,8 @@ class TestSearchMemorySemantic:
         mm.search_memories.assert_called_once()
 
     def test_falls_back_on_type_filter(self):
-        from openakita.tools.handlers.memory import MemoryHandler
-        from openakita.memory.types import Memory, MemoryType
+        from seeagent.tools.handlers.memory import MemoryHandler
+        from seeagent.memory.types import Memory, MemoryType
 
         engine = MagicMock()
         mm = MagicMock()
@@ -361,7 +361,7 @@ class TestSearchMemorySemantic:
 class TestSessionBackfillOnRestart:
 
     def test_backfill_recovers_missing_messages(self, tmp_path):
-        from openakita.sessions.session import Session, SessionContext
+        from seeagent.sessions.session import Session, SessionContext
 
         session = Session(
             id="test_bf",
@@ -396,7 +396,7 @@ class TestSessionBackfillOnRestart:
 
     def test_backfill_empty_session_from_sqlite(self, tmp_path):
         """If session has no messages but SQLite has data, recover all."""
-        from openakita.sessions.session import Session, SessionContext
+        from seeagent.sessions.session import Session, SessionContext
 
         session = Session(
             id="test_empty",
@@ -430,7 +430,7 @@ class TestSessionBackfillOnRestart:
 
     def test_no_duplicate_on_backfill(self, tmp_path):
         """If SQLite and session have the same data, no duplicates."""
-        from openakita.sessions.session import Session, SessionContext
+        from seeagent.sessions.session import Session, SessionContext
 
         session = Session(
             id="test_nodup",

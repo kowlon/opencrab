@@ -1,6 +1,6 @@
 # Multi-Agent Architecture
 
-本文档描述 OpenAkita 的多 Agent 架构设计。该架构通过 `multi_agent_enabled` 开关与单 Agent 模式完全隔离，标记为 **Beta**。
+本文档描述 SeeAgent 的多 Agent 架构设计。该架构通过 `multi_agent_enabled` 开关与单 Agent 模式完全隔离，标记为 **Beta**。
 
 ## 设计原则
 
@@ -55,7 +55,7 @@
 ### 1. AgentProfile — Agent 蓝图
 
 ```
-src/openakita/agents/profile.py
+src/seeagent/agents/profile.py
 ```
 
 定义 Agent 的身份和能力：
@@ -78,7 +78,7 @@ src/openakita/agents/profile.py
 ### 2. AgentOrchestrator — 中央协调器
 
 ```
-src/openakita/agents/orchestrator.py
+src/seeagent/agents/orchestrator.py
 ```
 
 替代旧的 ZMQ `MasterAgent`，职责：
@@ -106,7 +106,7 @@ handle_message(session, message)
 ### 3. AgentFactory + AgentInstancePool
 
 ```
-src/openakita/agents/factory.py
+src/seeagent/agents/factory.py
 ```
 
 - **AgentFactory** — 从 `AgentProfile` 创建 `Agent` 实例，应用技能过滤和自定义提示词
@@ -115,7 +115,7 @@ src/openakita/agents/factory.py
 ### 4. FallbackResolver — 降级策略
 
 ```
-src/openakita/agents/fallback.py
+src/seeagent/agents/fallback.py
 ```
 
 追踪每个 profile 的健康状态，连续失败超过阈值（默认 3 次）时建议/触发降级到 `fallback_profile_id`。
@@ -123,7 +123,7 @@ src/openakita/agents/fallback.py
 ### 5. TaskQueue — 优先级任务队列
 
 ```
-src/openakita/agents/task_queue.py
+src/seeagent/agents/task_queue.py
 ```
 
 5 级优先级（URGENT → BACKGROUND），并发限制，支持取消。用于异步任务调度。
@@ -131,7 +131,7 @@ src/openakita/agents/task_queue.py
 ### 6. LockManager — 细粒度资源锁
 
 ```
-src/openakita/agents/lock_manager.py
+src/seeagent/agents/lock_manager.py
 ```
 
 per-resource 异步锁，防止多 Agent 并发访问共享资源（文件、内存、工具）。支持过期清理。
@@ -273,18 +273,18 @@ GET /api/stats/tokens/by-agent?period=24h
 - IM Bot 凭证（`im_bots`）也存储在 `runtime_state.json`，跟随工作区
 
 **注意事项：**
-- `OPENAKITA_ROOT` 环境变量可覆盖 `openakita_home`，不影响 `data_dir`
+- `SEEAGENT_ROOT` 环境变量可覆盖 `seeagent_home`，不影响 `data_dir`
 - `skills_path` 在 `user_workspace_path/skills` 下，技能全局共享
 - Agent profiles 是 per-workspace 的，但系统预置会在每个工作区首次启用时自动部署
 
 ## 旧架构废弃说明
 
-`openakita.orchestration` 模块（基于 ZMQ 的 Master-Worker 架构）已标记为 `@deprecated`：
+`seeagent.orchestration` 模块（基于 ZMQ 的 Master-Worker 架构）已标记为 `@deprecated`：
 
 - 所有公共类（`AgentBus`, `MasterAgent`, `WorkerAgent`）在 `__init__` 中发出 `DeprecationWarning`
-- `pyzmq` 已从核心依赖移至可选依赖：`pip install openakita[orchestration]`
+- `pyzmq` 已从核心依赖移至可选依赖：`pip install seeagent[orchestration]`
 - 代码未删除，但不再维护
-- 新功能请使用 `openakita.agents` 包
+- 新功能请使用 `seeagent.agents` 包
 
 ## API 端点汇总
 

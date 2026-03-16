@@ -2,7 +2,7 @@
 
 import pytest
 
-from openakita.llm.capabilities import (
+from seeagent.llm.capabilities import (
     get_all_providers,
     get_models_by_provider,
     get_provider_slug_from_base_url,

@@ -2,7 +2,7 @@
 
 ## Overview
 
-工具系统提供 OpenAkita 与外部世界交互的能力。
+工具系统提供 SeeAgent 与外部世界交互的能力。
 
 ## Jobs to Be Done
 

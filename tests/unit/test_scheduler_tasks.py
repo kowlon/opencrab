@@ -3,8 +3,8 @@
 import pytest
 from datetime import datetime, timedelta
 
-from openakita.scheduler.task import ScheduledTask, TaskStatus, TriggerType, TaskType
-from openakita.scheduler.triggers import OnceTrigger, IntervalTrigger, CronTrigger, Trigger
+from seeagent.scheduler.task import ScheduledTask, TaskStatus, TriggerType, TaskType
+from seeagent.scheduler.triggers import OnceTrigger, IntervalTrigger, CronTrigger, Trigger
 
 
 class TestScheduledTaskCreation:

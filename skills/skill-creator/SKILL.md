@@ -484,13 +484,13 @@ Please add steps to your TodoList, if you have such a thing, to make sure you do
 
 ---
 
-## OpenAkita-Specific Instructions
+## SeeAgent-Specific Instructions
 
-Only follow this section when running in an OpenAkita environment (env `OPENAKITA=1`).
+Only follow this section when running in an SeeAgent environment (env `SEEAGENT=1`).
 
 ### Quick Initialization
 
-OpenAkita provides `scripts/init_skill.py` for scaffolding new skills:
+SeeAgent provides `scripts/init_skill.py` for scaffolding new skills:
 
 ```bash
 python scripts/init_skill.py my-skill --path skills/
@@ -501,7 +501,7 @@ This creates the skill directory, SKILL.md template, `agents/openai.yaml`, and o
 
 ### agents/openai.yaml with i18n
 
-In OpenAkita, `agents/openai.yaml` is extended with an `i18n` section for multi-language display:
+In SeeAgent, `agents/openai.yaml` is extended with an `i18n` section for multi-language display:
 
 ```yaml
 interface:
@@ -515,13 +515,13 @@ i18n:
     description: "技能功能的中文描述"
 ```
 
-The `interface` block follows the standard openai.yaml schema (display_name, short_description, default_prompt, icon_small, icon_large, brand_color). The `i18n` block is OpenAkita-specific — it provides localized names and descriptions shown to Chinese-speaking users in the UI. When `init_skill.py` runs in an OpenAkita environment, it auto-generates the `i18n` section with TODO placeholders.
+The `interface` block follows the standard openai.yaml schema (display_name, short_description, default_prompt, icon_small, icon_large, brand_color). The `i18n` block is SeeAgent-specific — it provides localized names and descriptions shown to Chinese-speaking users in the UI. When `init_skill.py` runs in an SeeAgent environment, it auto-generates the `i18n` section with TODO placeholders.
 
 When creating or updating a skill, always fill in both `interface` and `i18n` fields.
 
 ### Skill Lifecycle
 
-OpenAkita provides runtime tools for managing skills:
+SeeAgent provides runtime tools for managing skills:
 
 - `load_skill` — load a newly created skill into the system
 - `reload_skill` — reload after editing SKILL.md or scripts
@@ -529,7 +529,7 @@ OpenAkita provides runtime tools for managing skills:
 
 ### Local References
 
-OpenAkita keeps additional reference files not present in the upstream skill-creator:
+SeeAgent keeps additional reference files not present in the upstream skill-creator:
 
 - `references/workflows.md` — workflow and conditional logic patterns for multi-step skills
 - `references/output-patterns.md` — template and example patterns for consistent output

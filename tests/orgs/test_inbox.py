@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from openakita.orgs.inbox import OrgInbox
-from openakita.orgs.models import InboxMessage, InboxPriority
+from seeagent.orgs.inbox import OrgInbox
+from seeagent.orgs.models import InboxMessage, InboxPriority
 
 
 @pytest.fixture()

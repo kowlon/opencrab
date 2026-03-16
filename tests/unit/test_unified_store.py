@@ -3,8 +3,8 @@
 import pytest
 from datetime import datetime
 
-from openakita.memory.types import Episode, Scratchpad, SemanticMemory, MemoryType
-from openakita.memory.unified_store import UnifiedStore
+from seeagent.memory.types import Episode, Scratchpad, SemanticMemory, MemoryType
+from seeagent.memory.unified_store import UnifiedStore
 
 
 @pytest.fixture

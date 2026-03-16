@@ -1,13 +1,13 @@
 ---
 name: platform-guide
-description: "OpenAkita Platform guide for searching and installing Agents from Agent Hub and Skills from Skill Store. Use when user asks to find, browse, or install Agents or Skills from the platform."
+description: "SeeAgent Platform guide for searching and installing Agents from Agent Hub and Skills from Skill Store. Use when user asks to find, browse, or install Agents or Skills from the platform."
 system: true
 handler: system
 tool-name: platform_guide
 category: Platform
 ---
 
-# OpenAkita Platform Guide — AI 操作手册
+# SeeAgent Platform Guide — AI 操作手册
 
 > **核心原则**：当用户需要某种能力但本地没有时，你应该 **主动搜索平台**。
 
@@ -16,7 +16,7 @@ category: Platform
 - 用户说"帮我找一个 XX Agent / 技能 / Skill"
 - 用户需要某种能力但本地没有对应的技能
 - 用户说"有没有现成的"、"市场上有吗"、"安装一个"
-- 用户提到 Agent Hub、Skill Store、OpenAkita 平台
+- 用户提到 Agent Hub、Skill Store、SeeAgent 平台
 
 **注意**：平台是 **可选扩展**，离线时所有本地功能不受影响。
 
@@ -49,7 +49,7 @@ install_hub_agent(agent_id="the-agent-id")
 1. 下载 `.akita-agent` 包
 2. 打包的技能 → `skills/custom/`（版本去重：本地有更新版就跳过）
 3. 外部依赖技能 → 从原始 GitHub 仓库拉取到 `skills/community/`
-4. 每个技能写入 `.openakita-origin.json` 追踪来源
+4. 每个技能写入 `.seeagent-origin.json` 追踪来源
 5. Agent 配置注册到本地 → 技能自动重载
 
 ---

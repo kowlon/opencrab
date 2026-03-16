@@ -33,7 +33,7 @@ class TestUserCancelledError:
 
     def test_basic_creation(self):
         """基本创建"""
-        from openakita.core.errors import UserCancelledError
+        from seeagent.core.errors import UserCancelledError
 
         err = UserCancelledError(reason="停止", source="llm_call")
         assert err.reason == "停止"
@@ -43,7 +43,7 @@ class TestUserCancelledError:
 
     def test_default_values(self):
         """默认值"""
-        from openakita.core.errors import UserCancelledError
+        from seeagent.core.errors import UserCancelledError
 
         err = UserCancelledError()
         assert err.reason == ""
@@ -51,7 +51,7 @@ class TestUserCancelledError:
 
     def test_is_exception(self):
         """是 Exception 子类"""
-        from openakita.core.errors import UserCancelledError
+        from seeagent.core.errors import UserCancelledError
 
         assert issubclass(UserCancelledError, Exception)
 
@@ -66,7 +66,7 @@ class TestTaskStateCancelEvent:
 
     def test_cancel_event_exists(self):
         """TaskState 包含 cancel_event 字段"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="test-1")
         assert hasattr(ts, "cancel_event")
@@ -74,14 +74,14 @@ class TestTaskStateCancelEvent:
 
     def test_cancel_event_initially_not_set(self):
         """cancel_event 初始未触发"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="test-2")
         assert not ts.cancel_event.is_set()
 
     def test_cancel_sets_event(self):
         """cancel() 触发 cancel_event"""
-        from openakita.core.agent_state import TaskState, TaskStatus
+        from seeagent.core.agent_state import TaskState, TaskStatus
 
         ts = TaskState(task_id="test-3", status=TaskStatus.REASONING)
         ts.cancel("测试取消")
@@ -91,7 +91,7 @@ class TestTaskStateCancelEvent:
 
     def test_cancel_from_acting(self):
         """从 ACTING 状态取消"""
-        from openakita.core.agent_state import TaskState, TaskStatus
+        from seeagent.core.agent_state import TaskState, TaskStatus
 
         ts = TaskState(task_id="test-4", status=TaskStatus.ACTING)
         ts.cancel("工具执行中取消")
@@ -100,7 +100,7 @@ class TestTaskStateCancelEvent:
 
     def test_each_task_gets_own_event(self):
         """每个 TaskState 有独立的 cancel_event"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts1 = TaskState(task_id="a")
         ts2 = TaskState(task_id="b")
@@ -119,7 +119,7 @@ class TestAgentStateCancelTask:
 
     def test_cancel_task_sets_event(self):
         """AgentState.cancel_task() 设置 TaskState.cancel_event"""
-        from openakita.core.agent_state import AgentState
+        from seeagent.core.agent_state import AgentState
 
         agent_state = AgentState()
         task = agent_state.begin_task(session_id="s1")
@@ -132,7 +132,7 @@ class TestAgentStateCancelTask:
 
     def test_cancel_task_no_current_task(self):
         """没有活跃任务时 cancel_task 不报错"""
-        from openakita.core.agent_state import AgentState
+        from seeagent.core.agent_state import AgentState
 
         agent_state = AgentState()
         agent_state.cancel_task("无任务")  # 不应抛出异常
@@ -149,7 +149,7 @@ class TestCancellableLlmCall:
     @pytest.mark.asyncio
     async def test_normal_completion(self):
         """LLM 正常返回时 _cancellable_llm_call 返回结果"""
-        from openakita.core.errors import UserCancelledError
+        from seeagent.core.errors import UserCancelledError
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock(type="text", text="回复内容")]
@@ -163,7 +163,7 @@ class TestCancellableLlmCall:
 
         cancel_event = asyncio.Event()
 
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
 
         result = await Agent._cancellable_llm_call(
             agent, cancel_event, model="test", max_tokens=100, system="", tools=[], messages=[]
@@ -173,7 +173,7 @@ class TestCancellableLlmCall:
     @pytest.mark.asyncio
     async def test_cancel_interrupts(self):
         """cancel_event 触发时 _cancellable_llm_call 抛出 UserCancelledError"""
-        from openakita.core.errors import UserCancelledError
+        from seeagent.core.errors import UserCancelledError
 
         async def slow_llm(**kwargs):
             await asyncio.sleep(10)
@@ -188,7 +188,7 @@ class TestCancellableLlmCall:
 
         cancel_event = asyncio.Event()
 
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
 
         async def trigger_cancel():
             await asyncio.sleep(0.1)
@@ -217,7 +217,7 @@ class TestHandleCancelFarewell:
     @pytest.mark.asyncio
     async def test_farewell_returns_default_immediately(self):
         """收尾立即返回默认文本，后台启动 LLM 收尾任务"""
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
 
         agent = MagicMock(spec=Agent)
         agent.brain = MagicMock()
@@ -233,7 +233,7 @@ class TestHandleCancelFarewell:
     @pytest.mark.asyncio
     async def test_farewell_default_text(self):
         """默认收尾文本内容正确"""
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
 
         agent = MagicMock(spec=Agent)
         agent.brain = MagicMock()
@@ -257,7 +257,7 @@ class TestPersistCancelToContext:
 
     def test_persists_to_context_messages(self):
         """中断事件正确记录到 context.messages"""
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
 
         agent = MagicMock(spec=Agent)
         agent._context = MagicMock()
@@ -274,7 +274,7 @@ class TestPersistCancelToContext:
 
     def test_no_context_no_error(self):
         """没有 _context 属性时不报错"""
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
 
         agent = MagicMock(spec=Agent)
         agent._context = None
@@ -293,8 +293,8 @@ class TestCancelCurrentTaskIntegration:
 
     def test_cancel_triggers_state_event(self):
         """cancel_current_task 设置 _state.current_task.cancel_event"""
-        from openakita.core.agent import Agent
-        from openakita.core.agent_state import AgentState
+        from seeagent.core.agent import Agent
+        from seeagent.core.agent_state import AgentState
 
         agent_state = AgentState()
         task = agent_state.begin_task()
@@ -323,8 +323,8 @@ class TestReasonWithHeartbeatCancel:
     @pytest.mark.asyncio
     async def test_cancel_during_reason(self):
         """LLM 推理期间取消应抛出 UserCancelledError"""
-        from openakita.core.errors import UserCancelledError
-        from openakita.core.agent_state import AgentState, TaskStatus
+        from seeagent.core.errors import UserCancelledError
+        from seeagent.core.agent_state import AgentState, TaskStatus
 
         agent_state = AgentState()
         task = agent_state.begin_task()
@@ -343,7 +343,7 @@ class TestReasonWithHeartbeatCancel:
 
         engine._reason = slow_reason
 
-        from openakita.core.reasoning_engine import ReasoningEngine
+        from seeagent.core.reasoning_engine import ReasoningEngine
 
         engine._reason_with_heartbeat = ReasoningEngine._reason_with_heartbeat.__get__(
             engine, ReasoningEngine
@@ -380,8 +380,8 @@ class TestStreamCancelFarewell:
     @pytest.mark.asyncio
     async def test_farewell_yields_text_deltas(self):
         """流式收尾产出 text_delta 事件"""
-        from openakita.core.agent_state import TaskState, TaskStatus
-        from openakita.core.reasoning_engine import ReasoningEngine
+        from seeagent.core.agent_state import TaskState, TaskStatus
+        from seeagent.core.reasoning_engine import ReasoningEngine
 
         farewell_response = MagicMock()
         farewell_block = MagicMock()
@@ -413,8 +413,8 @@ class TestStreamCancelFarewell:
     @pytest.mark.asyncio
     async def test_farewell_timeout_yields_default(self):
         """LLM 超时时产出默认文本"""
-        from openakita.core.agent_state import TaskState, TaskStatus
-        from openakita.core.reasoning_engine import ReasoningEngine
+        from seeagent.core.agent_state import TaskState, TaskStatus
+        from seeagent.core.reasoning_engine import ReasoningEngine
 
         def slow_llm(**kwargs):
             import time
@@ -434,7 +434,7 @@ class TestStreamCancelFarewell:
         state.cancel("停止")
 
         with patch(
-            "openakita.core.reasoning_engine.asyncio.wait_for",
+            "seeagent.core.reasoning_engine.asyncio.wait_for",
             side_effect=asyncio.TimeoutError(),
         ):
             events = []
@@ -525,7 +525,7 @@ class TestTaskStateSkipEvent:
 
     def test_skip_event_exists(self):
         """TaskState 包含 skip_event 字段"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="skip-1")
         assert hasattr(ts, "skip_event")
@@ -533,14 +533,14 @@ class TestTaskStateSkipEvent:
 
     def test_skip_event_initially_not_set(self):
         """skip_event 初始未触发"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="skip-2")
         assert not ts.skip_event.is_set()
 
     def test_request_skip_sets_event(self):
         """request_skip() 触发 skip_event"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="skip-3")
         ts.request_skip("太慢了")
@@ -549,7 +549,7 @@ class TestTaskStateSkipEvent:
 
     def test_clear_skip_resets_event(self):
         """clear_skip() 重置 skip_event 和 skip_reason"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="skip-4")
         ts.request_skip("太慢了")
@@ -559,7 +559,7 @@ class TestTaskStateSkipEvent:
 
     def test_skip_does_not_cancel(self):
         """skip 不会触发 cancel"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="skip-5")
         ts.request_skip("换个方法")
@@ -578,7 +578,7 @@ class TestTaskStateUserInserts:
     @pytest.mark.asyncio
     async def test_add_and_drain(self):
         """add_user_insert -> drain_user_inserts 正常工作"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="ins-1")
         await ts.add_user_insert("消息1")
@@ -592,7 +592,7 @@ class TestTaskStateUserInserts:
     @pytest.mark.asyncio
     async def test_drain_empty(self):
         """drain_user_inserts 空队列返回空列表"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="ins-2")
         drained = await ts.drain_user_inserts()
@@ -601,7 +601,7 @@ class TestTaskStateUserInserts:
     @pytest.mark.asyncio
     async def test_multiple_drain_idempotent(self):
         """多次 drain 只返回一次"""
-        from openakita.core.agent_state import TaskState
+        from seeagent.core.agent_state import TaskState
 
         ts = TaskState(task_id="ins-3")
         await ts.add_user_insert("hello")
@@ -730,7 +730,7 @@ class TestClassifyInterrupt:
 
     def _make_agent(self):
         """创建最小化 Agent 实例（仅需 classify_interrupt 方法可用）"""
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
 
         agent = object.__new__(Agent)
         agent.agent_state = None
@@ -781,14 +781,14 @@ class TestGatewayInterruptRouting:
 
     def test_skip_command_not_in_stop_commands(self):
         """SKIP_COMMANDS 和 STOP_COMMANDS 不交叉"""
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
 
         common = Agent.STOP_COMMANDS & Agent.SKIP_COMMANDS
         assert len(common) == 0, f"STOP_COMMANDS and SKIP_COMMANDS overlap: {common}"
 
     def test_agent_has_all_interrupt_methods(self):
         """Agent 具备所有中断控制方法"""
-        from openakita.core.agent import Agent
+        from seeagent.core.agent import Agent
 
         assert hasattr(Agent, "cancel_current_task")
         assert hasattr(Agent, "skip_current_step")

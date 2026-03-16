@@ -5,14 +5,14 @@ from datetime import datetime
 
 import pytest
 
-from openakita.memory.search_backends import (
+from seeagent.memory.search_backends import (
     APIEmbeddingBackend,
     ChromaDBBackend,
     FTS5Backend,
     SearchBackend,
     create_search_backend,
 )
-from openakita.memory.storage import MemoryStorage
+from seeagent.memory.storage import MemoryStorage
 
 
 @pytest.fixture

@@ -2,7 +2,7 @@
 
 import pytest
 
-from openakita.prompt.budget import (
+from seeagent.prompt.budget import (
     BudgetConfig,
     BudgetResult,
     apply_budget,

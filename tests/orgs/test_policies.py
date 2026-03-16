@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from openakita.orgs.policies import OrgPolicies, POLICY_TEMPLATES
+from seeagent.orgs.policies import OrgPolicies, POLICY_TEMPLATES
 
 
 @pytest.fixture()

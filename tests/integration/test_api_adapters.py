@@ -9,16 +9,16 @@ import os
 import json
 
 # 导入所有适配器
-from src.openakita.integrations.adapters.mail import create_mail_adapter
-from src.openakita.integrations.adapters.sheets import create_sheets_adapter
-from src.openakita.integrations.adapters.crm import create_crm_adapter
-from src.openakita.integrations.adapters.im import create_im_adapter
-from src.openakita.integrations.adapters.storage import create_storage_adapter
-from src.openakita.integrations.adapters.sms import create_sms_adapter
-from src.openakita.integrations.adapters.payment import create_payment_adapter
-from src.openakita.integrations.adapters.map import create_map_adapter
-from src.openakita.integrations.adapters.weather import create_weather_adapter
-from src.openakita.integrations.adapters.news import create_news_adapter
+from src.seeagent.integrations.adapters.mail import create_mail_adapter
+from src.seeagent.integrations.adapters.sheets import create_sheets_adapter
+from src.seeagent.integrations.adapters.crm import create_crm_adapter
+from src.seeagent.integrations.adapters.im import create_im_adapter
+from src.seeagent.integrations.adapters.storage import create_storage_adapter
+from src.seeagent.integrations.adapters.sms import create_sms_adapter
+from src.seeagent.integrations.adapters.payment import create_payment_adapter
+from src.seeagent.integrations.adapters.map import create_map_adapter
+from src.seeagent.integrations.adapters.weather import create_weather_adapter
+from src.seeagent.integrations.adapters.news import create_news_adapter
 
 
 class APITestBase:

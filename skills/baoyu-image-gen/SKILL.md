@@ -3,7 +3,7 @@ name: jimliu/baoyu-skills@baoyu-image-gen
 description: Generate AI images using multiple providers (OpenAI DALL-E, Google Imagen, DashScope/Tongyi Wanxiang, Replicate). Supports various aspect ratios, quality presets, batch generation, and provider-specific prompt engineering techniques.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

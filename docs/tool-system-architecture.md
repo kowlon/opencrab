@@ -1,10 +1,10 @@
 # 工具系统架构设计
 
-本文档描述 OpenAkita 的工具系统架构设计，包括三类工具的统一管理和渐进式披露机制。
+本文档描述 SeeAgent 的工具系统架构设计，包括三类工具的统一管理和渐进式披露机制。
 
 ## 架构概览
 
-OpenAkita 支持三类工具，采用统一的架构设计：
+SeeAgent 支持三类工具，采用统一的架构设计：
 
 | 工具类型 | 披露方式 | 规范依据 |
 |---------|---------|---------|
@@ -92,7 +92,7 @@ tool_name(param="value")""",
 
 ### 1.4 核心组件
 
-**ToolCatalog 类** (`src/openakita/tools/catalog.py`)
+**ToolCatalog 类** (`src/seeagent/tools/catalog.py`)
 
 ```python
 class ToolCatalog:
@@ -241,7 +241,7 @@ mcps/
 ### 5.1 文件结构
 
 ```
-src/openakita/
+src/seeagent/
 ├── tools/
 │   ├── catalog.py      # ToolCatalog - 系统工具目录
 │   ├── mcp_catalog.py  # MCPCatalog - MCP 目录

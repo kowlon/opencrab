@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from openakita.api.server import create_app
+from seeagent.api.server import create_app
 
 
 @pytest.fixture
@@ -59,7 +59,7 @@ async def client_no_shutdown(app_no_shutdown):
 
 class TestRestartWithShutdownEvent:
     async def test_restart_sets_flag_and_triggers_event(self, client, shutdown_event):
-        import openakita.config as cfg
+        import seeagent.config as cfg
         cfg._restart_requested = False
 
         resp = await client.post("/api/config/restart")
@@ -76,7 +76,7 @@ class TestRestartWithShutdownEvent:
 
 class TestRestartWithoutShutdownEvent:
     async def test_restart_returns_error(self, client_no_shutdown):
-        import openakita.config as cfg
+        import seeagent.config as cfg
         cfg._restart_requested = False
 
         resp = await client_no_shutdown.post("/api/config/restart")
@@ -104,7 +104,7 @@ class TestHealthEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
-        assert data["service"] == "openakita"
+        assert data["service"] == "seeagent"
         assert "version" in data
         assert "pid" in data
         assert data["agent_initialized"] is True
@@ -134,9 +134,9 @@ class TestRestartOrchestratorRecovery:
             base_url="http://testserver",
         ) as c:
             with (
-                patch("openakita.config.settings") as mock_settings,
-                patch("openakita.config.runtime_state") as mock_rs,
-                patch("openakita.api.routes.config._hot_patch_agent_tools"),
+                patch("seeagent.config.settings") as mock_settings,
+                patch("seeagent.config.runtime_state") as mock_rs,
+                patch("seeagent.api.routes.config._hot_patch_agent_tools"),
             ):
                 mock_settings.multi_agent_enabled = False
                 mock_settings.data_dir = MagicMock()

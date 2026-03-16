@@ -7,7 +7,7 @@ using MockLLMClient with preset ReAct sequences.
 
 import pytest
 
-from openakita.llm.types import StopReason
+from seeagent.llm.types import StopReason
 from tests.fixtures.mock_llm import MockBrain, MockLLMClient, MockResponse
 
 
@@ -124,7 +124,7 @@ class TestMultipleParallelTools:
             messages=[{"role": "user", "content": "Search memories for Python and JavaScript"}],
         )
         assert r1.stop_reason == StopReason.TOOL_USE
-        from openakita.llm.types import ToolUseBlock
+        from seeagent.llm.types import ToolUseBlock
         tool_blocks = [b for b in r1.content if isinstance(b, ToolUseBlock)]
         assert len(tool_blocks) == 2
 

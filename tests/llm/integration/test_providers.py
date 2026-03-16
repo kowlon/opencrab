@@ -10,15 +10,15 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 import httpx
 
-from openakita.llm.types import (
+from seeagent.llm.types import (
     LLMRequest,
     LLMResponse,
     Message,
     TextBlock,
     EndpointConfig,
 )
-from openakita.llm.providers.anthropic import AnthropicProvider
-from openakita.llm.providers.openai import OpenAIProvider
+from seeagent.llm.providers.anthropic import AnthropicProvider
+from seeagent.llm.providers.openai import OpenAIProvider
 
 
 class TestAnthropicProvider:
@@ -109,7 +109,7 @@ class TestAnthropicProvider:
             mock_http.post.return_value = mock_resp
             mock_client.return_value = mock_http
             
-            from openakita.llm.types import ImageBlock
+            from seeagent.llm.types import ImageBlock
             
             request = LLMRequest(
                 messages=[Message(role="user", content=[
@@ -170,7 +170,7 @@ class TestOpenAIProvider:
             mock_http.post.return_value = mock_resp
             mock_client.return_value = mock_http
             
-            from openakita.llm.types import Tool
+            from seeagent.llm.types import Tool
             
             request = LLMRequest(
                 messages=[Message(role="user", content="What's the weather?")],
@@ -207,7 +207,7 @@ class TestOpenAIProvider:
             mock_http.post.return_value = mock_resp
             mock_client.return_value = mock_http
             
-            from openakita.llm.types import ImageBlock
+            from seeagent.llm.types import ImageBlock
             
             request = LLMRequest(
                 messages=[Message(role="user", content=[
@@ -344,7 +344,7 @@ class TestKimiProvider:
             mock_http.post.return_value = mock_resp
             mock_client.return_value = mock_http
             
-            from openakita.llm.types import VideoBlock, VideoContent
+            from seeagent.llm.types import VideoBlock, VideoContent
             
             request = LLMRequest(
                 messages=[Message(role="user", content=[

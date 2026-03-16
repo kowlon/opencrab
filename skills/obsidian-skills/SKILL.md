@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@obsidian-skills
+name: seeagent/skills@obsidian-skills
 description: Manage Obsidian vaults with full support for Obsidian Flavored Markdown — wikilinks, embeds, callouts, YAML properties, Dataview queries, Canvas, and Bases. Organize notes using MOCs (Maps of Content), atomic note principles, and consistent folder/tag taxonomies. Always ask the user where to save before creating notes.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
   upstream: kepano/obsidian-skills
 ---
@@ -206,7 +206,7 @@ category: 生产力
 ```yaml
 ---
 # 项目笔记
-project: OpenAkita
+project: SeeAgent
 priority: high
 deadline: 2026-06-30
 stakeholders:
@@ -278,7 +278,7 @@ MyVault/
 | 会议笔记 | `YYYY-MM-DD 会议主题` | `2026-03-01 产品评审会.md` |
 | MOC | `MOC - 主题` | `MOC - 知识管理.md` |
 | 模板 | `Template - 类型` | `Template - 读书笔记.md` |
-| 项目主页 | `项目名 - Home` | `OpenAkita - Home.md` |
+| 项目主页 | `项目名 - Home` | `SeeAgent - Home.md` |
 
 **命名原则：**
 - 避免特殊字符：`/ \ : * ? " < > |`

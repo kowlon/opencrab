@@ -1,7 +1,7 @@
 # AgentOrg 组织编排系统 — 技术设计文档
 
 > 模块代号: `AgentOrg`  
-> 后端路径: `src/openakita/orgs/`  
+> 后端路径: `src/seeagent/orgs/`  
 > 前端组件: `OrgEditorView.tsx` / `OrgInboxSidebar.tsx`  
 > 版本: v1.3  
 > 最后更新: 2026-03-05
@@ -10,7 +10,7 @@
 
 ## 1. 设计目标与技术定位
 
-AgentOrg 是 OpenAkita 的多 Agent 组织编排引擎。它在现有"自由派发"多 Agent 模式之上，新增了一种**持久化的、层级化的**编排范式——用户以可视化方式拖拽构建 Agent 组织架构（类似公司职能体系），使多个 Agent 在一个持久运行的组织上下文中自主通信、协作、自检。
+AgentOrg 是 SeeAgent 的多 Agent 组织编排引擎。它在现有"自由派发"多 Agent 模式之上，新增了一种**持久化的、层级化的**编排范式——用户以可视化方式拖拽构建 Agent 组织架构（类似公司职能体系），使多个 Agent 在一个持久运行的组织上下文中自主通信、协作、自检。
 
 核心技术参考：
 - **CrewAI** 的角色驱动（role/goal/backstory 三元组）

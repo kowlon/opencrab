@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@ppt-creator
+name: seeagent/skills@ppt-creator
 description: Create professional presentations using the Pyramid Principle methodology. Supports PPTX generation, Marp/Reveal.js Markdown slides, chart creation, speaker notes, and self-evaluation rubrics. Minimal intake form to rapid output workflow.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

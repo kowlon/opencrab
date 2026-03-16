@@ -11,7 +11,7 @@ https://claytonfarr.github.io/ralph-playbook/
 
 0b. 学习 `identity/MEMORY.md` 中的 Implementation Plan。
 
-0c. 学习 `src/openakita/` 了解现有代码和模式。
+0c. 学习 `src/seeagent/` 了解现有代码和模式。
 
 1. 你的任务是按照规格实现功能。遵循 `identity/MEMORY.md` 中的 Implementation Plan，选择最重要的项目来处理。在做出更改之前，先搜索代码库（不要假设未实现）。
 

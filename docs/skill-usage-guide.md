@@ -1,6 +1,6 @@
 # Agent Skills 用法指南与技能大全资源
 
-> 本文档整理了 Agent Skills 的完整用法、SKILL.md 规范、OpenAkita 项目技能体系，以及外部技能大全网站资源。
+> 本文档整理了 Agent Skills 的完整用法、SKILL.md 规范、SeeAgent 项目技能体系，以及外部技能大全网站资源。
 
 ---
 
@@ -12,7 +12,7 @@
 4. [使用方法](#使用方法)
 5. [创建自定义技能](#创建自定义技能)
 6. [技能管理命令](#技能管理命令)
-7. [OpenAkita 内置技能一览](#openakita-内置技能一览)
+7. [SeeAgent 内置技能一览](#seeagent-内置技能一览)
 8. [技能大全网站 & 资源汇总](#技能大全网站--资源汇总)
 9. [Cursor IDE 中使用 Skills](#cursor-ide-中使用-skills)
 10. [最佳实践](#最佳实践)
@@ -177,19 +177,19 @@ Agent> [自动创建计划 → 调用 browser-navigate → browser-type → brow
 
 ```bash
 # 列出所有可用技能
-openakita skills list
+seeagent skills list
 
 # 运行某个技能
-openakita skills run my_skill --input "test data"
+seeagent skills run my_skill --input "test data"
 
 # 从 GitHub 安装技能
-openakita skills install github:user/repo/skill_name
+seeagent skills install github:user/repo/skill_name
 ```
 
 ### 3. 编程方式调用
 
 ```python
-from openakita.skills import SkillRegistry
+from seeagent.skills import SkillRegistry
 
 registry = SkillRegistry()
 skill = registry.get("my_skill")
@@ -246,7 +246,7 @@ Agent> [自动生成 SKILL.md + scripts → 加载 → 可用]
 
 ---
 
-## OpenAkita 内置技能一览
+## SeeAgent 内置技能一览
 
 ### 浏览器控制（12 个）
 
@@ -502,8 +502,8 @@ Cursor 中的 Agent Skills 可以从以下位置加载：
 - [Cursor Agent Skills 使用教程](https://cursor.zone/faq/cursor-agent-skills-guide.html)
 - [手把手教你配置 Skills 技能库](https://index.zshipu.com/ai002/post/20251125/)
 - [Cursor 2.4: Skills 官方公告](https://forum.cursor.com/t/cursor-2-4-skills/149402)
-- [OpenAkita 技能加载架构文档](./skill-loading-architecture.md)
-- [OpenAkita 技能系统文档](./skills.md)
+- [SeeAgent 技能加载架构文档](./skill-loading-architecture.md)
+- [SeeAgent 技能系统文档](./skills.md)
 
 ---
 

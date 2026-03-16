@@ -8,7 +8,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 import base64
 
-from openakita.llm.types import (
+from seeagent.llm.types import (
     Message,
     TextBlock,
     ImageBlock,
@@ -18,7 +18,7 @@ from openakita.llm.types import (
     Usage,
     StopReason,
 )
-from openakita.llm.client import LLMClient
+from seeagent.llm.client import LLMClient
 
 
 @pytest.fixture
@@ -222,7 +222,7 @@ class TestImageWithTools:
     @pytest.mark.asyncio
     async def test_e2e_i08_image_tool_combo(self, vision_client):
         """E2E-I08: 图片+工具组合"""
-        from openakita.llm.types import Tool, ToolUseBlock
+        from seeagent.llm.types import Tool, ToolUseBlock
         
         # 模拟工具调用响应
         mock_response = LLMResponse(

@@ -7,13 +7,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openakita.orgs.node_scheduler import (
+from seeagent.orgs.node_scheduler import (
     OrgNodeScheduler,
     CLEAN_THRESHOLD,
     FREQUENCY_MULTIPLIER,
     MAX_FREQUENCY_FACTOR,
 )
-from openakita.orgs.models import NodeSchedule, ScheduleType, OrgStatus
+from seeagent.orgs.models import NodeSchedule, ScheduleType, OrgStatus
 from .conftest import make_org
 
 

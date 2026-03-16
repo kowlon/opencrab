@@ -34,7 +34,7 @@ If applicable, add screenshots to help explain your problem.
 
 - OS: [e.g., Windows 11, Ubuntu 22.04]
 - Python version: [e.g., 3.11.5]
-- OpenAkita version: [e.g., 0.5.9]
+- SeeAgent version: [e.g., 0.5.9]
 
 ## Additional Context
 

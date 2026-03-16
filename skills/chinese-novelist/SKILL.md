@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@chinese-novelist
+name: seeagent/skills@chinese-novelist
 description: Guide AI to write Chinese novels and fiction with structured character creation, plot architecture (起承转合), dialog writing, scene description, and genre-specific techniques for 玄幻, 都市, 悬疑, and 言情 genres.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

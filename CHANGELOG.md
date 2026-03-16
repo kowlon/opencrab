@@ -64,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive documentation suite
 - Contributing guidelines
 - Security policy
-- **Unified LLM Client Architecture** (`src/openakita/llm/`)
+- **Unified LLM Client Architecture** (`src/seeagent/llm/`)
   - `LLMClient`: Central client managing multi-endpoint, capability routing, failover
   - `LLMProvider` base class with Anthropic and OpenAI implementations
   - Unified internal types: `Message`, `Tool`, `LLMRequest`, `LLMResponse`, `ContentBlock`
@@ -98,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed direct Anthropic/OpenAI client instances
   - All LLM calls now go through `LLMClient`
   - `messages_create()` and `think()` delegate to `LLMClient.chat()`
-- **Message Converters** (`src/openakita/llm/converters/`)
+- **Message Converters** (`src/seeagent/llm/converters/`)
   - `messages.py`: Bidirectional conversion between internal and OpenAI formats
   - `tools.py`: Tool definition conversion, text tool call parsing
   - `multimodal.py`: Image/video content block conversion
@@ -296,12 +296,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | 0.2.0 | 2025-12-01 | Multi-turn chat |
 | 0.1.0 | 2025-11-15 | Initial release |
 
-[Unreleased]: https://github.com/openakita/openakita/compare/v1.2.0...HEAD
-[1.2.0]: https://github.com/openakita/openakita/compare/v1.1.0...v1.2.0
-[1.1.0]: https://github.com/openakita/openakita/compare/v1.0.2...v1.1.0
-[0.5.9]: https://github.com/openakita/openakita/compare/v0.5.0...v0.5.9
-[0.5.0]: https://github.com/openakita/openakita/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/openakita/openakita/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/openakita/openakita/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/openakita/openakita/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/openakita/openakita/releases/tag/v0.1.0
+[Unreleased]: https://github.com/seeagent/seeagent/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/seeagent/seeagent/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/seeagent/seeagent/compare/v1.0.2...v1.1.0
+[0.5.9]: https://github.com/seeagent/seeagent/compare/v0.5.0...v0.5.9
+[0.5.0]: https://github.com/seeagent/seeagent/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/seeagent/seeagent/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/seeagent/seeagent/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/seeagent/seeagent/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/seeagent/seeagent/releases/tag/v0.1.0

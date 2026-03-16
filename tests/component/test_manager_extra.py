@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from openakita.memory.types import (
+from seeagent.memory.types import (
     Attachment,
     AttachmentDirection,
     Memory,
@@ -26,7 +26,7 @@ def memory_dir(tmp_workspace):
 
 @pytest.fixture
 def manager(memory_dir, mock_brain):
-    from openakita.memory.manager import MemoryManager
+    from seeagent.memory.manager import MemoryManager
     mem_dir, memory_md = memory_dir
     mgr = MemoryManager(data_dir=mem_dir, memory_md_path=memory_md, brain=mock_brain)
     mgr.start_session("test-session-1")

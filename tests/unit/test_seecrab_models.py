@@ -1,7 +1,7 @@
 """Tests for SeeCrab data models."""
 from __future__ import annotations
 
-from openakita.api.adapters.seecrab_models import (
+from seeagent.api.adapters.seecrab_models import (
     AggregatorState,
     FilterResult,
     PendingCard,

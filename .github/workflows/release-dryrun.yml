@@ -49,14 +49,14 @@ jobs:
         run: |
           python -m venv /tmp/test-venv
           /tmp/test-venv/bin/pip install dist/*.whl
-          /tmp/test-venv/bin/openakita --help
+          /tmp/test-venv/bin/seeagent --help
 
       - name: Verify extras install correctly
         run: |
           python -m venv /tmp/test-all
           WHL=$(ls dist/*.whl)
           /tmp/test-all/bin/pip install "${WHL}[all]"
-          /tmp/test-all/bin/openakita --help
+          /tmp/test-all/bin/seeagent --help
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v4
@@ -160,7 +160,7 @@ jobs:
         shell: bash
         run: |
           rm -rf dist/
-          rm -rf build/openakita-server
+          rm -rf build/seeagent-server
           rm -rf build/pyinstaller_work
           rm -rf build/modules
           # macOS: clear stale PyInstaller temp dirs to avoid PYI-6038 symlink conflicts
@@ -176,13 +176,13 @@ jobs:
         run: |
           RESOURCE_DIR="apps/setup-center/src-tauri/resources"
           mkdir -p "$RESOURCE_DIR"
-          rm -rf "$RESOURCE_DIR/openakita-server"
-          cp -r dist/openakita-server "$RESOURCE_DIR/openakita-server"
+          rm -rf "$RESOURCE_DIR/seeagent-server"
+          cp -r dist/seeagent-server "$RESOURCE_DIR/seeagent-server"
           echo "Resources copied:"
           du -sh "$RESOURCE_DIR"/*
 
       - name: Verify bundled Python contract
-        run: python build/verify_bundled_python_contract.py --backend-dir apps/setup-center/src-tauri/resources/openakita-server
+        run: python build/verify_bundled_python_contract.py --backend-dir apps/setup-center/src-tauri/resources/seeagent-server
 
       - name: Codesign embedded binaries for macOS notarization
         if: runner.os == 'macOS'
@@ -336,7 +336,7 @@ jobs:
           IDENTITY="${APPLE_SIGNING_IDENTITY}"
           ENTITLEMENTS="apps/setup-center/src-tauri/Entitlements.plist"
           for app in "${APPS[@]}"; do
-            FRAMEWORK_DIR="${app}/Contents/Resources/resources/openakita-server/_internal/Python.framework"
+            FRAMEWORK_DIR="${app}/Contents/Resources/resources/seeagent-server/_internal/Python.framework"
             if [ -d "${FRAMEWORK_DIR}" ]; then
               # Detect the actual Python version bundled by PyInstaller (e.g. 3.11, 3.12, 3.13)
               PY_FW_VER=$(ls -1 "${FRAMEWORK_DIR}/Versions/" 2>/dev/null | grep -E '^3\.[0-9]+$' | head -1)
@@ -566,7 +566,7 @@ jobs:
             exit 1
           fi
 
-          PROFILE_NAME="openakita-notary"
+          PROFILE_NAME="seeagent-notary"
           xcrun notarytool store-credentials "${PROFILE_NAME}" \
             --apple-id "${APPLE_ID}" \
             --password "${APPLE_PASSWORD}" \

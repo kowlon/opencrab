@@ -3,7 +3,7 @@
   <aside class="left-sidebar">
     <div class="sidebar-brand">
       <span class="material-symbols-rounded brand-icon">smart_toy</span>
-      <span class="brand-name">OpenCrab</span>
+      <span class="brand-name">SeeAgent</span>
     </div>
 
     <div class="sidebar-actions">

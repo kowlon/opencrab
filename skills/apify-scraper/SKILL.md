@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@apify-scraper
+name: seeagent/skills@apify-scraper
 description: Web data extraction using 55+ Apify Actors for AI-driven scraping. Supports Instagram, Facebook, TikTok, YouTube, Google, and more. Auto-selects best Actor for the task. Structured output in JSON/CSV with rate limiting and ethical scraping guidelines.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

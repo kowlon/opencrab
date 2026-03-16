@@ -14,8 +14,8 @@ import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from openakita.channels.adapters.dingtalk import DingTalkAdapter
-from openakita.channels.types import MessageContent, OutgoingMessage, MediaFile
+from seeagent.channels.adapters.dingtalk import DingTalkAdapter
+from seeagent.channels.types import MessageContent, OutgoingMessage, MediaFile
 
 
 @pytest.fixture

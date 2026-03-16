@@ -20,21 +20,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.agents.profile import (
+from seeagent.agents.profile import (
     AgentProfile,
     AgentType,
     ProfileStore,
     SkillsMode,
 )
-from openakita.agents.fallback import FallbackResolver, _AUTO_DEGRADE_THRESHOLD
-from openakita.agents.orchestrator import (
+from seeagent.agents.fallback import FallbackResolver, _AUTO_DEGRADE_THRESHOLD
+from seeagent.agents.orchestrator import (
     AgentHealth,
     AgentMailbox,
     AgentOrchestrator,
     DelegationRequest,
     MAX_DELEGATION_DEPTH,
 )
-from openakita.sessions.session import Session, SessionConfig, SessionContext
+from seeagent.sessions.session import Session, SessionConfig, SessionContext
 
 
 # ================================================================
@@ -467,10 +467,10 @@ class TestDelegationRequest:
 class TestAgentFactory:
     @pytest.mark.asyncio
     async def test_create_sets_preferred_endpoint(self):
-        from openakita.agents.factory import AgentFactory
+        from seeagent.agents.factory import AgentFactory
         factory = AgentFactory()
         profile = _make_profile("ep-agent", "EP Agent", preferred_endpoint="my-endpoint")
-        with patch("openakita.core.agent.Agent") as MockAgent:
+        with patch("seeagent.core.agent.Agent") as MockAgent:
             mock_instance = MagicMock()
             mock_instance.initialize = AsyncMock()
             mock_instance._agent_profile = None
@@ -484,10 +484,10 @@ class TestAgentFactory:
 
     @pytest.mark.asyncio
     async def test_create_no_preferred_endpoint(self):
-        from openakita.agents.factory import AgentFactory
+        from seeagent.agents.factory import AgentFactory
         factory = AgentFactory()
         profile = _make_profile("plain-agent", "Plain Agent")
-        with patch("openakita.core.agent.Agent") as MockAgent:
+        with patch("seeagent.core.agent.Agent") as MockAgent:
             mock_instance = MagicMock()
             mock_instance.initialize = AsyncMock()
             mock_instance._agent_profile = None
@@ -515,7 +515,7 @@ class TestAgentInstancePool:
 
     @pytest.fixture
     def pool(self, mock_factory):
-        from openakita.agents.factory import AgentInstancePool
+        from seeagent.agents.factory import AgentInstancePool
         return AgentInstancePool(factory=mock_factory, idle_timeout=5.0)
 
     @pytest.mark.asyncio
@@ -554,7 +554,7 @@ class TestAgentInstancePool:
         assert a1 is not a2
 
     def test_get_existing(self, pool):
-        from openakita.agents.factory import _PoolEntry
+        from seeagent.agents.factory import _PoolEntry
         mock_agent = MagicMock()
         entry = _PoolEntry(mock_agent, "agent-a", "session-1")
         pool._pool["session-1::agent-a"] = entry
@@ -563,14 +563,14 @@ class TestAgentInstancePool:
         assert pool.get_existing("session-2", "agent-a") is None
 
     def test_get_existing_without_profile(self, pool):
-        from openakita.agents.factory import _PoolEntry
+        from seeagent.agents.factory import _PoolEntry
         mock_agent = MagicMock()
         entry = _PoolEntry(mock_agent, "agent-a", "session-1")
         pool._pool["session-1::agent-a"] = entry
         assert pool.get_existing("session-1") is mock_agent
 
     def test_release(self, pool):
-        from openakita.agents.factory import _PoolEntry
+        from seeagent.agents.factory import _PoolEntry
         mock_agent = MagicMock()
         entry = _PoolEntry(mock_agent, "agent-a", "session-1")
         old_time = entry.last_used
@@ -580,7 +580,7 @@ class TestAgentInstancePool:
         assert entry.last_used > old_time
 
     def test_reap_idle(self, pool):
-        from openakita.agents.factory import _PoolEntry
+        from seeagent.agents.factory import _PoolEntry
         mock_agent = MagicMock()
         mock_agent.shutdown = AsyncMock()
         entry = _PoolEntry(mock_agent, "agent-a", "session-1")
@@ -590,7 +590,7 @@ class TestAgentInstancePool:
         assert len(pool._pool) == 0
 
     def test_reap_keeps_active(self, pool):
-        from openakita.agents.factory import _PoolEntry
+        from seeagent.agents.factory import _PoolEntry
         mock_agent = MagicMock()
         entry = _PoolEntry(mock_agent, "agent-a", "session-1")
         pool._pool["session-1::agent-a"] = entry
@@ -598,7 +598,7 @@ class TestAgentInstancePool:
         assert len(pool._pool) == 1
 
     def test_get_stats(self, pool):
-        from openakita.agents.factory import _PoolEntry
+        from seeagent.agents.factory import _PoolEntry
         pool._pool["s1::a1"] = _PoolEntry(MagicMock(), "a1", "s1")
         pool._pool["s1::a2"] = _PoolEntry(MagicMock(), "a2", "s1")
         pool._pool["s2::a1"] = _PoolEntry(MagicMock(), "a1", "s2")
@@ -607,7 +607,7 @@ class TestAgentInstancePool:
         assert len(stats["sessions"]) == 2
 
     def test_get_all_for_session(self, pool):
-        from openakita.agents.factory import _PoolEntry
+        from seeagent.agents.factory import _PoolEntry
         pool._pool["s1::a1"] = _PoolEntry(MagicMock(), "a1", "s1")
         pool._pool["s1::a2"] = _PoolEntry(MagicMock(), "a2", "s1")
         pool._pool["s2::a1"] = _PoolEntry(MagicMock(), "a1", "s2")
@@ -888,7 +888,7 @@ class TestAgentToolHandler:
 
     @pytest.fixture
     def handler(self, mock_agent):
-        from openakita.tools.handlers.agent import AgentToolHandler
+        from seeagent.tools.handlers.agent import AgentToolHandler
         return AgentToolHandler(mock_agent)
 
     @pytest.mark.asyncio
@@ -1355,14 +1355,14 @@ class TestEdgeCasesAndBugs:
 
     def test_pool_entry_idle_seconds(self):
         """Verify _PoolEntry.idle_seconds grows over time."""
-        from openakita.agents.factory import _PoolEntry
+        from seeagent.agents.factory import _PoolEntry
         agent = MagicMock()
         entry = _PoolEntry(agent, "p1", "s1")
         time.sleep(0.05)
         assert entry.idle_seconds >= 0.04
 
     def test_pool_entry_touch_resets_idle(self):
-        from openakita.agents.factory import _PoolEntry
+        from seeagent.agents.factory import _PoolEntry
         agent = MagicMock()
         entry = _PoolEntry(agent, "p1", "s1")
         time.sleep(0.05)
@@ -1414,7 +1414,7 @@ class TestEdgeCasesAndBugs:
         """BUG CHECK: First failure should set consecutive_failures to 1,
         even though last_failure_time defaults to 0.0 (falsy).
         """
-        from openakita.agents.fallback import _HealthEntry
+        from seeagent.agents.fallback import _HealthEntry
         entry = _HealthEntry(profile_id="test")
         entry.record_failure()
         assert entry.consecutive_failures == 1
@@ -1432,7 +1432,7 @@ class TestEdgeCasesAndBugs:
         """BUG CHECK: delegate_parallel with duplicate agent_ids should
         auto-create ephemeral clones for ALL occurrences of the duplicate.
         """
-        from openakita.tools.handlers.agent import AgentToolHandler
+        from seeagent.tools.handlers.agent import AgentToolHandler
 
         store = ProfileStore(tmp_path / "agents")
         store.save(_make_profile("browser-agent", "Browser Agent"))
@@ -1528,7 +1528,7 @@ class TestConcurrency:
         """Multiple coroutines requesting the same pool key should
         only create one agent instance.
         """
-        from openakita.agents.factory import AgentInstancePool
+        from seeagent.agents.factory import AgentInstancePool
 
         create_count = 0
 

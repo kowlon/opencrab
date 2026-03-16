@@ -4,7 +4,7 @@
 import sys
 
 def main():
-    with open('src/openakita/core/agent.py', 'r', encoding='utf-8') as f:
+    with open('src/seeagent/core/agent.py', 'r', encoding='utf-8') as f:
         content = f.read()
     
     # 1. 添加概念注释到定时任务工具区域
@@ -119,7 +119,7 @@ def main():
     else:
         print("6. SKIP: update parameters already updated")
     
-    with open('src/openakita/core/agent.py', 'w', encoding='utf-8') as f:
+    with open('src/seeagent/core/agent.py', 'w', encoding='utf-8') as f:
         f.write(content)
     
     print("\nAll updates applied!")

@@ -54,8 +54,8 @@ def test_llm_client():
     print("LLMClient Override 机制测试")
     print("=" * 60)
     
-    from openakita.llm.client import LLMClient, EndpointOverride, ModelInfo
-    from openakita.llm.types import EndpointConfig
+    from seeagent.llm.client import LLMClient, EndpointOverride, ModelInfo
+    from seeagent.llm.types import EndpointConfig
     
     result = TestResult()
     
@@ -176,8 +176,8 @@ def test_tool_context_detection():
     print("Tool Context 检测测试")
     print("=" * 60)
     
-    from openakita.llm.client import LLMClient
-    from openakita.llm.types import (
+    from seeagent.llm.client import LLMClient
+    from seeagent.llm.types import (
         EndpointConfig, Message, TextBlock, ToolUseBlock, ToolResultBlock
     )
     
@@ -282,7 +282,7 @@ def test_command_handler():
     print("ModelCommandHandler 测试")
     print("=" * 60)
     
-    from openakita.channels.gateway import ModelCommandHandler, ModelSwitchSession
+    from seeagent.channels.gateway import ModelCommandHandler, ModelSwitchSession
     
     result = TestResult()
     
@@ -363,14 +363,14 @@ async def test_integration():
     result = TestResult()
     
     try:
-        from openakita.llm.config import get_default_config_path
+        from seeagent.llm.config import get_default_config_path
         
         config_path = get_default_config_path()
         if not config_path.exists():
             print(f"  跳过: 配置文件不存在 ({config_path})")
             return result
         
-        from openakita.llm.client import LLMClient
+        from seeagent.llm.client import LLMClient
         
         # 创建真实客户端
         client = LLMClient(config_path=config_path)
@@ -437,7 +437,7 @@ async def test_brain():
     result = TestResult()
     
     try:
-        from openakita.llm.config import get_default_config_path
+        from seeagent.llm.config import get_default_config_path
         
         config_path = get_default_config_path()
         if not config_path.exists():
@@ -445,8 +445,8 @@ async def test_brain():
             return result
         
         # 单独导入 Brain（避免循环导入问题）
-        from openakita.llm.client import LLMClient
-        from openakita.config import settings
+        from seeagent.llm.client import LLMClient
+        from seeagent.config import settings
         
         # 使用 LLMClient 直接测试，不经过 Brain（避免 agent.py 导入问题）
         client = LLMClient(config_path=config_path)

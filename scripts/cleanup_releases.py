@@ -13,7 +13,7 @@
     python scripts/cleanup_releases.py --auto
 
     # 指定仓库
-    python scripts/cleanup_releases.py --repo openakita/openakita
+    python scripts/cleanup_releases.py --repo seeagent/seeagent
 
 环境变量:
     GH_TOKEN / GITHUB_TOKEN: GitHub Personal Access Token (需要 repo 权限)
@@ -27,7 +27,7 @@ import urllib.error
 import urllib.request
 
 GITHUB_API = "https://api.github.com"
-DEFAULT_REPO = "openakita/openakita"
+DEFAULT_REPO = "seeagent/seeagent"
 
 
 def api_request(url: str, method: str = "GET", token: str | None = None) -> dict | list | None:

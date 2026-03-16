@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from openakita.api.server import create_app
+from seeagent.api.server import create_app
 
 
 @pytest.fixture

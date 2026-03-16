@@ -21,15 +21,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openakita.agents.fallback import FallbackResolver
-from openakita.agents.orchestrator import AgentOrchestrator
-from openakita.agents.profile import (
+from seeagent.agents.fallback import FallbackResolver
+from seeagent.agents.orchestrator import AgentOrchestrator
+from seeagent.agents.profile import (
     AgentProfile,
     AgentType,
     ProfileStore,
     SkillsMode,
 )
-from openakita.sessions.session import Session, SessionConfig, SessionContext
+from seeagent.sessions.session import Session, SessionConfig, SessionContext
 from tests.fixtures.mock_llm import MockBrain, MockLLMClient, MockResponse
 
 logger = logging.getLogger(__name__)
@@ -206,7 +206,7 @@ class _TestableAgentFactory:
         default = self._default_responses.get(profile.id, f"Response from {profile.id}")
         client.set_default_response(default)
 
-        from openakita.tools.handlers.agent import AgentToolHandler
+        from seeagent.tools.handlers.agent import AgentToolHandler
 
         agent = _TestableAgent(
             name=profile.get_display_name(),
@@ -293,7 +293,7 @@ def factory() -> _TestableAgentFactory:
 
 @pytest.fixture
 def orchestrator(profile_store, factory, tmp_path, monkeypatch) -> AgentOrchestrator:
-    from openakita.agents.factory import AgentInstancePool
+    from seeagent.agents.factory import AgentInstancePool
 
     pool = AgentInstancePool(factory=factory, idle_timeout=300)
     fallback = FallbackResolver(profile_store)
@@ -305,8 +305,8 @@ def orchestrator(profile_store, factory, tmp_path, monkeypatch) -> AgentOrchestr
     orch._log_dir = tmp_path / "delegation_logs"
     orch._log_dir.mkdir(parents=True, exist_ok=True)
 
-    # Inject orchestrator into openakita.main so AgentToolHandler can find it
-    import openakita.main as main_mod
+    # Inject orchestrator into seeagent.main so AgentToolHandler can find it
+    import seeagent.main as main_mod
     monkeypatch.setattr(main_mod, "_orchestrator", orch, raising=False)
 
     return orch
@@ -704,7 +704,7 @@ class TestFallbackDelegation:
         async def patched_create(profile, **kwargs):
             if profile.id == "fragile-agent":
                 client = FailingClient()
-                from openakita.tools.handlers.agent import AgentToolHandler
+                from seeagent.tools.handlers.agent import AgentToolHandler
                 agent = _TestableAgent(name="Fragile", mock_client=client)
                 agent._agent_profile = profile
                 handler = AgentToolHandler(agent)

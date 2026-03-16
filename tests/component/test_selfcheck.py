@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from openakita.evolution.self_check import SelfChecker
+from seeagent.evolution.self_check import SelfChecker
 
 
 @pytest.fixture

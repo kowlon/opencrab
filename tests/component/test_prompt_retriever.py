@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 
-from openakita.prompt.retriever import retrieve_memory_simple
+from seeagent.prompt.retriever import retrieve_memory_simple
 
 
 class TestRetrieveMemorySimple:

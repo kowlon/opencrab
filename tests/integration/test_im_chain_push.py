@@ -16,8 +16,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.channels.gateway import MessageGateway, ThinkingCommandHandler
-from openakita.sessions.session import Session, SessionConfig, SessionContext
+from seeagent.channels.gateway import MessageGateway, ThinkingCommandHandler
+from seeagent.sessions.session import Session, SessionConfig, SessionContext
 from tests.fixtures.factories import create_test_session
 
 
@@ -36,13 +36,13 @@ def gateway():
 
 class TestDefaultOff:
     async def test_emit_skipped_when_default_off(self, gateway, session):
-        with patch("openakita.config.settings") as mock_s:
+        with patch("seeagent.config.settings") as mock_s:
             mock_s.im_chain_push = False
             await gateway.emit_progress_event(session, "thinking...")
         gateway.send_to_session.assert_not_awaited()
 
     async def test_buffer_empty_when_default_off(self, gateway, session):
-        with patch("openakita.config.settings") as mock_s:
+        with patch("seeagent.config.settings") as mock_s:
             mock_s.im_chain_push = False
             await gateway.emit_progress_event(session, "step 1")
         assert gateway._progress_buffers.get(session.session_key) is None
@@ -50,7 +50,7 @@ class TestDefaultOff:
 
 class TestGlobalOn:
     async def test_emit_buffers_when_global_on(self, gateway, session):
-        with patch("openakita.config.settings") as mock_s:
+        with patch("seeagent.config.settings") as mock_s:
             mock_s.im_chain_push = True
             await gateway.emit_progress_event(session, "thinking...")
         buf = gateway._progress_buffers.get(session.session_key, [])
@@ -60,7 +60,7 @@ class TestGlobalOn:
 class TestSessionOverride:
     async def test_session_chain_push_true_overrides_global_off(self, gateway, session):
         session.set_metadata("chain_push", True)
-        with patch("openakita.config.settings") as mock_s:
+        with patch("seeagent.config.settings") as mock_s:
             mock_s.im_chain_push = False
             await gateway.emit_progress_event(session, "progress A")
         buf = gateway._progress_buffers.get(session.session_key, [])
@@ -68,7 +68,7 @@ class TestSessionOverride:
 
     async def test_session_chain_push_false_overrides_global_on(self, gateway, session):
         session.set_metadata("chain_push", False)
-        with patch("openakita.config.settings") as mock_s:
+        with patch("seeagent.config.settings") as mock_s:
             mock_s.im_chain_push = True
             await gateway.emit_progress_event(session, "progress B")
         buf = gateway._progress_buffers.get(session.session_key, [])
@@ -77,7 +77,7 @@ class TestSessionOverride:
 
 class TestForceBypass:
     async def test_force_true_bypasses_switch(self, gateway, session):
-        with patch("openakita.config.settings") as mock_s:
+        with patch("seeagent.config.settings") as mock_s:
             mock_s.im_chain_push = False
             await gateway.emit_progress_event(session, "forced!", force=True)
         buf = gateway._progress_buffers.get(session.session_key, [])
@@ -138,7 +138,7 @@ class TestChainCommand:
         return ThinkingCommandHandler(session_manager=MagicMock())
 
     async def test_chain_status_query(self, handler, session):
-        with patch("openakita.config.settings") as mock_s:
+        with patch("seeagent.config.settings") as mock_s:
             mock_s.im_chain_push = False
             result = await handler.handle_command("ignored", "/chain", session)
         assert result is not None

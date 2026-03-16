@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide will help you get OpenAkita up and running quickly.
+This guide will help you get SeeAgent up and running quickly.
 
 ## Prerequisites
 
@@ -20,16 +20,16 @@ python -m venv venv
 source venv/bin/activate  # Linux/macOS
 # or .\venv\Scripts\activate  # Windows
 
-# Install OpenAkita (core)
-pip install openakita
+# Install SeeAgent (core)
+pip install seeagent
 
 # Optional features
-pip install "openakita[all]"      # install all optional features
-# pip install "openakita[windows]"  # Windows desktop automation
-# pip install "openakita[feishu]"   # Feishu (Lark)
+pip install "seeagent[all]"      # install all optional features
+# pip install "seeagent[windows]"  # Windows desktop automation
+# pip install "seeagent[feishu]"   # Feishu (Lark)
 
 # Run setup wizard
-openakita init
+seeagent init
 ```
 
 ### Option 2: One-click install script (PyPI)
@@ -37,36 +37,36 @@ openakita init
 Linux/macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/openakita/openakita/main/scripts/quickstart.sh | bash
+curl -fsSL https://raw.githubusercontent.com/seeagent/seeagent/main/scripts/quickstart.sh | bash
 ```
 
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/openakita/openakita/main/scripts/quickstart.ps1 | iex
+irm https://raw.githubusercontent.com/seeagent/seeagent/main/scripts/quickstart.ps1 | iex
 ```
 
 To install extras / use a mirror, download and run with parameters (recommended):
 
 ```bash
-curl -fsSL -o quickstart.sh https://raw.githubusercontent.com/openakita/openakita/main/scripts/quickstart.sh
+curl -fsSL -o quickstart.sh https://raw.githubusercontent.com/seeagent/seeagent/main/scripts/quickstart.sh
 bash quickstart.sh --extras all --index-url https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 ```powershell
-irm https://raw.githubusercontent.com/openakita/openakita/main/scripts/quickstart.ps1 -OutFile quickstart.ps1
+irm https://raw.githubusercontent.com/seeagent/seeagent/main/scripts/quickstart.ps1 -OutFile quickstart.ps1
 .\quickstart.ps1 -Extras all -IndexUrl https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 ### Option 3: Install from Source (Development)
 
 ```bash
-git clone https://github.com/openakita/openakita.git
-cd openakita
+git clone https://github.com/seeagent/seeagent.git
+cd seeagent
 python -m venv venv
 source venv/bin/activate  # Windows: .\venv\Scripts\activate
 pip install -e ".[all,dev]"
-openakita init
+seeagent init
 ```
 
 ## Configuration
@@ -104,14 +104,14 @@ AUTO_CONFIRM=false
 ### Start the CLI
 
 ```bash
-openakita
+seeagent
 ```
 
 You should see:
 
 ```
 ╭─────────────────────────────────────────╮
-│           OpenAkita v0.5.9                │
+│           SeeAgent v0.5.9                │
 │   A Self-Evolving AI Agent              │
 ╰─────────────────────────────────────────╯
 
@@ -124,7 +124,7 @@ You>
 You> Hello, what can you do?
 ```
 
-OpenAkita will introduce itself and explain its capabilities.
+SeeAgent will introduce itself and explain its capabilities.
 
 ### Try a Complex Task
 
@@ -132,7 +132,7 @@ OpenAkita will introduce itself and explain its capabilities.
 You> Create a Python script that calculates prime numbers up to 100
 ```
 
-Watch as OpenAkita:
+Watch as SeeAgent:
 1. Analyzes the task
 2. Writes the code
 3. Tests it
@@ -142,15 +142,15 @@ Watch as OpenAkita:
 
 | Command | Description |
 |---------|-------------|
-| `openakita` | Start interactive mode |
-| `openakita run "task"` | Execute a single task |
-| `openakita status` | Show agent status |
-| `openakita selfcheck` | Run self-diagnostics |
-| `openakita --help` | Show all commands |
+| `seeagent` | Start interactive mode |
+| `seeagent run "task"` | Execute a single task |
+| `seeagent status` | Show agent status |
+| `seeagent selfcheck` | Run self-diagnostics |
+| `seeagent --help` | Show all commands |
 
 ## Next Steps
 
-- [Architecture Overview](architecture.md) - Understand how OpenAkita works
+- [Architecture Overview](architecture.md) - Understand how SeeAgent works
 - [Configuration Guide](configuration.md) - All configuration options
 - [Skills System](skills.md) - Create custom skills
 - [IM Channels](im-channels.md) - Set up Telegram, etc.
@@ -171,7 +171,7 @@ ANTHROPIC_BASE_URL=https://your-proxy-url
 
 ### "Python version error"
 
-OpenAkita requires Python 3.11+. Check your version:
+SeeAgent requires Python 3.11+. Check your version:
 
 ```bash
 python --version
@@ -179,5 +179,5 @@ python --version
 
 ### Need More Help?
 
-- Check [GitHub Issues](https://github.com/openakita/openakita/issues)
-- Join [GitHub Discussions](https://github.com/openakita/openakita/discussions)
+- Check [GitHub Issues](https://github.com/seeagent/seeagent/issues)
+- Join [GitHub Discussions](https://github.com/seeagent/seeagent/discussions)

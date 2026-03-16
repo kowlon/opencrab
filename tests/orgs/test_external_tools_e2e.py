@@ -6,7 +6,7 @@ Two modes:
     pipeline: agent creation → tool filtering → prompt injection → tool
     execution → inter-node messaging → tool request/grant hot-reload.
   • RealLLM (opt-in) — requires API keys.
-    Run with:  OPENAKITA_LLM_TESTS=1 pytest tests/orgs/test_external_tools_e2e.py -k real
+    Run with:  SEEAGENT_LLM_TESTS=1 pytest tests/orgs/test_external_tools_e2e.py -k real
 
 Every test exercises the real OrgRuntime (not mocked) so the entire chain
 _create_node_agent → _patched_execute → OrgToolHandler is live.
@@ -22,10 +22,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.orgs.manager import OrgManager
-from openakita.orgs.models import OrgNode, Organization, NodeStatus
-from openakita.orgs.runtime import OrgRuntime
-from openakita.orgs.tool_categories import expand_tool_categories, TOOL_CATEGORIES
+from seeagent.orgs.manager import OrgManager
+from seeagent.orgs.models import OrgNode, Organization, NodeStatus
+from seeagent.orgs.runtime import OrgRuntime
+from seeagent.orgs.tool_categories import expand_tool_categories, TOOL_CATEGORIES
 
 from tests.fixtures.mock_llm import MockLLMClient, MockBrain, MockResponse
 from tests.orgs.conftest import make_org, make_node, make_edge
@@ -472,7 +472,7 @@ class TestCloneInheritsExternalTools:
             edges=[make_edge("boss", "dev")],
         ).to_dict())
 
-        from openakita.orgs.scaler import OrgScaler
+        from seeagent.orgs.scaler import OrgScaler
 
         runtime._save_org = AsyncMock(side_effect=lambda o: manager.update(o.id, o.to_dict()))
         scaler = OrgScaler(runtime)
@@ -539,11 +539,11 @@ class TestHeartbeatWithExternalTools:
 # Part 2: Real-LLM tests (opt-in)
 # ===================================================================
 
-_REAL_SKIP = "Real LLM tests require OPENAKITA_LLM_TESTS=1"
+_REAL_SKIP = "Real LLM tests require SEEAGENT_LLM_TESTS=1"
 
 
 def _should_skip_real() -> bool:
-    return os.environ.get("OPENAKITA_LLM_TESTS", "0") != "1"
+    return os.environ.get("SEEAGENT_LLM_TESTS", "0") != "1"
 
 
 @pytest.mark.skipif(_should_skip_real(), reason=_REAL_SKIP)

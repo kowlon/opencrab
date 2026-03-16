@@ -5,7 +5,7 @@ from datetime import datetime
 
 import pytest
 
-from openakita.memory.storage import MemoryStorage
+from seeagent.memory.storage import MemoryStorage
 
 
 @pytest.fixture

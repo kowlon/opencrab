@@ -7,15 +7,15 @@ from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 
-from openakita.orgs.tool_categories import (
+from seeagent.orgs.tool_categories import (
     TOOL_CATEGORIES,
     ROLE_TOOL_PRESETS,
     expand_tool_categories,
     get_preset_for_role,
     list_categories,
 )
-from openakita.orgs.models import OrgNode, Organization, OrgEdge, EdgeType
-from openakita.orgs.tool_handler import OrgToolHandler
+from seeagent.orgs.models import OrgNode, Organization, OrgEdge, EdgeType
+from seeagent.orgs.tool_handler import OrgToolHandler
 
 
 # ---------------------------------------------------------------------------
@@ -139,9 +139,9 @@ def org_with_tools():
 
 @pytest.fixture()
 def tool_handler_with_org(org_with_tools, tmp_path):
-    from openakita.orgs.event_store import OrgEventStore
-    from openakita.orgs.messenger import OrgMessenger
-    from openakita.orgs.manager import OrgManager
+    from seeagent.orgs.event_store import OrgEventStore
+    from seeagent.orgs.messenger import OrgMessenger
+    from seeagent.orgs.manager import OrgManager
 
     data_dir = tmp_path / "data"
     data_dir.mkdir()
@@ -280,18 +280,18 @@ class TestToolRequestMechanism:
 
 class TestTemplatesHaveExternalTools:
     def test_startup_template(self):
-        from openakita.orgs.templates import STARTUP_COMPANY
+        from seeagent.orgs.templates import STARTUP_COMPANY
         for node in STARTUP_COMPANY["nodes"]:
             assert "external_tools" in node, f"Node {node['id']} missing external_tools"
             assert isinstance(node["external_tools"], list)
             assert len(node["external_tools"]) > 0
 
     def test_software_team_template(self):
-        from openakita.orgs.templates import SOFTWARE_TEAM
+        from seeagent.orgs.templates import SOFTWARE_TEAM
         for node in SOFTWARE_TEAM["nodes"]:
             assert "external_tools" in node, f"Node {node['id']} missing external_tools"
 
     def test_content_ops_template(self):
-        from openakita.orgs.templates import CONTENT_OPS
+        from seeagent.orgs.templates import CONTENT_OPS
         for node in CONTENT_OPS["nodes"]:
             assert "external_tools" in node, f"Node {node['id']} missing external_tools"

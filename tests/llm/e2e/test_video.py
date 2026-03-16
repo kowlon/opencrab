@@ -7,7 +7,7 @@ E2E-V01 ~ E2E-V06
 import pytest
 from unittest.mock import AsyncMock
 
-from openakita.llm.types import (
+from seeagent.llm.types import (
     Message,
     TextBlock,
     VideoBlock,
@@ -18,7 +18,7 @@ from openakita.llm.types import (
     StopReason,
     UnsupportedMediaError,
 )
-from openakita.llm.client import LLMClient
+from seeagent.llm.client import LLMClient
 
 
 @pytest.fixture

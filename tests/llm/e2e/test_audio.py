@@ -10,7 +10,7 @@ LLM 处理语音转文字后的文本场景。
 import pytest
 from unittest.mock import AsyncMock
 
-from openakita.llm.types import (
+from seeagent.llm.types import (
     Message,
     TextBlock,
     EndpointConfig,
@@ -18,7 +18,7 @@ from openakita.llm.types import (
     Usage,
     StopReason,
 )
-from openakita.llm.client import LLMClient
+from seeagent.llm.client import LLMClient
 
 
 @pytest.fixture

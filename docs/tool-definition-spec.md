@@ -1,10 +1,10 @@
-# OpenAkita 工具定义规范
+# SeeAgent 工具定义规范
 
 > 参考 Agent Skills 规范设计，统一内置工具的定义格式
 
 ## 概述
 
-本规范定义了 OpenAkita Agent 内置工具的标准格式。遵循渐进式披露原则：
+本规范定义了 SeeAgent Agent 内置工具的标准格式。遵循渐进式披露原则：
 
 - **Level 1**: 工具清单（name + description）- 系统提示注入
 - **Level 2**: 详细定义（detail + examples + schema）- `get_tool_info` 返回

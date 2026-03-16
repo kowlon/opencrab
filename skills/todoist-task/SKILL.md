@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@todoist-task
+name: seeagent/skills@todoist-task
 description: Manage Todoist tasks, projects, sections, labels, and filters via REST API v2. Supports task CRUD, due dates, priorities, recurring tasks, project organization, and advanced filtering. Based on doggy8088/agent-skills/todoist-api, using curl + jq.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

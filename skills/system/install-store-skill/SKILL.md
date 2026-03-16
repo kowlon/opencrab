@@ -1,6 +1,6 @@
 ---
 name: install-store-skill
-description: Install a Skill from the OpenAkita Platform Skill Store
+description: Install a Skill from the SeeAgent Platform Skill Store
 system: true
 handler: skill_store
 tool-name: install_store_skill
@@ -9,7 +9,7 @@ category: Platform
 
 # install-store-skill
 
-Install a Skill from the OpenAkita Platform Skill Store to the local system.
+Install a Skill from the SeeAgent Platform Skill Store to the local system.
 
 ## When to Use
 

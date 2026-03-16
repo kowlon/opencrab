@@ -1,4 +1,4 @@
-# OpenAkita 记忆系统重构方案
+# SeeAgent 记忆系统重构方案
 
 > 版本: 1.0  
 > 日期: 2026-02-20  
@@ -103,9 +103,9 @@
                                 ↓ 检索                 ↓ 遗忘/衰减
 ```
 
-OpenAkita 的对应：
+SeeAgent 的对应：
 
-| 人类记忆 | OpenAkita 对应 | 实现 |
+| 人类记忆 | SeeAgent 对应 | 实现 |
 |---------|---------------|------|
 | 感觉记忆 | 当前消息 | 当前 turn 的原始输入 |
 | 工作记忆 | Session.messages + Scratchpad | 当前对话上下文 + 持久化思维空间 |
@@ -331,7 +331,7 @@ class Scratchpad:
 
 ```markdown
 ## 当前项目
-- OpenAkita 记忆系统重构: 架构文档已完成, 准备开始编码
+- SeeAgent 记忆系统重构: 架构文档已完成, 准备开始编码
 
 ## 近期进展
 - 2/20: 完成了记忆架构设计, 用户确认了三层记忆模型方案
@@ -1357,7 +1357,7 @@ Phase 4: 搜索后端迁移
 ### 10.1 重构后的 memory 模块
 
 ```
-src/openakita/memory/
+src/seeagent/memory/
 ├── __init__.py                 # 导出公共接口
 ├── types.py                    # 数据类型: SemanticMemory, Episode, ActionNode, Scratchpad
 ├── manager.py                  # MemoryManager: 入口协调器
@@ -1378,7 +1378,7 @@ src/openakita/memory/
 ```
 data/
 ├── memory/
-│   ├── openakita.db              # SQLite 主数据库 (memories + FTS5 + episodes + scratchpad + turns + embedding_cache)
+│   ├── seeagent.db              # SQLite 主数据库 (memories + FTS5 + episodes + scratchpad + turns + embedding_cache)
 │   ├── chromadb/                  # 可选: ChromaDB 向量索引 (仅 chromadb 后端启用时)
 │   ├── conversation_history/      # JSONL 原文 (向后兼容, 30天清理)
 │   └── daily_summaries/           # 每日归纳报告

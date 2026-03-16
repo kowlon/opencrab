@@ -2,8 +2,8 @@
 
 import pytest
 
-from openakita.core.errors import UserCancelledError
-from openakita.tools.errors import ToolError, ErrorType, classify_error
+from seeagent.core.errors import UserCancelledError
+from seeagent.tools.errors import ToolError, ErrorType, classify_error
 
 
 class TestUserCancelledError:

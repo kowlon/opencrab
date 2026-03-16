@@ -157,7 +157,7 @@ pytest tests/legacy/ -v -k "not TestVectorStore"
 ### 带覆盖率
 
 ```bash
-pytest tests/ -v --cov=src/openakita --cov-report=html
+pytest tests/ -v --cov=src/seeagent --cov-report=html
 ```
 
 ---

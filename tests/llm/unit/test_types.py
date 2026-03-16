@@ -5,7 +5,7 @@ UT-T01 ~ UT-T08
 """
 
 import pytest
-from openakita.llm.types import (
+from seeagent.llm.types import (
     LLMRequest,
     LLMResponse,
     EndpointConfig,

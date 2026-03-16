@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-from openakita.api.adapters.title_generator import TitleGenerator
+from seeagent.api.adapters.title_generator import TitleGenerator
 
 
 class TestHumanizeToolTitle:

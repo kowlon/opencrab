@@ -2,7 +2,7 @@
 
 import pytest
 
-from openakita.core.im_context import (
+from seeagent.core.im_context import (
     get_im_session,
     get_im_gateway,
     set_im_context,

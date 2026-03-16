@@ -19,7 +19,7 @@ async def test_once_task():
     print("\n1. 测试一次性任务 (Once)")
     print("-" * 40)
     
-    from openakita.scheduler import TaskScheduler, ScheduledTask
+    from seeagent.scheduler import TaskScheduler, ScheduledTask
     
     with tempfile.TemporaryDirectory() as tmpdir:
         executed_tasks = []
@@ -75,8 +75,8 @@ async def test_interval_task():
     print("\n2. 测试间隔任务 (Interval)")
     print("-" * 40)
     
-    from openakita.scheduler import TaskScheduler, ScheduledTask
-    from openakita.scheduler.triggers import IntervalTrigger
+    from seeagent.scheduler import TaskScheduler, ScheduledTask
+    from seeagent.scheduler.triggers import IntervalTrigger
     
     with tempfile.TemporaryDirectory() as tmpdir:
         execution_count = {"count": 0}
@@ -135,7 +135,7 @@ async def test_cron_expressions():
     print("\n3. 测试 Cron 表达式")
     print("-" * 40)
     
-    from openakita.scheduler import CronTrigger
+    from seeagent.scheduler import CronTrigger
     
     test_cases = [
         ("* * * * *", "每分钟"),
@@ -170,7 +170,7 @@ async def test_task_persistence():
     print("\n4. 测试任务持久化")
     print("-" * 40)
     
-    from openakita.scheduler import TaskScheduler, ScheduledTask
+    from seeagent.scheduler import TaskScheduler, ScheduledTask
     
     with tempfile.TemporaryDirectory() as tmpdir:
         storage_path = Path(tmpdir)
@@ -218,7 +218,7 @@ async def test_task_lifecycle():
     print("\n5. 测试任务生命周期")
     print("-" * 40)
     
-    from openakita.scheduler import ScheduledTask, TaskStatus, TriggerType
+    from seeagent.scheduler import ScheduledTask, TaskStatus, TriggerType
     
     # 创建任务
     task = ScheduledTask.create_once(
@@ -274,7 +274,7 @@ async def test_concurrent_tasks():
     print("\n6. 测试并发任务执行")
     print("-" * 40)
     
-    from openakita.scheduler import TaskScheduler, ScheduledTask
+    from seeagent.scheduler import TaskScheduler, ScheduledTask
     
     with tempfile.TemporaryDirectory() as tmpdir:
         execution_log = []
@@ -332,7 +332,7 @@ async def test_task_failure():
     print("\n7. 测试任务失败处理")
     print("-" * 40)
     
-    from openakita.scheduler import TaskScheduler, ScheduledTask
+    from seeagent.scheduler import TaskScheduler, ScheduledTask
     
     with tempfile.TemporaryDirectory() as tmpdir:
         async def failing_executor(task):
@@ -380,7 +380,7 @@ async def test_manual_trigger():
     print("\n8. 测试手动触发")
     print("-" * 40)
     
-    from openakita.scheduler import TaskScheduler, ScheduledTask
+    from seeagent.scheduler import TaskScheduler, ScheduledTask
     
     with tempfile.TemporaryDirectory() as tmpdir:
         executed = {"count": 0}

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, AsyncMock
 sys.path.insert(0, str(Path(__file__).parent.parent / "fixtures"))
 from mock_llm import MockLLMClient, MockBrain
 
-from openakita.tools.handlers.plan import (
+from seeagent.tools.handlers.plan import (
     has_active_plan,
     register_active_plan,
     unregister_active_plan,
@@ -60,7 +60,7 @@ class TestPlanWithHandler:
     """Test PlanHandler integration with session management."""
 
     def test_register_and_retrieve_handler(self):
-        from openakita.tools.handlers.plan import PlanHandler
+        from seeagent.tools.handlers.plan import PlanHandler
         sid = "handler-test-1"
         clear_session_plan_state(sid)
         agent = _make_mock_agent()

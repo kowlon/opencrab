@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 
-from openakita.llm.types import (
+from seeagent.llm.types import (
     Message,
     TextBlock,
     ToolUseBlock,
@@ -19,7 +19,7 @@ from openakita.llm.types import (
     Usage,
     StopReason,
 )
-from openakita.llm.client import LLMClient
+from seeagent.llm.client import LLMClient
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ class TestScheduledExecution:
     @pytest.mark.asyncio
     async def test_e2e_t02_task_with_tools(self, task_client):
         """E2E-T02: 带工具的定时任务"""
-        from openakita.llm.types import Tool
+        from seeagent.llm.types import Tool
         
         mock_response = create_mock_response(
             "I'll fetch the data now.",
@@ -121,7 +121,7 @@ class TestScheduledExecution:
     @pytest.mark.asyncio
     async def test_e2e_t03_retry_on_failure(self, task_client):
         """E2E-T03: 失败重试"""
-        from openakita.llm.types import LLMError
+        from seeagent.llm.types import LLMError
         
         call_count = 0
         

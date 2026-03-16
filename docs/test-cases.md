@@ -1,4 +1,4 @@
-# OpenAkita 测试案例
+# SeeAgent 测试案例
 
 > 测试日期：____________________
 > 测试人员：____________________
@@ -158,7 +158,7 @@
 
 ### 任务 6：桌面自动化流程（Windows）
 ```
-打开记事本，输入"Hello OpenAkita"，截个桌面图发我
+打开记事本，输入"Hello SeeAgent"，截个桌面图发我
 ```
 **验证点：** run_shell(notepad) → desktop_wait → desktop_type → desktop_screenshot → send_to_chat
 

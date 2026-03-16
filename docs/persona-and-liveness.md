@@ -1,6 +1,6 @@
 # 人格系统与活人感引擎
 
-本文档详细介绍 OpenAkita 的人格系统（Persona System）和活人感引擎（Proactive Engine），这两个特性让 Agent 不再是冷冰冰的工具，而是一个有温度、有个性的智能助理。
+本文档详细介绍 SeeAgent 的人格系统（Persona System）和活人感引擎（Proactive Engine），这两个特性让 Agent 不再是冷冰冰的工具，而是一个有温度、有个性的智能助理。
 
 ## 概述
 
@@ -170,7 +170,7 @@ Agent: 好的，我减少主动联系的频率～有需要随时叫我
 
 ## 表情包引擎
 
-作为人格系统的补充，OpenAkita 集成了表情包引擎：
+作为人格系统的补充，SeeAgent 集成了表情包引擎：
 
 - **数据源**: ChineseBQB 5700+ 中文表情包
 - **智能匹配**: 关键词搜索 + 情绪映射
@@ -231,7 +231,7 @@ identity/
 
 ## 环境变量配置
 
-以下配置可在 `.env` 文件、Setup Center 或 `openakita init` 向导中设置：
+以下配置可在 `.env` 文件、Setup Center 或 `seeagent init` 向导中设置：
 
 ```bash
 # 人格系统

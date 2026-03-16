@@ -17,7 +17,7 @@ allowed-tools: ["read_file", "write_file", "run_shell", "list_directory"]
 ## When to Use
 
 - 用户说"生成 AGENTS.md"、"初始化项目规范"、"创建项目指引"
-- 用户开始用 OpenAkita 开发一个新项目，还没有 AGENTS.md
+- 用户开始用 SeeAgent 开发一个新项目，还没有 AGENTS.md
 - 用户说"帮我规范这个项目"、"让 AI 更好地理解这个项目"
 
 ## Workflow

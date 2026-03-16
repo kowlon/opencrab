@@ -1,6 +1,6 @@
 # MCP Integration
 
-OpenAkita supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) for connecting to external services.
+SeeAgent supports the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) for connecting to external services.
 
 ## What is MCP?
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     server.run()
 ```
 
-### Register with OpenAkita
+### Register with SeeAgent
 
 ```yaml
 # config/mcp_servers.yaml
@@ -113,7 +113,7 @@ servers:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        OpenAkita                               │
+│                        SeeAgent                               │
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │                    MCP Bridge                          │  │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │  │
@@ -165,7 +165,7 @@ except MCPError as e:
 python mcp_server/my_server.py
 
 # Check logs
-LOG_LEVEL=DEBUG openakita
+LOG_LEVEL=DEBUG seeagent
 ```
 
 ### Connection Timeout

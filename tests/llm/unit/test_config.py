@@ -9,13 +9,13 @@ import os
 import pytest
 from pathlib import Path
 
-from openakita.llm.config import (
+from seeagent.llm.config import (
     load_endpoints_config,
     save_endpoints_config,
     get_default_config_path,
     validate_config,
 )
-from openakita.llm.types import EndpointConfig, ConfigurationError
+from seeagent.llm.types import EndpointConfig, ConfigurationError
 
 
 class TestConfigLoading:

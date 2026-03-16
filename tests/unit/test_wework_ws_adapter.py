@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.channels.adapters.wework_ws import (
+from seeagent.channels.adapters.wework_ws import (
     CMD_CALLBACK,
     CMD_EVENT_CALLBACK,
     CMD_HEARTBEAT,
@@ -33,7 +33,7 @@ from openakita.channels.adapters.wework_ws import (
     _decrypt_file,
     _generate_req_id,
 )
-from openakita.channels.types import MediaFile, MessageContent, OutgoingMessage
+from seeagent.channels.types import MediaFile, MessageContent, OutgoingMessage
 
 
 # ==================== Fixtures ====================
@@ -562,7 +562,7 @@ class TestThinkingIndicator:
         }
 
         with patch.object(adapter, "_emit_message", new_callable=AsyncMock):
-            with patch("openakita.config.settings") as mock_settings:
+            with patch("seeagent.config.settings") as mock_settings:
                 mock_settings.wework_ws_thinking_indicator = True
                 await adapter._route_frame(frame)
                 await asyncio.sleep(0.1)
@@ -603,7 +603,7 @@ class TestThinkingIndicator:
         }
 
         with patch.object(adapter, "_emit_message", new_callable=AsyncMock):
-            with patch("openakita.config.settings") as mock_settings:
+            with patch("seeagent.config.settings") as mock_settings:
                 mock_settings.wework_ws_thinking_indicator = False
                 await adapter._route_frame(frame)
                 await asyncio.sleep(0.1)
@@ -823,7 +823,7 @@ class TestDownloadMedia:
             url="https://dl.example.com/test.txt",
         )
 
-        from openakita.channels.adapters.wework_ws import _import_httpx
+        from seeagent.channels.adapters.wework_ws import _import_httpx
         _import_httpx()
 
         mock_resp = MagicMock()
@@ -832,7 +832,7 @@ class TestDownloadMedia:
         mock_resp.headers = {}
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("openakita.channels.adapters.wework_ws.httpx") as mock_httpx:
+        with patch("seeagent.channels.adapters.wework_ws.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(return_value=mock_resp)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -870,7 +870,7 @@ class TestDownloadMedia:
         )
         media.extra = {"aeskey": base64.b64encode(key).decode()}
 
-        from openakita.channels.adapters.wework_ws import _import_httpx
+        from seeagent.channels.adapters.wework_ws import _import_httpx
         _import_httpx()
 
         mock_resp = MagicMock()
@@ -879,7 +879,7 @@ class TestDownloadMedia:
         mock_resp.headers = {"content-disposition": "filename*=UTF-8''photo%E5%9B%BE.jpg"}
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("openakita.channels.adapters.wework_ws.httpx") as mock_httpx:
+        with patch("seeagent.channels.adapters.wework_ws.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(return_value=mock_resp)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -903,13 +903,13 @@ class TestResponseUrlFallback:
         adapter = connected_adapter
         adapter._response_urls["req_fb_1"] = "https://resp.example.com/fb"
 
-        from openakita.channels.adapters.wework_ws import _import_httpx
+        from seeagent.channels.adapters.wework_ws import _import_httpx
         _import_httpx()
 
         mock_resp = MagicMock()
         mock_resp.status_code = 200
 
-        with patch("openakita.channels.adapters.wework_ws.httpx") as mock_httpx:
+        with patch("seeagent.channels.adapters.wework_ws.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_resp)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)

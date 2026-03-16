@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@chinese-writing
+name: seeagent/skills@chinese-writing
 description: Enforce modern Chinese writing standards including tone, spacing rules (Pangu), full-width punctuation, paragraph structure, and active voice. Provides specific guidelines for blog posts, error messages, UI text, and technical documentation.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

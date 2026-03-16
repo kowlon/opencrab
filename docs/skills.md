@@ -1,6 +1,6 @@
 # Skills System
 
-OpenAkita's skill system enables dynamic capability extension.
+SeeAgent's skill system enables dynamic capability extension.
 
 ## Overview
 
@@ -15,10 +15,10 @@ Skills are modular capabilities that can be:
 
 ```python
 # skills/my_skill.py
-from openakita.skills.base import BaseSkill, SkillResult
+from seeagent.skills.base import BaseSkill, SkillResult
 
 class MySkill(BaseSkill):
-    """A custom skill for OpenAkita."""
+    """A custom skill for SeeAgent."""
     
     name = "my_skill"
     description = "Does something useful"
@@ -65,13 +65,13 @@ class MySkill(BaseSkill):
 
 ```bash
 # List available skills
-openakita skills list
+seeagent skills list
 
 # Run a skill directly
-openakita skills run my_skill --input "test data"
+seeagent skills run my_skill --input "test data"
 
 # Install a skill from GitHub
-openakita skills install github:user/repo/skill_name
+seeagent skills install github:user/repo/skill_name
 ```
 
 ### From Conversation
@@ -84,7 +84,7 @@ Agent> Using excel_reader skill...
 ### Programmatically
 
 ```python
-from openakita.skills import SkillRegistry
+from seeagent.skills import SkillRegistry
 
 registry = SkillRegistry()
 skill = registry.get("my_skill")
@@ -104,7 +104,7 @@ result = await skill.execute(input="test")
 ### Community Skills
 
 Community skills can be found at:
-- GitHub topics: `openakita-skill`
+- GitHub topics: `seeagent-skill`
 - Skills marketplace (coming soon)
 
 ## Creating Skills
@@ -113,7 +113,7 @@ Community skills can be found at:
 
 ```python
 # skills/weather_skill.py
-from openakita.skills.base import BaseSkill, SkillResult
+from seeagent.skills.base import BaseSkill, SkillResult
 import httpx
 
 class WeatherSkill(BaseSkill):
@@ -149,7 +149,7 @@ Skills in the `skills/` directory are auto-registered.
 For external skills:
 
 ```python
-from openakita.skills import SkillRegistry
+from seeagent.skills import SkillRegistry
 
 registry = SkillRegistry()
 registry.register(WeatherSkill())
@@ -174,7 +174,7 @@ async def test_weather_skill():
 
 ### GitHub Search
 
-OpenAkita can search GitHub for skills:
+SeeAgent can search GitHub for skills:
 
 ```
 Agent: Searching GitHub for "excel processing" skills...
@@ -247,7 +247,7 @@ class WeatherSkill(BaseSkill):
 ### To GitHub
 
 1. Create repo with skill code
-2. Add `openakita-skill` topic
+2. Add `seeagent-skill` topic
 3. Include README with usage
 4. Tag releases with versions
 
@@ -281,8 +281,8 @@ pip install -r skills/my_skill/requirements.txt
 
 ```bash
 # Enable debug logging
-LOG_LEVEL=DEBUG openakita
+LOG_LEVEL=DEBUG seeagent
 
 # Run skill in isolation
-openakita skills test my_skill
+seeagent skills test my_skill
 ```

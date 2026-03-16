@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="OpenAkita Logo" width="200" />
+  <img src="docs/assets/logo.png" alt="SeeAgent Logo" width="200" />
 </p>
 
-<h1 align="center">OpenAkita</h1>
+<h1 align="center">SeeAgent</h1>
 
 <p align="center">
   <strong>Open-Source Multi-Agent AI Assistant — Not Just Chat, an AI Team That Gets Things Done</strong>
@@ -11,9 +11,9 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square" alt="License" height="20" />
   <img src="https://img.shields.io/badge/python-3.11+-blue.svg?style=flat-square" alt="Python Version" height="20" />
-  <img src="https://img.shields.io/github/v/release/openakita/openakita?color=green&style=flat-square" alt="Version" height="20" />
-  <img src="https://img.shields.io/pypi/v/openakita?color=green&style=flat-square" alt="PyPI" height="20" />
-  <img src="https://img.shields.io/github/actions/workflow/status/openakita/openakita/ci.yml?branch=main&style=flat-square" alt="Build Status" height="20" />
+  <img src="https://img.shields.io/github/v/release/seeagent/seeagent?color=green&style=flat-square" alt="Version" height="20" />
+  <img src="https://img.shields.io/pypi/v/seeagent?color=green&style=flat-square" alt="PyPI" height="20" />
+  <img src="https://img.shields.io/github/actions/workflow/status/seeagent/seeagent/ci.yml?branch=main&style=flat-square" alt="Build Status" height="20" />
 </p>
 
 <p align="center">
@@ -34,15 +34,15 @@
 
 ---
 
-## What is OpenAkita?
+## What is SeeAgent?
 
-**Other AIs just chat. OpenAkita gets things done.**
+**Other AIs just chat. SeeAgent gets things done.**
 
-OpenAkita is an open-source, all-in-one AI assistant — multiple AI Agents work together, search the web, operate your computer, manage files, run scheduled tasks, and respond instantly across Telegram / Slack / DingTalk / Feishu / QQ. It remembers your preferences, teaches itself new skills, and never gives up on a task.
+SeeAgent is an open-source, all-in-one AI assistant — multiple AI Agents work together, search the web, operate your computer, manage files, run scheduled tasks, and respond instantly across Telegram / Slack / DingTalk / Feishu / QQ. It remembers your preferences, teaches itself new skills, and never gives up on a task.
 
 **Fully GUI-based setup. Ready in 5 minutes. Zero command line required.**
 
-> **Download**: [GitHub Releases](https://github.com/openakita/openakita/releases) — Windows / macOS / Linux
+> **Download**: [GitHub Releases](https://github.com/seeagent/seeagent/releases) — Windows / macOS / Linux
 
 ---
 
@@ -112,10 +112,10 @@ Three-layer memory system + AI extraction. Remembers your preferences, habits, a
 
 ### Option 1: Desktop App (Recommended)
 
-**Fully GUI-based, no command line** — this is what sets OpenAkita apart from other open-source AI assistants:
+**Fully GUI-based, no command line** — this is what sets SeeAgent apart from other open-source AI assistants:
 
 <p align="center">
-  <img src="docs/assets/desktop_quick_config.gif" alt="OpenAkita Quick Setup" width="800" />
+  <img src="docs/assets/desktop_quick_config.gif" alt="SeeAgent Quick Setup" width="800" />
 </p>
 
 | Step | What You Do | Time |
@@ -129,42 +129,42 @@ Three-layer memory system + AI extraction. Remembers your preferences, habits, a
 - Chinese users get automatic mirror switching
 - Models, IM channels, skills, schedules — all configured in the GUI
 
-> **Download**: [GitHub Releases](https://github.com/openakita/openakita/releases) — Windows (.exe) / macOS (.dmg) / Linux (.deb)
+> **Download**: [GitHub Releases](https://github.com/seeagent/seeagent/releases) — Windows (.exe) / macOS (.dmg) / Linux (.deb)
 
 ### Option 2: pip Install
 
 ```bash
-pip install openakita[all]    # Install with all optional features
-openakita init                # Run setup wizard
-openakita                     # Launch interactive CLI
+pip install seeagent[all]    # Install with all optional features
+seeagent init                # Run setup wizard
+seeagent                     # Launch interactive CLI
 ```
 
 ### Option 3: Source Install
 
 ```bash
-git clone https://github.com/openakita/openakita.git
-cd openakita
+git clone https://github.com/seeagent/seeagent.git
+cd seeagent
 python -m venv venv && source venv/bin/activate
 pip install -e ".[all]"
-openakita init
+seeagent init
 ```
 
 ### Commands
 
 ```bash
-openakita                              # Interactive chat
-openakita run "Build a calculator"     # Execute a single task
-openakita serve                        # Service mode (IM channels)
-openakita serve --dev                  # Dev mode with hot reload
-openakita daemon start                 # Background daemon
-openakita status                       # Check status
+seeagent                              # Interactive chat
+seeagent run "Build a calculator"     # Execute a single task
+seeagent serve                        # Service mode (IM channels)
+seeagent serve --dev                  # Dev mode with hot reload
+seeagent daemon start                 # Background daemon
+seeagent status                       # Check status
 ```
 
 ---
 
 ## Multi-Platform Access
 
-OpenAkita supports **Desktop, Web, and Mobile** — use it anywhere, on any device:
+SeeAgent supports **Desktop, Web, and Mobile** — use it anywhere, on any device:
 
 | Platform | Details |
 |----------|---------|
@@ -175,7 +175,7 @@ OpenAkita supports **Desktop, Web, and Mobile** — use it anywhere, on any devi
 ### Desktop App
 
 <p align="center">
-  <img src="docs/assets/desktop_terminal_en.png" alt="OpenAkita Desktop App" width="800" />
+  <img src="docs/assets/desktop_terminal_en.png" alt="SeeAgent Desktop App" width="800" />
 </p>
 
 Cross-platform desktop app built with **Tauri 2.x + React + TypeScript**:
@@ -223,7 +223,7 @@ Dark/light theme · Onboarding wizard · Auto-update · Bilingual (EN/CN) · Sta
   <sub>▶ Click to watch the Multi-Agent collaboration demo on Bilibili</sub>
 </p>
 
-OpenAkita has a built-in multi-Agent orchestration system — not just one AI, but an **AI team**:
+SeeAgent has a built-in multi-Agent orchestration system — not just one AI, but an **AI team**:
 
 ```
 You: "Create a competitive analysis report"
@@ -315,7 +315,7 @@ Not just a "context window" — true long-term memory:
 
 ## Self-Evolution
 
-OpenAkita keeps getting stronger:
+SeeAgent keeps getting stronger:
 
 ```
 Daily 04:00   →  Self-check: analyze error logs → AI diagnosis → auto-fix → push report
@@ -394,7 +394,7 @@ Tracing  ─── AgentTracer(12 SpanTypes) · DecisionTrace · TokenStats
     <td align="center">
       <img src="docs/assets/person_wechat.jpg" width="180" alt="Personal WeChat" /><br/>
       <b>WeChat (Personal)</b><br/>
-      <sub>Note "OpenAkita" to join group</sub>
+      <sub>Note "SeeAgent" to join group</sub>
     </td>
     <td align="center">
       <img src="docs/assets/wechat_group.jpg" width="180" alt="WeChat Group" /><br/>
@@ -411,11 +411,11 @@ Tracing  ─── AgentTracer(12 SpanTypes) · DecisionTrace · TokenStats
 
 <p align="center">
   <a href="https://discord.gg/vFwxNVNH">Discord</a> · 
-  <a href="https://x.com/openakita">X (Twitter)</a> · 
+  <a href="https://x.com/seeagent">X (Twitter)</a> · 
   <a href="mailto:zacon365@gmail.com">Email</a>
 </p>
 
-[Issues](https://github.com/openakita/openakita/issues) · [Discussions](https://github.com/openakita/openakita/discussions) · [Star](https://github.com/openakita/openakita)
+[Issues](https://github.com/seeagent/seeagent/issues) · [Discussions](https://github.com/seeagent/seeagent/discussions) · [Star](https://github.com/seeagent/seeagent)
 
 ---
 
@@ -435,16 +435,16 @@ Third-party licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 ## Star History
 
-<a href="https://star-history.com/#openakita/openakita&Date">
+<a href="https://star-history.com/#seeagent/seeagent&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=openakita/openakita&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=openakita/openakita&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=openakita/openakita&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=seeagent/seeagent&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=seeagent/seeagent&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=seeagent/seeagent&type=Date" />
  </picture>
 </a>
 
 ---
 
 <p align="center">
-  <strong>OpenAkita — Open-Source Multi-Agent AI Assistant That Gets Things Done</strong>
+  <strong>SeeAgent — Open-Source Multi-Agent AI Assistant That Gets Things Done</strong>
 </p>

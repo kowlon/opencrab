@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime
 
-from openakita.storage.models import (
+from seeagent.storage.models import (
     Message,
     Conversation,
     SkillRecord,

@@ -1,9 +1,9 @@
-# OpenAkita Desktop Terminal — 改善优化记录
+# SeeAgent Desktop Terminal — 改善优化记录
 
 > 桌面终端（原 Setup Center）已从单纯的配置工具进化为完整的 AI 助手桌面客户端。
 
 <p align="center">
-  <img src="assets/desktop_terminal.png" alt="OpenAkita Desktop Terminal" width="800" />
+  <img src="assets/desktop_terminal.png" alt="SeeAgent Desktop Terminal" width="800" />
 </p>
 
 ## 核心变化
@@ -28,7 +28,7 @@
 
 ### 4. 真人化 & 角色系统
 
-OpenAkita 最具特色的功能之一——**Agent 不只是工具，更像一个有性格的真人助理**：
+SeeAgent 最具特色的功能之一——**Agent 不只是工具，更像一个有性格的真人助理**：
 
 - **8 种预设角色**：默认助手、商务顾问、技术专家、私人管家、虚拟女友、虚拟男友、家人、贾维斯
 - **三层人格架构**：预设基础 → 用户偏好学习 → 上下文自适应

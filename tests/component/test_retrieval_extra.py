@@ -3,15 +3,15 @@
 import pytest
 from datetime import datetime
 
-from openakita.memory.retrieval import RetrievalCandidate, RetrievalEngine
-from openakita.memory.types import (
+from seeagent.memory.retrieval import RetrievalCandidate, RetrievalEngine
+from seeagent.memory.types import (
     Attachment,
     AttachmentDirection,
     Episode,
     MemoryType,
     SemanticMemory,
 )
-from openakita.memory.unified_store import UnifiedStore
+from seeagent.memory.unified_store import UnifiedStore
 
 
 @pytest.fixture

@@ -1,24 +1,24 @@
 <#
 .SYNOPSIS
-  OpenAkita 一键安装脚本（PyPI，Windows PowerShell）
+  SeeAgent 一键安装脚本（PyPI，Windows PowerShell）
 .DESCRIPTION
-  - 创建独立的 venv（默认在 %USERPROFILE%\.openakita\venv）
-  - 安装 openakita（可选 extras、可选镜像）
+  - 创建独立的 venv（默认在 %USERPROFILE%\.seeagent\venv）
+  - 安装 seeagent（可选 extras、可选镜像）
   - 可选安装 Playwright 浏览器
-  - 可选运行 openakita init（在 AppDir 目录生成 .env / data / identity）
+  - 可选运行 seeagent init（在 AppDir 目录生成 .env / data / identity）
 
 默认用法（最简单）：
-  irm https://raw.githubusercontent.com/openakita/openakita/main/scripts/quickstart.ps1 | iex
+  irm https://raw.githubusercontent.com/seeagent/seeagent/main/scripts/quickstart.ps1 | iex
 
 推荐用法（可传参数）：
-  irm https://raw.githubusercontent.com/openakita/openakita/main/scripts/quickstart.ps1 -OutFile quickstart.ps1
+  irm https://raw.githubusercontent.com/seeagent/seeagent/main/scripts/quickstart.ps1 -OutFile quickstart.ps1
   .\quickstart.ps1 -Extras all -IndexUrl https://pypi.tuna.tsinghua.edu.cn/simple
 #>
 
 [CmdletBinding()]
 param(
-  [string]$AppDir = "$env:USERPROFILE\.openakita\app",
-  [string]$VenvDir = "$env:USERPROFILE\.openakita\venv",
+  [string]$AppDir = "$env:USERPROFILE\.seeagent\app",
+  [string]$VenvDir = "$env:USERPROFILE\.seeagent\venv",
   [string]$Extras = "",
   [ValidateSet("cpu","skip")] [string]$Torch = "cpu",
   [string]$IndexUrl = "",
@@ -63,7 +63,7 @@ if ($null -eq $py) {
   exit 1
 }
 
-Write-Color "=== OpenAkita One-Click Install ===" Cyan
+Write-Color "=== SeeAgent One-Click Install ===" Cyan
 Write-Color "AppDir: $AppDir" Cyan
 Write-Color "VenvDir: $VenvDir" Cyan
 if (-not [string]::IsNullOrWhiteSpace($Extras)) { Write-Color "Extras: $Extras" Cyan }
@@ -84,7 +84,7 @@ if (-not (Test-Path $VenvDir)) {
 Write-Color "OK venv ready" Green
 Write-Host ""
 
-# Activate venv (for `openakita` entrypoint)
+# Activate venv (for `seeagent` entrypoint)
 & (Join-Path $VenvDir "Scripts\Activate.ps1")
 
 Write-Color "Upgrading pip..." Yellow
@@ -95,9 +95,9 @@ if ($Torch -eq "cpu") {
   python -m pip install -U torch --index-url https://download.pytorch.org/whl/cpu | Out-Null
 }
 
-$pkg = "openakita"
+$pkg = "seeagent"
 if (-not [string]::IsNullOrWhiteSpace($Extras)) {
-  $pkg = "openakita[$Extras]"
+  $pkg = "seeagent[$Extras]"
 }
 
 Write-Color "Installing $pkg ..." Yellow
@@ -106,7 +106,7 @@ if ([string]::IsNullOrWhiteSpace($IndexUrl)) {
 } else {
   python -m pip install -U $pkg -i $IndexUrl
 }
-Write-Color "OK OpenAkita installed" Green
+Write-Color "OK SeeAgent installed" Green
 Write-Host ""
 
 if (-not $NoPlaywright) {
@@ -115,15 +115,15 @@ if (-not $NoPlaywright) {
 }
 
 if (-not $NoInit) {
-  Write-Color "Running setup wizard (openakita init)..." Cyan
+  Write-Color "Running setup wizard (seeagent init)..." Cyan
   Push-Location $AppDir
-  try { openakita init } finally { Pop-Location }
+  try { seeagent init } finally { Pop-Location }
 }
 
 if (-not $NoWrapper) {
-  $binDir = "$env:USERPROFILE\.openakita\bin"
+  $binDir = "$env:USERPROFILE\.seeagent\bin"
   New-Item -ItemType Directory -Path $binDir -Force | Out-Null
-  $cmdPath = Join-Path $binDir "openakita.cmd"
+  $cmdPath = Join-Path $binDir "seeagent.cmd"
 
   if ((Test-Path $cmdPath) -and (-not $ForceWrapper)) {
     Write-Color "Wrapper already exists, not overwriting: $cmdPath (use -ForceWrapper to overwrite)" Yellow
@@ -134,7 +134,7 @@ set "APPDIR=$AppDir"
 set "VENV=$VenvDir"
 call "%VENV%\Scripts\activate.bat"
 cd /d "%APPDIR%"
-openakita %*
+seeagent %*
 "@
     Set-Content -Path $cmdPath -Value $cmd -Encoding ASCII
     Write-Color "Wrapper created: $cmdPath" Green
@@ -145,5 +145,5 @@ openakita %*
 Write-Host ""
 Write-Color "=== Done ===" Green
 Write-Host "Start:"
-Write-Host "  openakita"
-Write-Host "  openakita --help"
+Write-Host "  seeagent"
+Write-Host "  seeagent --help"

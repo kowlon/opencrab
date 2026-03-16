@@ -1,6 +1,6 @@
-# OpenAkita 技能加载架构
+# SeeAgent 技能加载架构
 
-本文档描述 OpenAkita Agent 的技能系统架构，包括技能定义、加载流程和执行机制。
+本文档描述 SeeAgent Agent 的技能系统架构，包括技能定义、加载流程和执行机制。
 
 ## 目录
 
@@ -242,7 +242,7 @@ _execute_tool(tool_name, tool_input)
 ## 目录结构
 
 ```
-openakita/
+seeagent/
 ├── core/
 │   └── agent.py              # Agent 主类
 │                              # - handler_registry 初始化

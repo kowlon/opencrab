@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openakita.api.adapters.seecrab_adapter import SeeCrabAdapter
+from seeagent.api.adapters.seecrab_adapter import SeeCrabAdapter
 
 
 async def _events_from(raw_events: list[dict], user_messages=None) -> list[dict]:

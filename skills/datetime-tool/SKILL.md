@@ -1,5 +1,5 @@
 ---
-name: openakita/skills@datetime-tool
+name: seeagent/skills@datetime-tool
 description: Get current time, format dates, calculate date differences, and convert timezones. Use this skill when the user asks about time, dates, timezone conversions, weekdays, or needs date calculations and formatting in any locale.
 license: MIT
 metadata:

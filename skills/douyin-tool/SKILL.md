@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@douyin-tool
+name: seeagent/skills@douyin-tool
 description: Douyin (TikTok China) content toolkit for video script writing, short video optimization, BGM recommendations, caption generation, trending topic analysis, and video download/info extraction workflows.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

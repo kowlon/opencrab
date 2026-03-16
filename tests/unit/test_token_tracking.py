@@ -1,7 +1,7 @@
 """L1 Unit Tests: Token tracking context and recording."""
 
 import pytest
-from openakita.core.token_tracking import (
+from seeagent.core.token_tracking import (
     TokenTrackingContext,
     set_tracking_context,
     get_tracking_context,

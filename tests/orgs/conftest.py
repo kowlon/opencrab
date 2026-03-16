@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.orgs.models import (
+from seeagent.orgs.models import (
     EdgeType,
     InboxMessage,
     InboxPriority,
@@ -27,7 +27,7 @@ from openakita.orgs.models import (
     OrgStatus,
     ScheduleType,
 )
-from openakita.orgs.manager import OrgManager
+from seeagent.orgs.manager import OrgManager
 
 
 # ---------------------------------------------------------------------------
@@ -132,9 +132,9 @@ def mock_runtime(persisted_org: Organization, org_manager: OrgManager, org_dir: 
     rt.get_org = MagicMock(return_value=persisted_org)
     rt._active_orgs = {persisted_org.id: persisted_org}
 
-    from openakita.orgs.event_store import OrgEventStore
-    from openakita.orgs.blackboard import OrgBlackboard
-    from openakita.orgs.messenger import OrgMessenger
+    from seeagent.orgs.event_store import OrgEventStore
+    from seeagent.orgs.blackboard import OrgBlackboard
+    from seeagent.orgs.messenger import OrgMessenger
 
     es = OrgEventStore(org_dir, persisted_org.id)
     bb = OrgBlackboard(org_dir, persisted_org.id)

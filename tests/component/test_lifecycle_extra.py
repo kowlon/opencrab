@@ -5,16 +5,16 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from openakita.memory.extractor import MemoryExtractor
-from openakita.memory.lifecycle import LifecycleManager
-from openakita.memory.types import (
+from seeagent.memory.extractor import MemoryExtractor
+from seeagent.memory.lifecycle import LifecycleManager
+from seeagent.memory.types import (
     Attachment,
     AttachmentDirection,
     MemoryPriority,
     MemoryType,
     SemanticMemory,
 )
-from openakita.memory.unified_store import UnifiedStore
+from seeagent.memory.unified_store import UnifiedStore
 
 
 @pytest.fixture

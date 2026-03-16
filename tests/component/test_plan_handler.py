@@ -2,7 +2,7 @@
 
 import pytest
 
-from openakita.tools.handlers.plan import (
+from seeagent.tools.handlers.plan import (
     require_plan_for_session,
     is_plan_required,
     has_active_plan,

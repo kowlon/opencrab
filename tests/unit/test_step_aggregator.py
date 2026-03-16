@@ -6,11 +6,11 @@ import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from openakita.api.adapters.card_builder import CardBuilder
-from openakita.api.adapters.seecrab_models import AggregatorState, FilterResult
-from openakita.api.adapters.step_aggregator import StepAggregator
-from openakita.api.adapters.title_generator import TitleGenerator
-from openakita.api.adapters.timer_tracker import TimerTracker
+from seeagent.api.adapters.card_builder import CardBuilder
+from seeagent.api.adapters.seecrab_models import AggregatorState, FilterResult
+from seeagent.api.adapters.step_aggregator import StepAggregator
+from seeagent.api.adapters.title_generator import TitleGenerator
+from seeagent.api.adapters.timer_tracker import TimerTracker
 
 
 def _make_deps():

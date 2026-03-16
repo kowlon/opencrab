@@ -1,6 +1,6 @@
-# OpenAkita Documentation
+# SeeAgent Documentation
 
-Welcome to the OpenAkita documentation.
+Welcome to the SeeAgent documentation.
 
 ## Quick Links
 

@@ -7,8 +7,8 @@ UT-G07 ~ UT-G09
 import json
 import pytest
 
-from openakita.llm.config import load_endpoints_config, save_endpoints_config
-from openakita.llm.types import EndpointConfig
+from seeagent.llm.config import load_endpoints_config, save_endpoints_config
+from seeagent.llm.types import EndpointConfig
 
 
 class TestSTTConfigSaving:

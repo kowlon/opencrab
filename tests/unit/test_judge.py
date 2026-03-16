@@ -2,7 +2,7 @@
 
 import pytest
 
-from openakita.testing.judge import Judge, JudgeResult
+from seeagent.testing.judge import Judge, JudgeResult
 
 
 @pytest.fixture

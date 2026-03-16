@@ -14,9 +14,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.orgs.heartbeat import OrgHeartbeat
-from openakita.orgs.identity import OrgIdentity
-from openakita.orgs.models import (
+from seeagent.orgs.heartbeat import OrgHeartbeat
+from seeagent.orgs.identity import OrgIdentity
+from seeagent.orgs.models import (
     EdgeType,
     MemoryType,
     MsgType,
@@ -27,7 +27,7 @@ from openakita.orgs.models import (
     Organization,
     UserPersona,
 )
-from openakita.orgs.tool_handler import OrgToolHandler
+from seeagent.orgs.tool_handler import OrgToolHandler
 from .conftest import make_edge, make_node, make_org
 
 
@@ -238,7 +238,7 @@ class TestStandupBroadcasts:
 
 class TestAITimeCalibration:
     def _make_resolved(self, role: str = "负责人"):
-        from openakita.orgs.identity import ResolvedIdentity
+        from seeagent.orgs.identity import ResolvedIdentity
         return ResolvedIdentity(soul="", agent="", role=role, level=0)
 
     def test_identity_prompt_contains_ai_efficiency(self, tmp_path):
@@ -270,7 +270,7 @@ class TestAITimeCalibration:
 
 class TestDeadlineCalibration:
     def test_delegate_tool_deadline_description_mentions_minutes(self):
-        from openakita.orgs.tools import ORG_NODE_TOOLS
+        from seeagent.orgs.tools import ORG_NODE_TOOLS
         delegate_tool = next(t for t in ORG_NODE_TOOLS if t["name"] == "org_delegate_task")
         schema = delegate_tool.get("parameters") or delegate_tool.get("input_schema", {})
         deadline_desc = schema["properties"]["deadline"]["description"]
@@ -359,7 +359,7 @@ class TestFullFlowWSCoverage:
 
 def _make_test_app(mock_runtime):
     """Helper to create a test FastAPI app with org routes."""
-    from openakita.api.routes.orgs import router as org_router
+    from seeagent.api.routes.orgs import router as org_router
     from fastapi import FastAPI
     app = FastAPI()
     app.state.org_manager = mock_runtime._manager
@@ -407,7 +407,7 @@ class TestStatsEndpointEnhancements:
         except ImportError:
             pytest.skip("httpx not installed")
 
-        from openakita.orgs.models import NodeStatus
+        from seeagent.orgs.models import NodeStatus
         persisted_org.nodes[1].status = NodeStatus.ERROR
         _mock_stats_deps(mock_runtime, persisted_org)
         app = _make_test_app(mock_runtime)
@@ -425,7 +425,7 @@ class TestStatsEndpointEnhancements:
             pytest.skip("httpx not installed")
 
         bb = mock_runtime.get_blackboard(persisted_org.id)
-        from openakita.orgs.models import MemoryType
+        from seeagent.orgs.models import MemoryType
         bb.write_org("测试黑板条目", source_node="node_ceo", memory_type=MemoryType.DECISION)
 
         _mock_stats_deps(mock_runtime, persisted_org)

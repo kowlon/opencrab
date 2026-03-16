@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openakita.channels.types import (
+from seeagent.channels.types import (
     MediaFile,
     MediaStatus,
     MessageContent,

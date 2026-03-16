@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime, timedelta
 
-from openakita.sessions.session import Session, SessionConfig, SessionContext, SessionState
+from seeagent.sessions.session import Session, SessionConfig, SessionContext, SessionState
 
 
 class TestSessionCreation:

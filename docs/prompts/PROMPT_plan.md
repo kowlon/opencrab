@@ -11,7 +11,7 @@ https://claytonfarr.github.io/ralph-playbook/
 
 0b. 学习 `identity/MEMORY.md`（如存在）了解当前计划和进度。
 
-0c. 学习 `src/openakita/` 了解现有代码结构和模式。
+0c. 学习 `src/seeagent/` 了解现有代码结构和模式。
 
 1. 研究 `identity/MEMORY.md`（如存在，可能不正确）并比较 `specs/*` 与现有源代码。分析发现，确定优先级，创建/更新 `identity/MEMORY.md` 中的 Implementation Plan 部分，作为按优先级排序的待实现项目列表。
 
@@ -20,7 +20,7 @@ https://claytonfarr.github.io/ralph-playbook/
 **重要**: 
 - 仅做计划，不要实现任何东西
 - 不要假设功能缺失，先用代码搜索确认
-- 将 `src/openakita/skills/` 视为技能库
+- 将 `src/seeagent/skills/` 视为技能库
 - 优先使用已有的工具和模式
 
 **最终目标**: 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenAkita is an open-source multi-agent AI assistant. Python 3.11+ package with a Tauri desktop app (Rust + React). The agent uses a "Ralph Wiggum" never-give-up execution loop, 89+ tools, 3-layer memory, and supports 6 IM platforms and 30+ LLM providers.
+SeeAgent is an open-source multi-agent AI assistant. Python 3.11+ package with a Tauri desktop app (Rust + React). The agent uses a "Ralph Wiggum" never-give-up execution loop, 89+ tools, 3-layer memory, and supports 6 IM platforms and 30+ LLM providers.
 
 ## Common Commands
 
@@ -27,7 +27,7 @@ pytest tests/component/ -x -v    # L2: Component tests (<2min)
 pytest tests/integration/ -v     # L3: Integration tests (<3min)
 pytest tests/e2e/ -v             # L4: E2E tests (needs LLM_TEST_MODE=replay)
 pytest tests/quality/ -v         # L5: Quality evaluation
-pytest tests/ -v --cov=src/openakita --cov-report=xml -k "not TestVectorStore"  # Full suite with coverage
+pytest tests/ -v --cov=src/seeagent --cov-report=xml -k "not TestVectorStore"  # Full suite with coverage
 ```
 
 ### Run a Single Test
@@ -50,7 +50,7 @@ python scripts/version.py check   # Verify version consistency across files
 ## Architecture
 
 ### Source Layout
-- `src/openakita/` — Main Python package
+- `src/seeagent/` — Main Python package
 - `apps/setup-center/` — Tauri desktop app (Rust backend + React/Vite frontend)
 - `skills/` — Extensible skill definitions (70+ skills, bundled into wheel)
 - `mcps/` — MCP (Model Context Protocol) server configs
@@ -59,7 +59,7 @@ python scripts/version.py check   # Verify version consistency across files
 - `specs/` — Technical specifications (tool-system, skill-system, core-agent)
 - `docs/` — Architecture and deployment documentation
 
-### Core Modules (`src/openakita/`)
+### Core Modules (`src/seeagent/`)
 
 **Agent Core** (`core/`):
 - `agent.py` — Main Agent class, orchestrates all modules (largest file)
@@ -90,11 +90,11 @@ python scripts/version.py check   # Verify version consistency across files
 **Skills** (`skills/`): SKILL.md-based skill system with loader, registry, and i18n.
 
 ### Entry Point
-- CLI: `openakita` command → `src/openakita/main.py` (Typer app)
+- CLI: `seeagent` command → `src/seeagent/main.py` (Typer app)
 - Supports CLI mode + simultaneous IM channel connections
 
 ### Configuration
-- `src/openakita/config.py` — Pydantic settings class
+- `src/seeagent/config.py` — Pydantic settings class
 - Environment variables: `ANTHROPIC_API_KEY`, `DEFAULT_MODEL`, `THINKING_MODE`, `MAX_ITERATIONS`, `TOOL_MAX_PARALLEL`, etc.
 
 ## Code Standards
@@ -107,5 +107,5 @@ python scripts/version.py check   # Verify version consistency across files
 
 ## Build & Packaging
 - Build system: hatchling
-- Wheel bundles: `skills/system` → `builtin_skills/system/`, external skills → `builtin_skills/external/`, `mcps` → `builtin_mcps/`, web frontend from `apps/setup-center/dist-web` → `openakita/web`
+- Wheel bundles: `skills/system` → `builtin_skills/system/`, external skills → `builtin_skills/external/`, `mcps` → `builtin_mcps/`, web frontend from `apps/setup-center/dist-web` → `seeagent/web`
 - Desktop app uses PyInstaller to package Python backend, then Tauri bundles everything

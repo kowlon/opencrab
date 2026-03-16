@@ -18,11 +18,11 @@ Environment variables (set in FC console, never in source code):
   OSS_PUBLIC_ENDPOINT    — External endpoint for pre-signed URLs,
                            e.g. https://oss-cn-hangzhou.aliyuncs.com
                            If unset, derived from OSS_ENDPOINT by removing '-internal'.
-  OSS_BUCKET             — e.g. openakita-feedback
+  OSS_BUCKET             — e.g. seeagent-feedback
   OSS_ACCESS_KEY_ID      — RAM user AccessKey (also used for CAPTCHA 2.0 verification)
   OSS_ACCESS_KEY_SECRET  — RAM user AccessKey Secret
   GITHUB_TOKEN           — Fine-grained PAT (Issues:Write on target repo)
-  GITHUB_REPO            — e.g. openakita/openakita
+  GITHUB_REPO            — e.g. seeagent/seeagent
   CAPTCHA_SCENE_ID       — 人机验证 2.0「场景ID」(optional, skips verification if empty)
   NOTIFY_EMAIL           — (optional) email for notifications
   RESEND_API_KEY         — (optional) Resend API key for email
@@ -234,7 +234,7 @@ def _create_github_issue(
     labels.append("bug" if report_type == "bug" else "enhancement")
 
     version_match = re.search(
-        r"openakita[_ ]version[\"']?\s*[:=]\s*[\"']?([^\s\"',}]+)",
+        r"seeagent[_ ]version[\"']?\s*[:=]\s*[\"']?([^\s\"',}]+)",
         system_info, re.I,
     )
     if version_match:
@@ -267,7 +267,7 @@ def _create_github_issue(
         f"Diagnostic ZIP stored at: `{oss_path}`",
         "",
         "---",
-        "*Auto-created by OpenAkita Feedback Service*",
+        "*Auto-created by SeeAgent Feedback Service*",
     ]
 
     try:
@@ -310,7 +310,7 @@ def _send_notification(
             "https://api.resend.com/emails",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
-                "from": "OpenAkita Feedback <onboarding@resend.dev>",
+                "from": "SeeAgent Feedback <onboarding@resend.dev>",
                 "to": [email],
                 "subject": f"[{type_label}] {title}",
                 "html": (

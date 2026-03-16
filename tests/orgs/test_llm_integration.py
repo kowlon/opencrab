@@ -19,16 +19,16 @@ from unittest.mock import patch
 
 import pytest
 
-from openakita.orgs.manager import OrgManager
-from openakita.orgs.runtime import OrgRuntime
-from openakita.orgs.models import OrgStatus, NodeStatus
+from seeagent.orgs.manager import OrgManager
+from seeagent.orgs.runtime import OrgRuntime
+from seeagent.orgs.models import OrgStatus, NodeStatus
 from .conftest import make_org, make_node, make_edge
 
-_SKIP_REASON = "LLM tests require --api-keys flag or OPENAKITA_LLM_TESTS=1 env"
+_SKIP_REASON = "LLM tests require --api-keys flag or SEEAGENT_LLM_TESTS=1 env"
 
 
 def _should_skip() -> bool:
-    if os.environ.get("OPENAKITA_LLM_TESTS", "0") == "1":
+    if os.environ.get("SEEAGENT_LLM_TESTS", "0") == "1":
         return False
     return True
 
@@ -104,7 +104,7 @@ class TestLLMOrgTemplate:
 
     async def test_startup_company_template(self, live_runtime):
         runtime, manager = live_runtime
-        from openakita.orgs.templates import ensure_builtin_templates
+        from seeagent.orgs.templates import ensure_builtin_templates
         ensure_builtin_templates(manager._templates_dir)
 
         org = manager.create_from_template("software-team", {"name": "LLM软件团队"})

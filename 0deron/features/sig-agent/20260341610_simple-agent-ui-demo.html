@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OpenAkita — 非任务聊天交互模拟</title>
+<title>SeeAgent — 非任务聊天交互模拟</title>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
 <style>
   :root {
@@ -895,7 +895,7 @@
         <div class="welcome-logo">
           <span class="material-symbols-outlined">smart_toy</span>
         </div>
-        <div class="welcome-title">OpenAkita Agent</div>
+        <div class="welcome-title">SeeAgent Agent</div>
         <div class="welcome-subtitle">自进化 AI Agent — 永不放弃的 Ralph Wiggum 模式<br>支持自主学习、记忆管理、多 LLM 端点</div>
         <div class="quick-actions">
           <div class="quick-action-btn" onclick="selectMode('normal'); startSimulation()">
@@ -1133,7 +1133,7 @@ async function runNormalMode() {
         <div class="avatar">
           <span class="material-symbols-outlined">smart_toy</span>
         </div>
-        <span class="ai-name">OpenAkita</span>
+        <span class="ai-name">SeeAgent</span>
         <div class="ai-timer-group">
           <div class="ttft-bar">
             <span class="ttft-label">TTFT</span>
@@ -1248,7 +1248,7 @@ Karpathy 在 1 月的演讲中详细阐述了 "LLM 操作系统" 的概念——
 Karpathy 强调，不是所有场景都需要万亿参数模型。通过知识蒸馏和专门化训练，小模型在特定领域可以达到甚至超越大模型的表现。
 
 📌 关于 AI Agent
-他对当前 AI Agent 的看法比较谨慎，认为真正有用的 Agent 需要具备"失败恢复"能力——这与 OpenAkita 的 Ralph 模式理念不谋而合。`;
+他对当前 AI Agent 的看法比较谨慎，认为真正有用的 Agent 需要具备"失败恢复"能力——这与 SeeAgent 的 Ralph 模式理念不谋而合。`;
 
   await streamText(summaryDiv, summaryText, 18);
 
@@ -1283,7 +1283,7 @@ async function runPlanMode() {
         <div class="avatar">
           <span class="material-symbols-outlined">smart_toy</span>
         </div>
-        <span class="ai-name">OpenAkita</span>
+        <span class="ai-name">SeeAgent</span>
         <div class="ai-timer-group">
           <div class="ttft-bar">
             <span class="ttft-label">TTFT</span>
@@ -1378,12 +1378,12 @@ async function runPlanMode() {
       outputTokens: 423,
       input: JSON.stringify({
         action: "scan_directory",
-        root: "./src/openakita/",
+        root: "./src/seeagent/",
         include: ["*.py", "*.yaml", "*.toml"],
         exclude: ["__pycache__", ".git"],
         depth: 4
       }, null, 2),
-      output: '项目结构扫描完成：\n\n根目录: src/openakita/\n模块数: 8 个顶级模块\n文件总数: 47 个 Python 文件\n依赖: FastAPI, Pydantic v2, aiosqlite, structlog\n\n核心模块:\n  - core/ (4 files): Agent, Ralph Loop, Prompt Assembler\n  - llm/ (6 files): Multi-provider adapter layer\n  - evolution/ (3 files): Self-evolution engine\n  - orchestration/ (5 files): Multi-agent orchestration\n  - channels/ (7 files): IM integrations\n  - context/ (4 files): Memory & identity\n  - capability/ (3 files): Skills & MCP\n  - api/ (3 files): HTTP endpoints'
+      output: '项目结构扫描完成：\n\n根目录: src/seeagent/\n模块数: 8 个顶级模块\n文件总数: 47 个 Python 文件\n依赖: FastAPI, Pydantic v2, aiosqlite, structlog\n\n核心模块:\n  - core/ (4 files): Agent, Ralph Loop, Prompt Assembler\n  - llm/ (6 files): Multi-provider adapter layer\n  - evolution/ (3 files): Self-evolution engine\n  - orchestration/ (5 files): Multi-agent orchestration\n  - channels/ (7 files): IM integrations\n  - context/ (4 files): Memory & identity\n  - capability/ (3 files): Skills & MCP\n  - api/ (3 files): HTTP endpoints'
     },
     {
       title: '🏗️ 分析核心模块',

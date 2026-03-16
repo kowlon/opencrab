@@ -3,7 +3,7 @@
 
 运行方式: python scripts/generate_skill_i18n.py
 
-同时兼容旧的 .openakita-i18n.json（如果存在则迁移到 agents/openai.yaml）。
+同时兼容旧的 .seeagent-i18n.json（如果存在则迁移到 agents/openai.yaml）。
 """
 
 from pathlib import Path
@@ -89,7 +89,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     },
     "mcp-installer": {
         "name": "MCP 安装器",
-        "description": "安装、配置和添加 MCP 服务器到 OpenAkita 系统，支持 npm/pip 包和远程服务。",
+        "description": "安装、配置和添加 MCP 服务器到 SeeAgent 系统，支持 npm/pip 包和远程服务。",
     },
     "moltbook": {
         "name": "Moltbook 社交",
@@ -105,7 +105,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
     },
     "skill-creator": {
         "name": "技能创建器",
-        "description": "创建和改进 OpenAkita 技能。为重复性任务创建新技能、改进现有技能、或将临时脚本封装为可复用技能。",
+        "description": "创建和改进 SeeAgent 技能。为重复性任务创建新技能、改进现有技能、或将临时脚本封装为可复用技能。",
     },
     "slack-gif-creator": {
         "name": "Slack GIF 制作",
@@ -428,8 +428,8 @@ def main():
         _write_i18n_to_yaml(skill_dir, i18n_data)
         created += 1
 
-        # 清理旧的 .openakita-i18n.json
-        legacy = skill_dir / ".openakita-i18n.json"
+        # 清理旧的 .seeagent-i18n.json
+        legacy = skill_dir / ".seeagent-i18n.json"
         if legacy.exists():
             legacy.unlink()
             migrated += 1

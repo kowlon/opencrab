@@ -554,7 +554,7 @@ async def run_all():
     async with httpx.AsyncClient() as client:
         healthy = await check_health(client)
         if not healthy.get("agent_initialized"):
-            print("\n❌ 服务未启动！请先运行: openakita serve")
+            print("\n❌ 服务未启动！请先运行: seeagent serve")
             return
 
         results: list[tuple[str, str, bool, float]] = []

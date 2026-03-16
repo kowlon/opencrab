@@ -37,9 +37,9 @@ class TestInjectModulePaths:
         (modules_dir / "vector-memory" / "site-packages").mkdir(parents=True)
         (modules_dir / "browser" / "site-packages").mkdir(parents=True)
 
-        with patch("openakita.runtime_env._get_openakita_root", return_value=tmp_path):
+        with patch("seeagent.runtime_env._get_seeagent_root", return_value=tmp_path):
             original_path_len = len(sys.path)
-            from openakita.runtime_env import inject_module_paths_runtime
+            from seeagent.runtime_env import inject_module_paths_runtime
 
             count = inject_module_paths_runtime()
 
@@ -57,8 +57,8 @@ class TestInjectModulePaths:
         modules_dir = tmp_path / "modules"
         # 不创建任何子目录
 
-        with patch("openakita.runtime_env._get_openakita_root", return_value=tmp_path):
-            from openakita.runtime_env import inject_module_paths_runtime
+        with patch("seeagent.runtime_env._get_seeagent_root", return_value=tmp_path):
+            from seeagent.runtime_env import inject_module_paths_runtime
 
             count = inject_module_paths_runtime()
 
@@ -69,8 +69,8 @@ class TestInjectModulePaths:
         modules_dir = tmp_path / "modules"
         (modules_dir / "browser" / "site-packages").mkdir(parents=True)
 
-        with patch("openakita.runtime_env._get_openakita_root", return_value=tmp_path):
-            from openakita.runtime_env import inject_module_paths_runtime
+        with patch("seeagent.runtime_env._get_seeagent_root", return_value=tmp_path):
+            from seeagent.runtime_env import inject_module_paths_runtime
 
             count1 = inject_module_paths_runtime()
             count2 = inject_module_paths_runtime()
@@ -91,8 +91,8 @@ class TestInjectModulePaths:
 
         original_first = sys.path[0] if sys.path else ""
 
-        with patch("openakita.runtime_env._get_openakita_root", return_value=tmp_path):
-            from openakita.runtime_env import inject_module_paths_runtime
+        with patch("seeagent.runtime_env._get_seeagent_root", return_value=tmp_path):
+            from seeagent.runtime_env import inject_module_paths_runtime
 
             inject_module_paths_runtime()
 
@@ -126,7 +126,7 @@ class TestRegisterDllDirectories:
             os_mock.environ = dict(os.environ)
             os_mock.add_dll_directory = MagicMock()
 
-            from openakita.runtime_env import _register_dll_directories
+            from seeagent.runtime_env import _register_dll_directories
 
             _register_dll_directories(os_mock)
 
@@ -138,10 +138,10 @@ class TestRegisterDllDirectories:
 
     def test_no_crash_on_non_windows(self, tmp_path):
         """非 Windows 平台也不应报错"""
-        from openakita.runtime_env import inject_module_paths_runtime
+        from seeagent.runtime_env import inject_module_paths_runtime
 
         # 不应抛异常
-        with patch("openakita.runtime_env._get_openakita_root", return_value=tmp_path):
+        with patch("seeagent.runtime_env._get_seeagent_root", return_value=tmp_path):
             inject_module_paths_runtime()
 
 
@@ -155,7 +155,7 @@ class TestImportHelper:
 
     def test_all_module_packages_mapped(self):
         """所有模块的 pip 包对应的 import name 应在映射表中"""
-        from openakita.tools._import_helper import _PACKAGE_MODULE_MAP
+        from seeagent.tools._import_helper import _PACKAGE_MODULE_MAP
 
         # 外置模块 → 需要映射的 import names
         required_mappings = {
@@ -185,7 +185,7 @@ class TestImportHelper:
 
     def test_import_or_hint_returns_none_for_available(self):
         """已安装的标准库包应返回 None"""
-        from openakita.tools._import_helper import import_or_hint
+        from seeagent.tools._import_helper import import_or_hint
 
         # os 是标准库，一定可以导入
         # 但 import_or_hint 只处理已知映射的包，未知包也应正确处理
@@ -194,7 +194,7 @@ class TestImportHelper:
 
     def test_import_or_hint_returns_hint_for_missing(self):
         """缺失的包应返回安装提示字符串"""
-        from openakita.tools._import_helper import import_or_hint
+        from seeagent.tools._import_helper import import_or_hint
 
         # 用一个一定不存在的包名
         result = import_or_hint("__nonexistent_package_xyz__")
@@ -204,26 +204,26 @@ class TestImportHelper:
 
     def test_frozen_hint_mentions_setup_center(self):
         """打包环境下，外置模块提示应引导用户去设置中心"""
-        from openakita.tools._import_helper import _build_hint
+        from seeagent.tools._import_helper import _build_hint
 
-        with patch("openakita.tools._import_helper.IS_FROZEN", True):
+        with patch("seeagent.tools._import_helper.IS_FROZEN", True):
             hint = _build_hint("sentence_transformers")
             assert "设置中心" in hint
             assert "向量记忆增强" in hint
 
     def test_frozen_hint_core_package_mentions_reinstall(self):
         """打包环境下，核心包缺失应提示重新安装"""
-        from openakita.tools._import_helper import _build_hint
+        from seeagent.tools._import_helper import _build_hint
 
-        with patch("openakita.tools._import_helper.IS_FROZEN", True):
+        with patch("seeagent.tools._import_helper.IS_FROZEN", True):
             hint = _build_hint("playwright")
             assert "重新安装" in hint
 
     def test_dev_hint_mentions_pip(self):
         """开发环境下，提示应包含 pip install"""
-        from openakita.tools._import_helper import _build_hint
+        from seeagent.tools._import_helper import _build_hint
 
-        with patch("openakita.tools._import_helper.IS_FROZEN", False):
+        with patch("seeagent.tools._import_helper.IS_FROZEN", False):
             hint = _build_hint("sentence_transformers")
             assert "pip install" in hint
             assert "sentence-transformers" in hint
@@ -239,7 +239,7 @@ class TestPlaywrightBrowsersPath:
 
     def test_sets_browsers_path_when_dir_exists(self, tmp_path):
         """当 browsers 目录存在时应设置 PLAYWRIGHT_BROWSERS_PATH"""
-        browsers_dir = tmp_path / ".openakita" / "modules" / "browser" / "browsers"
+        browsers_dir = tmp_path / ".seeagent" / "modules" / "browser" / "browsers"
         browsers_dir.mkdir(parents=True)
         # 模拟浏览器已安装
         (browsers_dir / "chromium-1234").mkdir()
@@ -249,7 +249,7 @@ class TestPlaywrightBrowsersPath:
             with patch("pathlib.Path.home", return_value=tmp_path):
                 # 模拟 browser/manager.py 中的逻辑
                 if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
-                    check_dir = Path.home() / ".openakita" / "modules" / "browser" / "browsers"
+                    check_dir = Path.home() / ".seeagent" / "modules" / "browser" / "browsers"
                     if check_dir.is_dir():
                         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(check_dir)
 
@@ -263,7 +263,7 @@ class TestPlaywrightBrowsersPath:
 
     def test_does_not_override_existing_env(self, tmp_path):
         """如果已设置 PLAYWRIGHT_BROWSERS_PATH，不应覆盖"""
-        browsers_dir = tmp_path / ".openakita" / "modules" / "browser" / "browsers"
+        browsers_dir = tmp_path / ".seeagent" / "modules" / "browser" / "browsers"
         browsers_dir.mkdir(parents=True)
 
         custom_path = "/custom/browsers"
@@ -274,7 +274,7 @@ class TestPlaywrightBrowsersPath:
             with patch("pathlib.Path.home", return_value=tmp_path):
                 # 模拟 browser/manager.py 中的逻辑
                 if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
-                    check_dir = Path.home() / ".openakita" / "modules" / "browser" / "browsers"
+                    check_dir = Path.home() / ".seeagent" / "modules" / "browser" / "browsers"
                     if check_dir.is_dir():
                         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(check_dir)
 
@@ -292,7 +292,7 @@ class TestPlaywrightBrowsersPath:
         try:
             with patch("pathlib.Path.home", return_value=tmp_path):
                 if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
-                    check_dir = Path.home() / ".openakita" / "modules" / "browser" / "browsers"
+                    check_dir = Path.home() / ".seeagent" / "modules" / "browser" / "browsers"
                     if check_dir.is_dir():
                         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(check_dir)
 
@@ -595,12 +595,12 @@ class TestPostInstallHooks:
             "PLAYWRIGHT_BROWSERS_PATH 应至少出现 1 次（启动后端时兜底设置）"
         )
 
-        # 确认在后端启动函数中（cmd.env OPENAKITA_MODULE_PATHS 附近）有设置
+        # 确认在后端启动函数中（cmd.env SEEAGENT_MODULE_PATHS 附近）有设置
         lines = content.split("\n")
         found_launch_pw_path = False
         in_launch_region = False
         for line in lines:
-            if "OPENAKITA_MODULE_PATHS" in line and "cmd.env" in line:
+            if "SEEAGENT_MODULE_PATHS" in line and "cmd.env" in line:
                 in_launch_region = True
             if in_launch_region and "PLAYWRIGHT_BROWSERS_PATH" in line:
                 found_launch_pw_path = True
@@ -609,7 +609,7 @@ class TestPostInstallHooks:
                 break
 
         assert found_launch_pw_path, (
-            "启动后端进程时（cmd.env OPENAKITA_MODULE_PATHS 之后）应设置 PLAYWRIGHT_BROWSERS_PATH"
+            "启动后端进程时（cmd.env SEEAGENT_MODULE_PATHS 之后）应设置 PLAYWRIGHT_BROWSERS_PATH"
         )
 
 
@@ -685,7 +685,7 @@ class TestMemoryRetrievalFallback:
 
     def test_get_injection_context_delegates_to_retrieval_engine(self):
         """get_injection_context 应委托给 retrieval_engine.retrieve"""
-        from openakita.memory.manager import MemoryManager
+        from seeagent.memory.manager import MemoryManager
 
         manager = self._make_manager(vector_enabled=False, memories=[
             _make_mock_memory("m1", "用户喜欢 Python 编程语言"),
@@ -703,7 +703,7 @@ class TestMemoryRetrievalFallback:
 
     def test_get_injection_context_passes_query_correctly(self):
         """get_injection_context 应将 task_description 作为 query 传入"""
-        from openakita.memory.manager import MemoryManager
+        from seeagent.memory.manager import MemoryManager
 
         manager = self._make_manager(vector_enabled=True, memories=[
             _make_mock_memory("m1", "用户喜欢 Python 编程"),
@@ -720,7 +720,7 @@ class TestMemoryRetrievalFallback:
 
     def test_get_injection_context_returns_engine_result(self):
         """get_injection_context 应原样返回 retrieval_engine 结果"""
-        from openakita.memory.manager import MemoryManager
+        from seeagent.memory.manager import MemoryManager
 
         manager = self._make_manager(vector_enabled=True)
         mock_engine = MagicMock()
@@ -734,7 +734,7 @@ class TestMemoryRetrievalFallback:
 
     def test_get_injection_context_with_recent_messages(self):
         """get_injection_context 应传递 _recent_messages 给 retrieval_engine"""
-        from openakita.memory.manager import MemoryManager
+        from seeagent.memory.manager import MemoryManager
 
         manager = self._make_manager(vector_enabled=False)
         manager._recent_messages = [{"role": "user", "content": "Python 怎么用"}]
@@ -749,7 +749,7 @@ class TestMemoryRetrievalFallback:
 
     def test_retriever_falls_back_to_keyword(self):
         """retriever._search_related_memories 向量库不可用时应回退关键词"""
-        from openakita.prompt.retriever import _search_related_memories
+        from seeagent.prompt.retriever import _search_related_memories
 
         mem1 = _make_mock_memory("m1", "用户偏好深色主题界面")
         manager = self._make_manager(vector_enabled=False, memories=[mem1])
@@ -765,7 +765,7 @@ class TestMemoryRetrievalFallback:
 
     def test_retriever_returns_vector_flag(self):
         """向量搜索成功时应返回 used_vector=True"""
-        from openakita.prompt.retriever import _search_related_memories
+        from seeagent.prompt.retriever import _search_related_memories
 
         mem1 = _make_mock_memory("m1", "用户偏好深色主题界面")
         manager = self._make_manager(vector_enabled=True, memories=[mem1])
@@ -782,7 +782,7 @@ class TestMemoryRetrievalFallback:
 
     def test_retriever_async_falls_back(self):
         """async_search_related_memories 向量库不可用时应回退到关键词"""
-        from openakita.prompt.retriever import async_search_related_memories
+        from seeagent.prompt.retriever import async_search_related_memories
 
         mem1 = _make_mock_memory("m1", "系统使用 PostgreSQL 数据库")
         manager = self._make_manager(vector_enabled=False, memories=[mem1])
@@ -806,7 +806,7 @@ class TestVectorStoreRetryReset:
 
     def test_lazy_import_globals_reset_on_retry(self):
         """_ensure_initialized 触发重试时应重置 _sentence_transformers_available 和 _chromadb"""
-        import openakita.memory.vector_store as vs_module
+        import seeagent.memory.vector_store as vs_module
 
         # 保存原始值
         orig_st = vs_module._sentence_transformers_available
@@ -849,7 +849,7 @@ class TestVectorStoreRetryReset:
 
     def test_lazy_import_skips_when_already_false(self):
         """当 _sentence_transformers_available=False 且未重置时，_lazy_import 应直接返回 False"""
-        import openakita.memory.vector_store as vs_module
+        import seeagent.memory.vector_store as vs_module
 
         orig_st = vs_module._sentence_transformers_available
         orig_cd = vs_module._chromadb
@@ -864,7 +864,7 @@ class TestVectorStoreRetryReset:
 
     def test_lazy_import_retries_when_reset_to_none(self):
         """当 _sentence_transformers_available 被重置为 None 时，_lazy_import 应重新尝试"""
-        import openakita.memory.vector_store as vs_module
+        import seeagent.memory.vector_store as vs_module
 
         orig_st = vs_module._sentence_transformers_available
         orig_cd = vs_module._chromadb
@@ -874,7 +874,7 @@ class TestVectorStoreRetryReset:
             vs_module._chromadb = None
 
             # 模拟 sentence_transformers 不可用
-            with patch("openakita.memory.vector_store.inject_module_paths_runtime",
+            with patch("seeagent.memory.vector_store.inject_module_paths_runtime",
                         create=True, side_effect=Exception("no runtime")):
                 result = vs_module._lazy_import()
 

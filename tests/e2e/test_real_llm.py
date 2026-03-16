@@ -20,7 +20,7 @@ import pytest
 import asyncio
 from pathlib import Path
 
-from openakita.llm.types import (
+from seeagent.llm.types import (
     LLMResponse,
     EndpointConfig,
     Message,
@@ -28,7 +28,7 @@ from openakita.llm.types import (
     Tool,
     StopReason,
 )
-from openakita.llm.client import LLMClient
+from seeagent.llm.client import LLMClient
 
 RECORDING_DIR = Path(__file__).parent.parent / "fixtures" / "recordings" / "real_llm"
 
@@ -40,7 +40,7 @@ def _find_available_endpoint() -> EndpointConfig | None:
     """Try to find a usable LLM endpoint from project config or env."""
     # 1) Project config (llm_endpoints.json) — most reliable
     try:
-        from openakita.llm.config import load_endpoints_config
+        from seeagent.llm.config import load_endpoints_config
         main_eps, _, _, _ = load_endpoints_config()
         for ep in main_eps:
             key = ep.api_key or os.environ.get(ep.api_key_env or "", "")

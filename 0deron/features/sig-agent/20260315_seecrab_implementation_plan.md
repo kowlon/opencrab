@@ -17,7 +17,7 @@
 ### Task 1: SeeCrab Data Models
 
 **Files:**
-- Create: `src/openakita/api/adapters/seecrab_models.py`
+- Create: `src/seeagent/api/adapters/seecrab_models.py`
 - Test: `tests/unit/test_seecrab_models.py`
 
 - [ ] **Step 1: Write the test file**
@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import pytest
 
-from openakita.api.adapters.seecrab_models import (
+from seeagent.api.adapters.seecrab_models import (
     AggregatorState,
     FilterResult,
     PendingCard,
@@ -108,7 +108,7 @@ Expected: FAIL with ModuleNotFoundError
 - [ ] **Step 3: Write the models**
 
 ```python
-# src/openakita/api/adapters/seecrab_models.py
+# src/seeagent/api/adapters/seecrab_models.py
 """SeeCrab data models — shared across all adapter sub-modules."""
 from __future__ import annotations
 
@@ -202,7 +202,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/openakita/api/adapters/seecrab_models.py tests/unit/test_seecrab_models.py
+git add src/seeagent/api/adapters/seecrab_models.py tests/unit/test_seecrab_models.py
 git commit -m "feat(seecrab): add data models for adapter layer"
 ```
 
@@ -211,7 +211,7 @@ git commit -m "feat(seecrab): add data models for adapter layer"
 ### Task 2: StepFilter — Tool Filtering
 
 **Files:**
-- Create: `src/openakita/api/adapters/step_filter.py`
+- Create: `src/seeagent/api/adapters/step_filter.py`
 - Test: `tests/unit/test_step_filter.py`
 
 - [ ] **Step 1: Write the test file**
@@ -223,8 +223,8 @@ from __future__ import annotations
 
 import pytest
 
-from openakita.api.adapters.seecrab_models import FilterResult, StepFilterConfig
-from openakita.api.adapters.step_filter import StepFilter
+from seeagent.api.adapters.seecrab_models import FilterResult, StepFilterConfig
+from seeagent.api.adapters.step_filter import StepFilter
 
 
 class TestClassify:
@@ -291,7 +291,7 @@ Expected: FAIL with ImportError
 - [ ] **Step 3: Write StepFilter**
 
 ```python
-# src/openakita/api/adapters/step_filter.py
+# src/seeagent/api/adapters/step_filter.py
 """StepFilter: classifies tool calls for step card visibility."""
 from __future__ import annotations
 
@@ -345,7 +345,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/openakita/api/adapters/step_filter.py tests/unit/test_step_filter.py
+git add src/seeagent/api/adapters/step_filter.py tests/unit/test_step_filter.py
 git commit -m "feat(seecrab): add StepFilter for tool call classification"
 ```
 
@@ -354,7 +354,7 @@ git commit -m "feat(seecrab): add StepFilter for tool call classification"
 ### Task 3: CardBuilder — Step Card Assembly
 
 **Files:**
-- Create: `src/openakita/api/adapters/card_builder.py`
+- Create: `src/seeagent/api/adapters/card_builder.py`
 - Test: `tests/unit/test_card_builder.py`
 
 - [ ] **Step 1: Write the test file**
@@ -366,7 +366,7 @@ from __future__ import annotations
 
 import pytest
 
-from openakita.api.adapters.card_builder import CardBuilder
+from seeagent.api.adapters.card_builder import CardBuilder
 
 
 class TestBuildStepCard:
@@ -441,7 +441,7 @@ Expected: FAIL with ImportError
 - [ ] **Step 3: Write CardBuilder**
 
 ```python
-# src/openakita/api/adapters/card_builder.py
+# src/seeagent/api/adapters/card_builder.py
 """CardBuilder: assembles step_card SSE events."""
 from __future__ import annotations
 
@@ -515,7 +515,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/openakita/api/adapters/card_builder.py tests/unit/test_card_builder.py
+git add src/seeagent/api/adapters/card_builder.py tests/unit/test_card_builder.py
 git commit -m "feat(seecrab): add CardBuilder for step card assembly"
 ```
 
@@ -524,7 +524,7 @@ git commit -m "feat(seecrab): add CardBuilder for step card assembly"
 ### Task 4: TimerTracker — Timing Collection
 
 **Files:**
-- Create: `src/openakita/api/adapters/timer_tracker.py`
+- Create: `src/seeagent/api/adapters/timer_tracker.py`
 - Test: `tests/unit/test_timer_tracker.py`
 
 - [ ] **Step 1: Write the test file**
@@ -538,7 +538,7 @@ from unittest.mock import patch
 
 import pytest
 
-from openakita.api.adapters.timer_tracker import TimerTracker
+from seeagent.api.adapters.timer_tracker import TimerTracker
 
 
 class TestStart:
@@ -616,7 +616,7 @@ Expected: FAIL with ImportError
 - [ ] **Step 3: Write TimerTracker**
 
 ```python
-# src/openakita/api/adapters/timer_tracker.py
+# src/seeagent/api/adapters/timer_tracker.py
 """TimerTracker: TTFT / Total / Step Duration collection."""
 from __future__ import annotations
 
@@ -699,7 +699,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/openakita/api/adapters/timer_tracker.py tests/unit/test_timer_tracker.py
+git add src/seeagent/api/adapters/timer_tracker.py tests/unit/test_timer_tracker.py
 git commit -m "feat(seecrab): add TimerTracker for TTFT/Total/Step timing"
 ```
 
@@ -708,7 +708,7 @@ git commit -m "feat(seecrab): add TimerTracker for TTFT/Total/Step timing"
 ### Task 5: TitleGenerator — LLM Title Generation + Humanize
 
 **Files:**
-- Create: `src/openakita/api/adapters/title_generator.py`
+- Create: `src/seeagent/api/adapters/title_generator.py`
 - Test: `tests/unit/test_title_generator.py`
 
 - [ ] **Step 1: Write the test file**
@@ -723,7 +723,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openakita.api.adapters.title_generator import TitleGenerator
+from seeagent.api.adapters.title_generator import TitleGenerator
 
 
 class TestHumanizeToolTitle:
@@ -830,7 +830,7 @@ Expected: FAIL with ImportError
 - [ ] **Step 3: Write TitleGenerator**
 
 ```python
-# src/openakita/api/adapters/title_generator.py
+# src/seeagent/api/adapters/title_generator.py
 """TitleGenerator: LLM-powered title generation + humanize fallback."""
 from __future__ import annotations
 
@@ -973,7 +973,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/openakita/api/adapters/title_generator.py tests/unit/test_title_generator.py
+git add src/seeagent/api/adapters/title_generator.py tests/unit/test_title_generator.py
 git commit -m "feat(seecrab): add TitleGenerator with LLM + humanize fallback"
 ```
 
@@ -984,7 +984,7 @@ git commit -m "feat(seecrab): add TitleGenerator with LLM + humanize fallback"
 ### Task 6: StepAggregator — Core State Machine
 
 **Files:**
-- Create: `src/openakita/api/adapters/step_aggregator.py`
+- Create: `src/seeagent/api/adapters/step_aggregator.py`
 - Test: `tests/unit/test_step_aggregator.py`
 
 - [ ] **Step 1: Write the test file**
@@ -999,11 +999,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openakita.api.adapters.card_builder import CardBuilder
-from openakita.api.adapters.seecrab_models import AggregatorState, FilterResult
-from openakita.api.adapters.step_aggregator import StepAggregator
-from openakita.api.adapters.title_generator import TitleGenerator
-from openakita.api.adapters.timer_tracker import TimerTracker
+from seeagent.api.adapters.card_builder import CardBuilder
+from seeagent.api.adapters.seecrab_models import AggregatorState, FilterResult
+from seeagent.api.adapters.step_aggregator import StepAggregator
+from seeagent.api.adapters.title_generator import TitleGenerator
+from seeagent.api.adapters.timer_tracker import TimerTracker
 
 
 def _make_deps():
@@ -1331,7 +1331,7 @@ Expected: FAIL with ImportError
 - [ ] **Step 3: Write StepAggregator**
 
 ```python
-# src/openakita/api/adapters/step_aggregator.py
+# src/seeagent/api/adapters/step_aggregator.py
 """StepAggregator: state machine for step card aggregation."""
 from __future__ import annotations
 
@@ -1745,7 +1745,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/openakita/api/adapters/step_aggregator.py tests/unit/test_step_aggregator.py
+git add src/seeagent/api/adapters/step_aggregator.py tests/unit/test_step_aggregator.py
 git commit -m "feat(seecrab): add StepAggregator state machine"
 ```
 
@@ -1756,7 +1756,7 @@ git commit -m "feat(seecrab): add StepAggregator state machine"
 ### Task 7: SeeCrabAdapter — Core Translation Layer
 
 **Files:**
-- Create: `src/openakita/api/adapters/seecrab_adapter.py`
+- Create: `src/seeagent/api/adapters/seecrab_adapter.py`
 - Test: `tests/unit/test_seecrab_adapter.py`
 
 - [ ] **Step 1: Write the test file**
@@ -1771,7 +1771,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from openakita.api.adapters.seecrab_adapter import SeeCrabAdapter
+from seeagent.api.adapters.seecrab_adapter import SeeCrabAdapter
 
 
 async def _events_from(raw_events: list[dict], user_messages=None) -> list[dict]:
@@ -1889,7 +1889,7 @@ Expected: FAIL with ImportError
 - [ ] **Step 3: Write SeeCrabAdapter**
 
 ```python
-# src/openakita/api/adapters/seecrab_adapter.py
+# src/seeagent/api/adapters/seecrab_adapter.py
 """SeeCrabAdapter: translates raw Agent event stream → refined SSE events."""
 from __future__ import annotations
 
@@ -2119,7 +2119,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/openakita/api/adapters/seecrab_adapter.py tests/unit/test_seecrab_adapter.py
+git add src/seeagent/api/adapters/seecrab_adapter.py tests/unit/test_seecrab_adapter.py
 git commit -m "feat(seecrab): add SeeCrabAdapter core translation layer"
 ```
 
@@ -2128,15 +2128,15 @@ git commit -m "feat(seecrab): add SeeCrabAdapter core translation layer"
 ### Task 8: SeeCrab Schemas + Route
 
 **Files:**
-- Create: `src/openakita/api/schemas_seecrab.py`
-- Create: `src/openakita/api/routes/seecrab.py`
-- Modify: `src/openakita/api/server.py:258-281` (add route registration)
+- Create: `src/seeagent/api/schemas_seecrab.py`
+- Create: `src/seeagent/api/routes/seecrab.py`
+- Modify: `src/seeagent/api/server.py:258-281` (add route registration)
 - Test: `tests/integration/test_seecrab_route.py`
 
 - [ ] **Step 1: Write schemas**
 
 ```python
-# src/openakita/api/schemas_seecrab.py
+# src/seeagent/api/schemas_seecrab.py
 """Pydantic schemas for SeeCrab API."""
 from __future__ import annotations
 
@@ -2181,7 +2181,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from openakita.api.routes.seecrab import router
+from seeagent.api.routes.seecrab import router
 
 
 @pytest.fixture
@@ -2246,7 +2246,7 @@ class TestSeeCrabChat:
 - [ ] **Step 3: Write the route**
 
 ```python
-# src/openakita/api/routes/seecrab.py
+# src/seeagent/api/routes/seecrab.py
 """SeeCrab API routes: SSE streaming chat + session management."""
 from __future__ import annotations
 
@@ -2329,7 +2329,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
         )
 
     async def generate():
-        from openakita.api.adapters.seecrab_adapter import SeeCrabAdapter
+        from seeagent.api.adapters.seecrab_adapter import SeeCrabAdapter
 
         # Disconnect watcher
         disconnect_event = asyncio.Event()
@@ -2395,7 +2395,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
             # Dual-loop bridge if needed
             try:
-                from openakita.core.engine_bridge import engine_stream, is_dual_loop
+                from seeagent.core.engine_bridge import engine_stream, is_dual_loop
                 if is_dual_loop():
                     raw_stream = engine_stream(raw_stream)
             except ImportError:
@@ -2530,7 +2530,7 @@ async def answer_ask_user(body: SeeCrabAnswerRequest, request: Request):
 
 - [ ] **Step 4: Register route in server.py**
 
-Add to `src/openakita/api/server.py` after line 281 (after orgs.inbox_router):
+Add to `src/seeagent/api/server.py` after line 281 (after orgs.inbox_router):
 
 ```python
     from .routes import seecrab
@@ -2545,8 +2545,8 @@ Expected: All PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/openakita/api/schemas_seecrab.py src/openakita/api/routes/seecrab.py tests/integration/test_seecrab_route.py
-git add src/openakita/api/server.py
+git add src/seeagent/api/schemas_seecrab.py src/seeagent/api/routes/seecrab.py tests/integration/test_seecrab_route.py
+git add src/seeagent/api/server.py
 git commit -m "feat(seecrab): add SSE route and schemas"
 ```
 
@@ -2829,7 +2829,7 @@ body {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SeeCrab - OpenAkita Agent Viewer</title>
+  <title>SeeCrab - SeeAgent Agent Viewer</title>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL@20..48,100..700,0..1" rel="stylesheet" />
 </head>
 <body>
@@ -3030,7 +3030,7 @@ export const useChatStore = defineStore('chat', () => {
     currentReply.value = {
       replyId,
       agentId: 'main',
-      agentName: 'OpenAkita',
+      agentName: 'SeeAgent',
       thinking: '',
       thinkingDone: false,
       planChecklist: null,
@@ -3920,7 +3920,7 @@ git commit -m "feat(seecrab): chat components — messages, steps, thinking, pla
   <div class="welcome">
     <div class="welcome-inner">
       <h1 class="logo">🦀 SeeCrab</h1>
-      <p class="subtitle">OpenAkita Agent 实时可视化</p>
+      <p class="subtitle">SeeAgent Agent 实时可视化</p>
       <div class="shortcuts">
         <button v-for="s in shortcuts" :key="s.label" class="shortcut" @click="$emit('prefill', s.prefill)">
           <span class="material-symbols-rounded">{{ s.icon }}</span>
@@ -4166,7 +4166,7 @@ git commit -m "feat(seecrab): welcome page, detail panel, timer/markdown composa
 ### Task 14: MultiAgentAdapter (Backend)
 
 **Files:**
-- Create: `src/openakita/api/adapters/multi_agent_adapter.py`
+- Create: `src/seeagent/api/adapters/multi_agent_adapter.py`
 - Test: `tests/unit/test_multi_agent_adapter.py`
 
 - [ ] **Step 1: Write test**
@@ -4180,7 +4180,7 @@ import asyncio
 
 import pytest
 
-from openakita.api.adapters.multi_agent_adapter import MultiAgentAdapter
+from seeagent.api.adapters.multi_agent_adapter import MultiAgentAdapter
 
 
 async def _fake_stream(agent_id: str, events: list[dict]):
@@ -4279,7 +4279,7 @@ Run: `pytest tests/unit/test_multi_agent_adapter.py -x -v`
 - [ ] **Step 3: Write MultiAgentAdapter**
 
 ```python
-# src/openakita/api/adapters/multi_agent_adapter.py
+# src/seeagent/api/adapters/multi_agent_adapter.py
 """MultiAgentAdapter: merges multiple agent SSE streams into one."""
 from __future__ import annotations
 
@@ -4375,7 +4375,7 @@ Run: `pytest tests/unit/test_multi_agent_adapter.py -x -v`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/openakita/api/adapters/multi_agent_adapter.py tests/unit/test_multi_agent_adapter.py
+git add src/seeagent/api/adapters/multi_agent_adapter.py tests/unit/test_multi_agent_adapter.py
 git commit -m "feat(seecrab): add MultiAgentAdapter for stream merging"
 ```
 
@@ -4384,7 +4384,7 @@ git commit -m "feat(seecrab): add MultiAgentAdapter for stream merging"
 ### Task 15: Static File Mounting + Build Integration
 
 **Files:**
-- Modify: `src/openakita/api/server.py` (add SeeCrab static mount)
+- Modify: `src/seeagent/api/server.py` (add SeeCrab static mount)
 
 - [ ] **Step 1: Add static file mount for SeeCrab**
 
@@ -4421,12 +4421,12 @@ cd apps/seecrab && npm run build
 
 - [ ] **Step 3: Verify end-to-end**
 
-Start backend (`python -m openakita serve`), open `http://localhost:18900/seecrab/`.
+Start backend (`python -m seeagent serve`), open `http://localhost:18900/seecrab/`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/openakita/api/server.py
+git add src/seeagent/api/server.py
 git commit -m "feat(seecrab): mount frontend static files"
 ```
 
@@ -4444,7 +4444,7 @@ Expected: All PASS
 - [ ] **Step 2: Run ruff lint**
 
 ```bash
-ruff check src/openakita/api/adapters/ src/openakita/api/routes/seecrab.py src/openakita/api/schemas_seecrab.py
+ruff check src/seeagent/api/adapters/ src/seeagent/api/routes/seecrab.py src/seeagent/api/schemas_seecrab.py
 ```
 Expected: No errors
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# OpenAkita 一键部署脚本 (Linux/macOS)
+# SeeAgent 一键部署脚本 (Linux/macOS)
 #
 # 使用方式:
 #   chmod +x scripts/deploy.sh
@@ -19,7 +19,7 @@ set -e  # 遇错退出
 # 配置区域
 # =====================================================
 PYTHON_MIN_VERSION="3.11"
-PROJECT_NAME="openakita"
+PROJECT_NAME="seeagent"
 
 # 颜色定义
 RED='\033[0;31m'
@@ -435,7 +435,7 @@ init_identity_templates() {
         cat > "identity/SOUL.md" << 'SOULEOF'
 # Agent Soul
 
-你是 OpenAkita，一个忠诚可靠的 AI 助手。
+你是 SeeAgent，一个忠诚可靠的 AI 助手。
 
 ## 核心特质
 - 永不放弃，持续尝试直到成功
@@ -458,7 +458,7 @@ create_env_file() {
     else
         cat > .env << 'EOF'
 # =====================================================
-# OpenAkita 基础配置
+# SeeAgent 基础配置
 # =====================================================
 
 # LLM API（推荐使用 data/llm_endpoints.json 管理多端点）
@@ -468,7 +468,7 @@ DEFAULT_MODEL=claude-opus-4-5-20251101-thinking
 MAX_TOKENS=8192
 
 # Agent 配置
-AGENT_NAME=OpenAkita
+AGENT_NAME=SeeAgent
 MAX_ITERATIONS=100
 AUTO_CONFIRM=false
 
@@ -547,7 +547,7 @@ WHISPER_LANGUAGE=zh
 # =====================================================
 # 注意: LLM 相关配置已迁移到 data/llm_endpoints.json
 # 支持多端点、自动故障切换、能力路由
-# 运行 openakita llm-config 进行交互式配置
+# 运行 seeagent llm-config 进行交互式配置
 EOF
         print_success "配置文件已创建: .env"
     fi
@@ -585,7 +585,7 @@ init_llm_endpoints() {
 EOF
         print_success "LLM 端点配置已创建: $llm_config"
     fi
-    print_info "提示: 通过 Setup Center 或 openakita llm-config 添加 LLM 端点"
+    print_info "提示: 通过 Setup Center 或 seeagent llm-config 添加 LLM 端点"
     print_info "提示: 可添加多个端点实现自动故障切换"
 }
 
@@ -661,7 +661,7 @@ create_systemd_service() {
     fi
     
     local service_content="[Unit]
-Description=OpenAkita Telegram Bot
+Description=SeeAgent Telegram Bot
 After=network.target
 
 [Service]
@@ -676,15 +676,15 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target"
     
-    local service_file="openakita.service"
+    local service_file="seeagent.service"
     echo "$service_content" > "$service_file"
     print_success "服务文件已创建: $service_file"
     
     print_info "安装服务的命令:"
     echo "  sudo cp $service_file /etc/systemd/system/"
     echo "  sudo systemctl daemon-reload"
-    echo "  sudo systemctl enable openakita"
-    echo "  sudo systemctl start openakita"
+    echo "  sudo systemctl enable seeagent"
+    echo "  sudo systemctl start seeagent"
 }
 
 # 显示完成信息
@@ -697,7 +697,7 @@ show_completion() {
     echo -e "${YELLOW}后续步骤:${NC}"
     echo ""
     echo -e "  1. 配置 LLM 端点 (二选一):"
-    echo -e "     ${CYAN}openakita llm-config${NC}  # 交互式配置向导"
+    echo -e "     ${CYAN}seeagent llm-config${NC}  # 交互式配置向导"
     echo -e "     ${CYAN}nano data/llm_endpoints.json${NC}  # 直接编辑"
     echo ""
     echo -e "  2. (可选) 配置 Telegram:"
@@ -707,8 +707,8 @@ show_completion() {
     echo -e "     ${CYAN}source venv/bin/activate${NC}"
     echo ""
     echo -e "  4. 启动 Agent:"
-    echo -e "     ${CYAN}openakita${NC}        # 交互模式"
-    echo -e "     ${CYAN}openakita serve${NC}  # 服务模式 (Telegram/IM)"
+    echo -e "     ${CYAN}seeagent${NC}        # 交互模式"
+    echo -e "     ${CYAN}seeagent serve${NC}  # 服务模式 (Telegram/IM)"
     echo ""
     echo -e "${BLUE}新特性:${NC}"
     echo -e "  - 多 LLM 端点支持，自动故障切换"
@@ -725,7 +725,7 @@ show_completion() {
 main() {
     echo ""
     echo -e "${MAGENTA}╔════════════════════════════════════════╗"
-    echo -e "║   OpenAkita 一键部署脚本 (Linux/macOS)   ║"
+    echo -e "║   SeeAgent 一键部署脚本 (Linux/macOS)   ║"
     echo -e "╚════════════════════════════════════════╝${NC}"
     echo ""
     

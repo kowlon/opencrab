@@ -7,7 +7,7 @@ Usage:
     python scripts/feedback.py download <report_id> [--output DIR]
     python scripts/feedback.py stats [--days N]
 
-Credentials are read from environment variables or ~/.openakita/feedback.env:
+Credentials are read from environment variables or ~/.seeagent/feedback.env:
     OSS_ENDPOINT, OSS_BUCKET, OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET
 """
 
@@ -28,8 +28,8 @@ except ImportError:
 
 
 def _load_env() -> None:
-    """Load credentials from ~/.openakita/feedback.env if it exists."""
-    env_file = Path.home() / ".openakita" / "feedback.env"
+    """Load credentials from ~/.seeagent/feedback.env if it exists."""
+    env_file = Path.home() / ".seeagent" / "feedback.env"
     if not env_file.exists():
         return
     for line in env_file.read_text(encoding="utf-8").splitlines():
@@ -50,7 +50,7 @@ def _get_bucket() -> oss2.Bucket:
     missing = [k for k in required if not os.environ.get(k)]
     if missing:
         print(f"Error: missing environment variables: {', '.join(missing)}", file=sys.stderr)
-        print(f"Set them or create ~/.openakita/feedback.env", file=sys.stderr)
+        print(f"Set them or create ~/.seeagent/feedback.env", file=sys.stderr)
         sys.exit(1)
 
     auth = oss2.Auth(os.environ["OSS_ACCESS_KEY_ID"], os.environ["OSS_ACCESS_KEY_SECRET"])
@@ -201,7 +201,7 @@ def cmd_stats(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Manage OpenAkita feedback reports stored in Alibaba Cloud OSS",
+        description="Manage SeeAgent feedback reports stored in Alibaba Cloud OSS",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

@@ -14,8 +14,8 @@ from unittest.mock import MagicMock
 sys.path.insert(0, str(Path(__file__).parent.parent / "fixtures"))
 from mock_llm import MockLLMClient, MockResponse, MockBrain
 
-from openakita.core.task_monitor import TaskMonitor, TaskMetrics
-from openakita.core.ralph import Task, TaskResult, TaskStatus
+from seeagent.core.task_monitor import TaskMonitor, TaskMetrics
+from seeagent.core.ralph import Task, TaskResult, TaskStatus
 
 
 class TestSearchThenSummarize:
@@ -191,20 +191,20 @@ class TestToolChainWithMemory:
 
         client.preset_sequence([
             MockResponse(content="", tool_calls=[
-                {"name": "web_search", "input": {"query": "OpenAkita features"}},
+                {"name": "web_search", "input": {"query": "SeeAgent features"}},
             ]),
             MockResponse(content="", tool_calls=[
-                {"name": "remember", "input": {"content": "OpenAkita 是一个 AI Agent 框架", "importance": 4}},
+                {"name": "remember", "input": {"content": "SeeAgent 是一个 AI Agent 框架", "importance": 4}},
             ]),
-            MockResponse(content="我已经搜索并记住了 OpenAkita 的特性。"),
+            MockResponse(content="我已经搜索并记住了 SeeAgent 的特性。"),
         ])
 
-        r1 = client.chat_sync([{"role": "user", "content": "了解一下 OpenAkita"}])
+        r1 = client.chat_sync([{"role": "user", "content": "了解一下 SeeAgent"}])
         assert r1.tool_calls[0].name == "web_search"
 
-        r2 = client.chat_sync([{"role": "tool", "content": "OpenAkita is an AI agent framework"}])
+        r2 = client.chat_sync([{"role": "tool", "content": "SeeAgent is an AI agent framework"}])
         assert r2.tool_calls[0].name == "remember"
 
         r3 = client.chat_sync([{"role": "tool", "content": "Memory saved"}])
         text = r3.content[0].text if hasattr(r3.content, '__iter__') and r3.content else str(r3.content)
-        assert "记住" in text or "OpenAkita" in text
+        assert "记住" in text or "SeeAgent" in text

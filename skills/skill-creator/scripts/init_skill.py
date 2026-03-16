@@ -21,7 +21,7 @@ from pathlib import Path
 MAX_SKILL_NAME_LENGTH = 64
 ALLOWED_RESOURCES = {"scripts", "references", "assets"}
 
-OPENAKITA_ENV = os.environ.get("OPENAKITA") == "1"
+SEEAGENT_ENV = os.environ.get("SEEAGENT") == "1"
 
 
 SKILL_TEMPLATE = """---
@@ -247,7 +247,7 @@ def write_openai_yaml(skill_dir, skill_name, display_name=None, short_descriptio
         f"  default_prompt: {yaml_quote(f'Use ${skill_name} to help me with this task')}",
     ]
 
-    if OPENAKITA_ENV:
+    if SEEAGENT_ENV:
         lines.extend([
             "",
             "i18n:",
@@ -365,7 +365,7 @@ def init_skill(skill_name, path, resources=None, include_examples=False):
     print("\nNext steps:")
     print("1. Edit SKILL.md to complete the TODO items and update the description")
     print("2. Update agents/openai.yaml with display metadata" + (
-        " and i18n" if OPENAKITA_ENV else ""))
+        " and i18n" if SEEAGENT_ENV else ""))
     if resources:
         if include_examples:
             print("3. Customize or delete the example files in resource directories")

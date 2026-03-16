@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from openakita.orgs.templates import (
+from seeagent.orgs.templates import (
     ALL_TEMPLATES,
     CONTENT_OPS,
     SOFTWARE_TEAM,
@@ -15,7 +15,7 @@ from openakita.orgs.templates import (
     TEMPLATE_POLICY_MAP,
     ensure_builtin_templates,
 )
-from openakita.orgs.models import Organization, OrgNode, OrgEdge
+from seeagent.orgs.models import Organization, OrgNode, OrgEdge
 
 
 class TestTemplateData:

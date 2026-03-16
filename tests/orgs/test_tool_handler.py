@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
 
-from openakita.orgs.tool_handler import OrgToolHandler
-from openakita.orgs.models import MsgType, MemoryScope
+from seeagent.orgs.tool_handler import OrgToolHandler
+from seeagent.orgs.models import MsgType, MemoryScope
 
 
 @pytest.fixture()
@@ -197,7 +197,7 @@ class TestPolicyTools:
 
 class TestHRScalingTools:
     async def test_request_clone(self, handler: OrgToolHandler, persisted_org, mock_runtime):
-        from openakita.orgs.scaler import OrgScaler
+        from seeagent.orgs.scaler import OrgScaler
         scaler = OrgScaler(mock_runtime)
         mock_runtime.get_scaler = MagicMock(return_value=scaler)
         mock_runtime._save_org = AsyncMock()
@@ -209,7 +209,7 @@ class TestHRScalingTools:
         assert "克隆" in result
 
     async def test_request_recruit(self, handler: OrgToolHandler, persisted_org, mock_runtime):
-        from openakita.orgs.scaler import OrgScaler
+        from seeagent.orgs.scaler import OrgScaler
         scaler = OrgScaler(mock_runtime)
         mock_runtime.get_scaler = MagicMock(return_value=scaler)
         result = await handler.handle(
@@ -224,7 +224,7 @@ class TestHRScalingTools:
         assert "招募" in result or "申请" in result
 
     async def test_dismiss_node(self, handler: OrgToolHandler, persisted_org, mock_runtime):
-        from openakita.orgs.scaler import OrgScaler
+        from seeagent.orgs.scaler import OrgScaler
         scaler = OrgScaler(mock_runtime)
         mock_runtime.get_scaler = MagicMock(return_value=scaler)
         mock_runtime._save_org = AsyncMock()
@@ -254,7 +254,7 @@ class TestScheduleTools:
         assert "暂无" in result or isinstance(result, str)
 
     async def test_create_schedule(self, handler: OrgToolHandler, persisted_org, mock_runtime):
-        from openakita.orgs.inbox import OrgInbox
+        from seeagent.orgs.inbox import OrgInbox
         inbox = OrgInbox(mock_runtime)
         mock_runtime.get_inbox = MagicMock(return_value=inbox)
         result = await handler.handle(
@@ -276,7 +276,7 @@ class TestScheduleTools:
 
 class TestPolicyProposal:
     async def test_propose_policy(self, handler: OrgToolHandler, persisted_org, mock_runtime):
-        from openakita.orgs.inbox import OrgInbox
+        from seeagent.orgs.inbox import OrgInbox
         inbox = OrgInbox(mock_runtime)
         mock_runtime.get_inbox = MagicMock(return_value=inbox)
         result = await handler.handle(

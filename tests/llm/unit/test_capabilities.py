@@ -5,7 +5,7 @@ UT-C01 ~ UT-C12
 """
 
 import pytest
-from openakita.llm.capabilities import (
+from seeagent.llm.capabilities import (
     infer_capabilities,
     get_provider_slug_from_base_url,
     MODEL_CAPABILITIES,

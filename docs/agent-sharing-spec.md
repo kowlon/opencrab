@@ -2,7 +2,7 @@
 
 ## 概述
 
-本规范定义了 OpenAkita Agent 包（`.akita-agent`）的格式标准，用于在用户之间共享完整的 AI Agent 配置，包括提示词、技能和元数据。
+本规范定义了 SeeAgent Agent 包（`.akita-agent`）的格式标准，用于在用户之间共享完整的 AI Agent 配置，包括提示词、技能和元数据。
 
 ## 包格式
 
@@ -74,7 +74,7 @@
 | `category` | string | 否 | 分类 ID |
 | `tags` | string[] | 否 | 标签数组 |
 | `license` | string | 否 | 许可证标识符，默认 `"MIT"` |
-| `min_platform_version` | string | 否 | 要求的最低 OpenAkita 版本 |
+| `min_platform_version` | string | 否 | 要求的最低 SeeAgent 版本 |
 | `bundled_skills` | string[] | 否 | 包内捆绑的技能目录名列表 |
 | `required_builtin_skills` | string[] | 否 | 依赖的内置技能名称列表 |
 | `created_at` | string | 是 | ISO 8601 创建时间 |
@@ -89,7 +89,7 @@
 
 ## profile.json
 
-Agent 运行时配置，与 OpenAkita 的 `AgentProfile` 数据结构对应：
+Agent 运行时配置，与 SeeAgent 的 `AgentProfile` 数据结构对应：
 
 ```json
 {
@@ -117,7 +117,7 @@ Agent 运行时配置，与 OpenAkita 的 `AgentProfile` 数据结构对应：
 
 ## skills/ 目录
 
-捆绑技能遵循标准的 OpenAkita Skill 格式。每个子目录代表一个技能，必须包含 `SKILL.md` 文件。
+捆绑技能遵循标准的 SeeAgent Skill 格式。每个子目录代表一个技能，必须包含 `SKILL.md` 文件。
 
 ### SKILL.md 格式
 

@@ -165,7 +165,7 @@ Qwen3 的 thinking 可能以 `<think>...</think>` 标签形式出现在 content 
 
 ### 1. 文本格式工具调用解析
 
-位置：`src/openakita/llm/converters/tools.py`
+位置：`src/seeagent/llm/converters/tools.py`
 
 支持的格式：
 - `<function_calls>` 通用格式
@@ -182,7 +182,7 @@ def parse_text_tool_calls(text: str) -> tuple[str, list[ToolUseBlock]]:
 
 ### 2. Thinking 标签清理
 
-位置：`src/openakita/core/agent.py`
+位置：`src/seeagent/core/agent.py`
 
 ```python
 def strip_thinking_tags(text: str) -> str:
@@ -197,7 +197,7 @@ def strip_thinking_tags(text: str) -> str:
 
 ### 3. Provider 层处理
 
-位置：`src/openakita/llm/providers/anthropic.py`
+位置：`src/seeagent/llm/providers/anthropic.py`
 
 Anthropic provider 在 `_parse_response()` 中：
 1. 首先检查标准 `tool_use` block

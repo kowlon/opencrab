@@ -13,12 +13,12 @@
 ### Task 1: Backend — Add PATCH endpoint for session metadata
 
 **Files:**
-- Modify: `src/openakita/api/routes/seecrab.py:307` (insert before `delete_session`)
-- Modify: `src/openakita/api/schemas_seecrab.py:22` (add request schema)
+- Modify: `src/seeagent/api/routes/seecrab.py:307` (insert before `delete_session`)
+- Modify: `src/seeagent/api/schemas_seecrab.py:22` (add request schema)
 
 **Step 1: Add the Pydantic schema for PATCH request**
 
-In `src/openakita/api/schemas_seecrab.py`, add after `SeeCrabChatRequest` class (before `SeeCrabAnswerRequest`):
+In `src/seeagent/api/schemas_seecrab.py`, add after `SeeCrabChatRequest` class (before `SeeCrabAnswerRequest`):
 
 ```python
 class SeeCrabSessionUpdateRequest(BaseModel):
@@ -29,7 +29,7 @@ class SeeCrabSessionUpdateRequest(BaseModel):
 
 **Step 2: Add the PATCH route**
 
-In `src/openakita/api/routes/seecrab.py`, add before the `delete_session` route (before line 307):
+In `src/seeagent/api/routes/seecrab.py`, add before the `delete_session` route (before line 307):
 
 ```python
 @router.patch("/sessions/{session_id}")
@@ -60,13 +60,13 @@ from ..schemas_seecrab import SeeCrabAnswerRequest, SeeCrabChatRequest, SeeCrabS
 
 **Step 3: Verify manually**
 
-Run: `ruff check src/openakita/api/routes/seecrab.py src/openakita/api/schemas_seecrab.py`
+Run: `ruff check src/seeagent/api/routes/seecrab.py src/seeagent/api/schemas_seecrab.py`
 Expected: No errors
 
 **Step 4: Commit**
 
 ```bash
-git add src/openakita/api/routes/seecrab.py src/openakita/api/schemas_seecrab.py
+git add src/seeagent/api/routes/seecrab.py src/seeagent/api/schemas_seecrab.py
 git commit -m "feat(seecrab): add PATCH /sessions/{id} endpoint for title update"
 ```
 
@@ -263,7 +263,7 @@ git commit -m "fix(seecrab): pass thinking_mode through SSE client to backend"
 
 **Step 1: Run backend lint**
 
-Run: `ruff check src/openakita/api/routes/seecrab.py src/openakita/api/schemas_seecrab.py`
+Run: `ruff check src/seeagent/api/routes/seecrab.py src/seeagent/api/schemas_seecrab.py`
 Expected: No errors
 
 **Step 2: Run frontend type check**

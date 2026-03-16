@@ -1,6 +1,6 @@
 ---
 name: install-hub-agent
-description: Download and install an Agent from the OpenAkita Platform Agent Store
+description: Download and install an Agent from the SeeAgent Platform Agent Store
 system: true
 handler: agent_hub
 tool-name: install_hub_agent
@@ -9,7 +9,7 @@ category: Platform
 
 # install-hub-agent
 
-Download and install an Agent from the OpenAkita Platform Agent Store to the local system.
+Download and install an Agent from the SeeAgent Platform Agent Store to the local system.
 
 ## When to Use
 
@@ -47,7 +47,7 @@ Download and install an Agent from the OpenAkita Platform Agent Store to the loc
 - Installed Agents appear in the local Agent list immediately
 - Bundled skills go to `skills/custom/`, external skills go to `skills/community/`
 - Skills are version-deduplicated: if a newer version already exists locally, it is kept
-- Each installed skill gets a `.openakita-origin.json` tracking its source and version
+- Each installed skill gets a `.seeagent-origin.json` tracking its source and version
 - The Agent's `hub_source` field records where it came from
 
 ## Fallback

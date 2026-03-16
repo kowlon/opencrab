@@ -3,8 +3,8 @@
 import pytest
 from pathlib import Path
 
-from openakita.sessions.manager import SessionManager
-from openakita.sessions.session import SessionState
+from seeagent.sessions.manager import SessionManager
+from seeagent.sessions.session import SessionState
 
 
 @pytest.fixture

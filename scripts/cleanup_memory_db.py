@@ -1,5 +1,5 @@
 """
-清理 openakita.db 中的垃圾记忆数据。
+清理 seeagent.db 中的垃圾记忆数据。
 
 1. 删除 "成功完成:" / "任务 '" 前缀的垃圾 skill
 2. persona_trait 同 dimension 只保留最新一条
@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(line_buffering=True)
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "memory" / "openakita.db"
+DB_PATH = Path(__file__).resolve().parent.parent / "data" / "memory" / "seeagent.db"
 
 
 def cleanup():

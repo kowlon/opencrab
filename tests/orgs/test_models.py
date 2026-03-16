@@ -1,10 +1,10 @@
-"""Tests for openakita.orgs.models — dataclasses, enums, serialization."""
+"""Tests for seeagent.orgs.models — dataclasses, enums, serialization."""
 
 from __future__ import annotations
 
 import pytest
 
-from openakita.orgs.models import (
+from seeagent.orgs.models import (
     EdgeType,
     InboxMessage,
     InboxPriority,

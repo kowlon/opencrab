@@ -1,0 +1,1093 @@
+"""
+Prompt Builder - 消息组装模块
+
+组装最终的系统提示词，整合编译产物、清单和记忆。
+
+组装顺序:
+1. Identity 层: soul.summary + agent.core + agent.tooling + policies
+2. Persona 层: 当前人格描述（预设 + 用户自定义 + 上下文适配）
+3. Runtime 层: runtime_facts (OS/CWD/时间)
+4. Catalogs 层: tools + skills + mcp 清单
+5. Memory 层: retriever 输出
+6. User 层: user.summary
+"""
+
+import logging
+import os
+import platform
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
+
+from .budget import BudgetConfig, apply_budget, estimate_tokens
+from .compiler import check_compiled_outdated, compile_all, get_compiled_content
+from .retriever import retrieve_memory
+
+if TYPE_CHECKING:
+    from ..core.persona import PersonaManager
+    from ..memory import MemoryManager
+    from ..skills.catalog import SkillCatalog
+    from ..tools.catalog import ToolCatalog
+    from ..tools.mcp_catalog import MCPCatalog
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# 系统策略（代码硬编码，升级自动生效，用户不可删除）
+# 新增系统级规则只需在此追加，无需迁移用户文件。
+# ---------------------------------------------------------------------------
+_SYSTEM_POLICIES = """\
+## 三条红线（必须遵守）
+1. **不编造**：不确定的信息必须说明是推断，不能假装成事实
+2. **不假装执行**：必须真正调用工具，不能只说"我会..."而不行动
+3. **需要外部信息时必须查**：不能凭记忆回答需要实时数据的问题
+
+## 意图声明（每次纯文本回复必须遵守）
+当你的回复**不包含工具调用**时，第一行必须是以下标记之一：
+- `[ACTION]` — 你需要调用工具来完成用户的请求
+- `[REPLY]` — 这是纯对话回复，不需要调用任何工具
+
+此标记由系统自动移除，用户不会看到。调用工具时不需要此标记。
+
+## 切换模型的工具上下文隔离
+- 切换模型后，之前的 tool_use/tool_result 证据链视为不可见
+- 不得假设浏览器/MCP/桌面等 stateful 状态仍然存在
+- 执行 stateful 工具前，必须先做状态复核"""
+
+# ---------------------------------------------------------------------------
+# 用户策略默认值（policies.md 不存在时的 fallback）
+# ---------------------------------------------------------------------------
+_DEFAULT_USER_POLICIES = """\
+## 工具选择优先级（严格遵守）
+收到任务后，按以下顺序决策：
+1. **技能优先**：查已有技能清单，有匹配的直接用
+2. **获取技能**：没有合适技能 → 搜索网络安装，或自己编写 SKILL.md 并加载
+3. **持久化规则**：同类操作第二次出现时，必须封装为技能
+4. **内置工具**：使用系统内置工具完成任务
+5. **临时脚本**：一次性数据处理/格式转换 → 写文件+执行
+6. **Shell 命令**：仅用于简单系统查询、安装包等一行命令
+
+## 边界条件
+- **工具不可用时**：可以纯文本完成，解释限制并给出手动步骤
+- **关键输入缺失时**：调用 `ask_user` 工具进行澄清提问
+- **技能配置缺失时**：主动辅助用户完成配置，不要直接拒绝
+- **任务失败时**：说明原因 + 替代建议 + 需要用户提供什么
+- **ask_user 超时**：系统等待约 2 分钟，未回复则自行决策或终止
+
+## 记忆与事实
+- 用户提到"之前/上次/我说过" → 主动 search_memory 查记忆
+- 涉及用户偏好的任务 → 先查记忆和 profile 再行动
+- 工具查到的信息 = 事实；凭知识回答需说明
+
+## 输出格式
+**任务型回复**：已执行 → 发现 → 下一步（如有）
+**陪伴型回复**：自然对话，符合当前角色风格"""
+
+
+# ---------------------------------------------------------------------------
+# AGENTS.md — 项目级开发规范（行业标准，https://agents.md）
+# 从当前工作目录向上查找，自动注入系统提示词。
+# 非代码项目不会有此文件，读取逻辑静默跳过。
+# ---------------------------------------------------------------------------
+_agents_md_cache: dict[str, tuple[float, str | None]] = {}
+_AGENTS_MD_CACHE_TTL = 60.0
+_AGENTS_MD_MAX_CHARS = 8000
+_AGENTS_MD_MAX_DEPTH = 3
+
+
+def _read_agents_md(
+    cwd: str | None = None,
+    *,
+    max_depth: int = _AGENTS_MD_MAX_DEPTH,
+    max_chars: int = _AGENTS_MD_MAX_CHARS,
+) -> str | None:
+    """Read AGENTS.md from *cwd* or its parent directories.
+
+    Uses a simple TTL cache to avoid repeated disk I/O on every prompt build.
+    Returns the file content (truncated to *max_chars*) or ``None``.
+    """
+    if cwd is None:
+        cwd = os.getcwd()
+
+    now = time.monotonic()
+    cached = _agents_md_cache.get(cwd)
+    if cached is not None:
+        ts, content = cached
+        if now - ts < _AGENTS_MD_CACHE_TTL:
+            return content
+
+    content = _find_agents_md(cwd, max_depth=max_depth, max_chars=max_chars)
+    _agents_md_cache[cwd] = (now, content)
+    return content
+
+
+def _find_agents_md(cwd: str, *, max_depth: int, max_chars: int) -> str | None:
+    """Walk up from *cwd* looking for an AGENTS.md file."""
+    current = Path(cwd).resolve()
+    for _ in range(max_depth):
+        agents_file = current / "AGENTS.md"
+        if agents_file.is_file():
+            try:
+                raw = agents_file.read_text(encoding="utf-8", errors="ignore")
+                content = raw[:max_chars] if len(raw) > max_chars else raw
+                logger.info("Loaded project AGENTS.md from %s (%d chars)", agents_file, len(content))
+                return content.strip() or None
+            except OSError:
+                return None
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return None
+
+
+def build_system_prompt(
+    identity_dir: Path,
+    tools_enabled: bool = True,
+    tool_catalog: Optional["ToolCatalog"] = None,
+    skill_catalog: Optional["SkillCatalog"] = None,
+    mcp_catalog: Optional["MCPCatalog"] = None,
+    memory_manager: Optional["MemoryManager"] = None,
+    task_description: str = "",
+    budget_config: BudgetConfig | None = None,
+    include_tools_guide: bool = False,
+    session_type: str = "cli",  # 建议 8: 区分 CLI/IM
+    precomputed_memory: str | None = None,
+    persona_manager: Optional["PersonaManager"] = None,
+) -> str:
+    """
+    组装系统提示词
+
+    Args:
+        identity_dir: identity 目录路径
+        tools_enabled: 是否启用工具（影响 agent.tooling 注入）
+        tool_catalog: ToolCatalog 实例（用于生成工具清单）
+        skill_catalog: SkillCatalog 实例（用于生成技能清单）
+        mcp_catalog: MCPCatalog 实例（用于 MCP 清单）
+        memory_manager: MemoryManager 实例（用于记忆检索）
+        task_description: 任务描述（用于记忆检索）
+        budget_config: 预算配置
+        include_tools_guide: 是否包含工具使用指南（向后兼容）
+        session_type: 会话类型 "cli" 或 "im"（建议 8）
+
+    Returns:
+        完整的系统提示词
+    """
+    if budget_config is None:
+        budget_config = BudgetConfig()
+
+    # 目标：在单个 system_prompt 字符串内显式分段，模拟 system/developer/user/tool 结构
+    system_parts: list[str] = []
+    developer_parts: list[str] = []
+    tool_parts: list[str] = []
+    user_parts: list[str] = []
+
+    # 1. 检查并加载编译产物
+    if check_compiled_outdated(identity_dir):
+        logger.info("Compiled files outdated, recompiling...")
+        compile_all(identity_dir)
+
+    compiled = get_compiled_content(identity_dir)
+
+    # 2. 构建 Identity 层
+    identity_section = _build_identity_section(
+        compiled=compiled,
+        identity_dir=identity_dir,
+        tools_enabled=tools_enabled,
+        budget_tokens=budget_config.identity_budget,
+    )
+    if identity_section:
+        system_parts.append(identity_section)
+
+    # 2.5 构建 Persona 层（新增: 在 Identity 和 Runtime 之间）
+    if persona_manager:
+        persona_section = _build_persona_section(persona_manager)
+        if persona_section:
+            system_parts.append(persona_section)
+
+    # 3. 构建 Runtime 层
+    runtime_section = _build_runtime_section()
+    system_parts.append(runtime_section)
+
+    # 3.5 构建会话类型规则（建议 8）
+    persona_active = persona_manager.is_persona_active() if persona_manager else False
+    session_rules = _build_session_type_rules(session_type, persona_active=persona_active)
+    if session_rules:
+        developer_parts.append(session_rules)
+
+    # 3.6 注入项目 AGENTS.md（行业标准，仅代码项目会有此文件）
+    agents_md_content = _read_agents_md()
+    if agents_md_content:
+        developer_parts.append(
+            "## Project Guidelines (AGENTS.md)\n\n"
+            "以下是当前工作目录中的项目开发规范，执行开发任务时必须遵循：\n\n"
+            + agents_md_content
+        )
+
+    # 4. 构建 Catalogs 层
+    catalogs_section = _build_catalogs_section(
+        tool_catalog=tool_catalog,
+        skill_catalog=skill_catalog,
+        mcp_catalog=mcp_catalog,
+        budget_tokens=budget_config.catalogs_budget,
+        include_tools_guide=include_tools_guide,
+    )
+    if catalogs_section:
+        tool_parts.append(catalogs_section)
+
+    # 5. 构建 Memory 层（支持预计算的异步结果，避免阻塞事件循环）
+    if precomputed_memory is not None:
+        memory_section = precomputed_memory
+    else:
+        memory_section = _build_memory_section(
+            memory_manager=memory_manager,
+            task_description=task_description,
+            budget_tokens=budget_config.memory_budget,
+        )
+    if memory_section:
+        developer_parts.append(memory_section)
+
+    # 6. 构建 User 层
+    user_section = _build_user_section(
+        compiled=compiled,
+        budget_tokens=budget_config.user_budget,
+    )
+    if user_section:
+        user_parts.append(user_section)
+
+    # 组装最终提示词
+    sections: list[str] = []
+    if system_parts:
+        sections.append("## System\n\n" + "\n\n".join(system_parts))
+    if developer_parts:
+        sections.append("## Developer\n\n" + "\n\n".join(developer_parts))
+    if user_parts:
+        sections.append("## User\n\n" + "\n\n".join(user_parts))
+    if tool_parts:
+        sections.append("## Tool\n\n" + "\n\n".join(tool_parts))
+
+    system_prompt = "\n\n---\n\n".join(sections)
+
+    # 记录 token 统计
+    total_tokens = estimate_tokens(system_prompt)
+    logger.info(f"System prompt built: {total_tokens} tokens")
+
+    return system_prompt
+
+
+def _build_persona_section(persona_manager: "PersonaManager") -> str:
+    """
+    构建 Persona 层
+
+    位于 Identity 和 Runtime 之间，注入当前人格描述。
+
+    Args:
+        persona_manager: PersonaManager 实例
+
+    Returns:
+        人格描述文本
+    """
+    try:
+        return persona_manager.get_persona_prompt_section()
+    except Exception as e:
+        logger.warning(f"Failed to build persona section: {e}")
+        return ""
+
+
+def _build_identity_section(
+    compiled: dict[str, str],
+    identity_dir: Path,
+    tools_enabled: bool,
+    budget_tokens: int,
+) -> str:
+    """构建 Identity 层
+
+    SOUL.md 全文注入（只清理 HTML 注释），保留哲学基调和情感共鸣。
+    AGENT 行为规范使用手写的 runtime 精简版（agent.core.md / agent.tooling.md）。
+    """
+    import re
+
+    parts = []
+
+    # 标题
+    parts.append("# SeeAgent System")
+    parts.append("")
+
+    # SOUL — 全文注入（~60% 预算），保留叙事和价值共鸣
+    soul_path = identity_dir / "SOUL.md"
+    if soul_path.exists():
+        soul_raw = soul_path.read_text(encoding="utf-8")
+        soul_clean = re.sub(r"<!--.*?-->", "", soul_raw, flags=re.DOTALL).strip()
+        soul_result = apply_budget(soul_clean, budget_tokens * 60 // 100, "soul")
+        parts.append(soul_result.content)
+        parts.append("")
+    elif compiled.get("soul"):
+        # fallback: 如果只有编译版（如旧目录结构），仍然可用
+        parts.append(compiled["soul"])
+        parts.append("")
+
+    # Agent core (~12%) — 手写的核心执行原则精简版
+    if compiled.get("agent_core"):
+        core_result = apply_budget(compiled["agent_core"], budget_tokens * 12 // 100, "agent_core")
+        parts.append(core_result.content)
+        parts.append("")
+
+    # Agent tooling (~8%, only if tools enabled)
+    if tools_enabled and compiled.get("agent_tooling"):
+        tooling_result = apply_budget(
+            compiled["agent_tooling"], budget_tokens * 8 // 100, "agent_tooling"
+        )
+        parts.append(tooling_result.content)
+        parts.append("")
+
+    # Policies (~20%) = 系统策略（代码层，不可删除）+ 用户策略（文件层，可定制）
+    policies_path = identity_dir / "prompts" / "policies.md"
+    if policies_path.exists():
+        user_policies = policies_path.read_text(encoding="utf-8")
+    else:
+        user_policies = _DEFAULT_USER_POLICIES
+        logger.warning("policies.md not found, using built-in defaults")
+    merged_policies = _merge_policies(_SYSTEM_POLICIES, user_policies)
+    policies_result = apply_budget(merged_policies, budget_tokens * 20 // 100, "policies")
+    parts.append(policies_result.content)
+
+    return "\n".join(parts)
+
+
+def _merge_policies(system: str, user: str) -> str:
+    """合并系统策略和用户策略，去除用户文件中与系统策略重复的段落。
+
+    系统策略中的每个 ``## 标题`` 段落被视为权威版本。
+    如果用户文件中包含相同标题的段落，以系统版本为准（去重）。
+    """
+    import re
+
+    _SECTION_RE = re.compile(r"^## .+", re.MULTILINE)
+
+    system_titles = {m.group().strip() for m in _SECTION_RE.finditer(system)}
+
+    # 按 ## 标题切分用户策略，保留不与系统策略重复的段落
+    user_clean = user.strip()
+    # 去掉用户文件可能的顶级标题 (# SeeAgent Policies 等)
+    user_clean = re.sub(r"^#\s+[^\n]+\n*", "", user_clean).strip()
+
+    if not system_titles:
+        return f"# SeeAgent Policies\n\n{system}\n\n{user_clean}"
+
+    kept_sections: list[str] = []
+    sections = re.split(r"(?=^## )", user_clean, flags=re.MULTILINE)
+    for section in sections:
+        section_stripped = section.strip()
+        if not section_stripped:
+            continue
+        title_match = _SECTION_RE.match(section_stripped)
+        if title_match and title_match.group().strip() in system_titles:
+            continue
+        kept_sections.append(section_stripped)
+
+    parts = ["# SeeAgent Policies", "", system.strip()]
+    if kept_sections:
+        parts.append("")
+        parts.append("\n\n".join(kept_sections))
+    return "\n".join(parts)
+
+
+def _get_current_time(timezone_name: str = "Asia/Shanghai") -> str:
+    """获取指定时区的当前时间，避免依赖服务器本地时区"""
+    from datetime import timedelta, timezone
+
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo(timezone_name)
+    except Exception:
+        tz = timezone(timedelta(hours=8))
+    return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _build_runtime_section() -> str:
+    """构建 Runtime 层（运行时信息）"""
+    import locale as _locale
+    import shutil as _shutil
+    import sys as _sys
+
+    from ..config import settings
+    from ..runtime_env import (
+        IS_FROZEN,
+        can_pip_install,
+        get_configured_venv_path,
+        get_python_executable,
+        verify_python_executable,
+    )
+
+    current_time = _get_current_time(settings.scheduler_timezone)
+
+    # --- 部署模式与 Python 环境 ---
+    deploy_mode = _detect_deploy_mode()
+    ext_python = get_python_executable()
+    pip_ok = can_pip_install()
+    venv_path = get_configured_venv_path()
+
+    python_info = _build_python_info(IS_FROZEN, ext_python, pip_ok, settings, venv_path)
+
+    # --- 版本号 ---
+    try:
+        from .. import get_version_string
+        version_str = get_version_string()
+    except Exception:
+        version_str = "unknown"
+
+    # --- 工具可用性 ---
+    tool_status = []
+    try:
+        browser_lock = settings.project_root / "data" / "browser.lock"
+        if browser_lock.exists():
+            tool_status.append("- **浏览器**: 可能已启动（检测到 lock 文件）")
+        else:
+            tool_status.append("- **浏览器**: 未启动（需要先调用 browser_open）")
+    except Exception:
+        tool_status.append("- **浏览器**: 状态未知")
+
+    try:
+        mcp_config = settings.project_root / "data" / "mcp_servers.json"
+        if mcp_config.exists():
+            tool_status.append("- **MCP 服务**: 配置已存在")
+        else:
+            tool_status.append("- **MCP 服务**: 未配置")
+    except Exception:
+        tool_status.append("- **MCP 服务**: 状态未知")
+
+    tool_status_text = "\n".join(tool_status) if tool_status else "- 工具状态: 正常"
+
+    # --- Shell 提示 ---
+    shell_hint = ""
+    if platform.system() == "Windows":
+        shell_hint = (
+            "\n- **Shell 注意**: Windows 环境，复杂文本处理（正则匹配、JSON/HTML 解析、批量文件操作）"
+            "请使用 `write_file` 写 Python 脚本 + `run_shell python xxx.py` 执行，避免 PowerShell 转义问题。"
+            "简单系统查询（进程/服务/文件列表）可直接使用 PowerShell cmdlet。"
+        )
+
+    # --- 系统环境 ---
+    system_encoding = _sys.getdefaultencoding()
+    try:
+        default_locale = _locale.getdefaultlocale()
+        locale_str = f"{default_locale[0]}, {default_locale[1]}" if default_locale[0] else "unknown"
+    except Exception:
+        locale_str = "unknown"
+
+    shell_type = "PowerShell" if platform.system() == "Windows" else "bash"
+
+    path_tools = []
+    _python_in_path_ok = False
+    for cmd in ("git", "python", "node", "pip", "npm", "docker", "curl"):
+        found = _shutil.which(cmd)
+        if not found:
+            continue
+        if cmd == "python" and _sys.platform == "win32":
+            if not verify_python_executable(found):
+                continue
+            _python_in_path_ok = True
+        if cmd == "pip" and _sys.platform == "win32" and not _python_in_path_ok:
+            continue
+        path_tools.append(cmd)
+    path_tools_str = ", ".join(path_tools) if path_tools else "无"
+
+    return f"""## 运行环境
+
+- **SeeAgent 版本**: {version_str}
+- **部署模式**: {deploy_mode}
+- **当前时间**: {current_time}
+- **操作系统**: {platform.system()} {platform.release()} ({platform.machine()})
+- **当前工作目录**: {os.getcwd()}
+- **SeeAgent 数据根目录**: {settings.seeagent_home}
+- **工作区信息**: 需要操作系统文件（日志/配置/数据/截图等）时，先调用 `get_workspace_map` 获取目录布局
+- **临时目录**: data/temp/{shell_hint}
+
+### Python 环境
+{python_info}
+
+### 系统环境
+- **系统编码**: {system_encoding}
+- **默认语言环境**: {locale_str}
+- **Shell**: {shell_type}
+- **PATH 可用工具**: {path_tools_str}
+
+## 工具可用性
+{tool_status_text}
+
+⚠️ **重要**：服务重启后浏览器、变量、连接等状态会丢失，执行任务前必须通过工具检查实时状态。
+如果工具不可用，允许纯文本回复并说明限制。"""
+
+
+def _detect_deploy_mode() -> str:
+    """检测当前部署模式"""
+    import importlib.metadata
+    import sys as _sys
+
+    from ..runtime_env import IS_FROZEN
+
+    if IS_FROZEN:
+        return "bundled (PyInstaller 打包)"
+
+    # 检查 editable install (pip install -e)
+    try:
+        dist = importlib.metadata.distribution("seeagent")
+        direct_url = dist.read_text("direct_url.json")
+        if direct_url and '"editable"' in direct_url:
+            return "editable (pip install -e)"
+    except Exception:
+        pass
+
+    # 检查是否在虚拟环境 + 源码目录中
+    if _sys.prefix != _sys.base_prefix:
+        return "source (venv)"
+
+    # 检查是否通过 pip 安装
+    try:
+        importlib.metadata.version("seeagent")
+        return "pip install"
+    except Exception:
+        pass
+
+    return "source"
+
+
+def _build_python_info(
+    is_frozen: bool,
+    ext_python: str | None,
+    pip_ok: bool,
+    settings,
+    venv_path: str | None = None,
+) -> str:
+    """根据部署模式构建 Python 环境信息"""
+    import sys as _sys
+
+    if not is_frozen:
+        in_venv = _sys.prefix != _sys.base_prefix
+        env_type = "venv" if in_venv else "system"
+        lines = [
+            f"- **Python**: {_sys.version.split()[0]} ({env_type})",
+            f"- **解释器**: {_sys.executable}",
+        ]
+        if in_venv:
+            lines.append(f"- **虚拟环境**: {_sys.prefix}")
+        lines.append("- **pip**: 可用")
+        lines.append("- **注意**: 执行 Python 脚本时使用上述解释器路径，pip install 会安装到当前环境中")
+        return "\n".join(lines)
+
+    # 打包模式
+    if ext_python:
+        lines = [
+            "- **Python**: 可用（外置环境已自动配置）",
+            f"- **解释器**: {ext_python}",
+        ]
+        if venv_path:
+            lines.append(f"- **虚拟环境**: {venv_path}")
+        lines.append(f"- **pip**: {'可用' if pip_ok else '不可用'}")
+        lines.append("- **注意**: 执行 Python 脚本时请使用上述解释器路径，pip install 会安装到该虚拟环境中")
+        return "\n".join(lines)
+
+    # 打包模式 + 无外置 Python
+    fallback_venv = settings.project_root / "data" / "venv"
+    if platform.system() == "Windows":
+        install_cmd = "winget install Python.Python.3.12"
+    else:
+        install_cmd = "sudo apt install python3 或 brew install python3"
+
+    return (
+        f"- **Python**: ⚠️ 未检测到可用的 Python 环境\n"
+        f"  - 推荐操作：通过 `run_shell` 执行 `{install_cmd}` 安装 Python\n"
+        f"  - 安装后创建工作区虚拟环境：`python -m venv {fallback_venv}`\n"
+        f"  - 创建完成后系统将自动检测并使用该环境，无需重启\n"
+        f"  - 此环境为系统专用，与用户个人 Python 环境隔离"
+    )
+
+
+_PLATFORM_NAMES = {
+    "feishu": "飞书",
+    "telegram": "Telegram",
+    "wechat_work": "企业微信",
+    "dingtalk": "钉钉",
+    "onebot": "OneBot",
+}
+
+
+def _build_im_environment_section() -> str:
+    """从 IM context 读取当前环境信息，生成系统提示词段落"""
+    try:
+        from ..core.im_context import get_im_session
+        session = get_im_session()
+        if not session:
+            return ""
+        im_env = session.get_metadata("_im_environment") if hasattr(session, "get_metadata") else None
+        if not im_env:
+            return ""
+    except Exception:
+        return ""
+
+    platform = im_env.get("platform", "unknown")
+    platform_name = _PLATFORM_NAMES.get(platform, platform)
+    chat_type = im_env.get("chat_type", "private")
+    chat_type_name = "群聊" if chat_type == "group" else "私聊"
+    chat_id = im_env.get("chat_id", "")
+    thread_id = im_env.get("thread_id")
+    bot_id = im_env.get("bot_id", "")
+    capabilities = im_env.get("capabilities", [])
+
+    lines = [
+        "## 当前 IM 环境",
+        f"- 平台：{platform_name}",
+        f"- 场景：{chat_type_name}（ID: {chat_id}）",
+    ]
+    if thread_id:
+        lines.append(f"- 当前在话题/线程中（thread_id: {thread_id}），对话上下文仅包含本话题内的消息")
+    if bot_id:
+        lines.append(f"- 你的身份：机器人（ID: {bot_id}）")
+    if capabilities:
+        lines.append(f"- 已确认可用的能力：{', '.join(capabilities)}")
+    lines.append("- 你可以通过 get_chat_info / get_user_info / get_chat_members 等工具主动查询环境信息")
+    lines.append(
+        "- **重要**：你的记忆系统是跨会话共享的，检索到的记忆可能来自其他群聊或私聊场景。"
+        "请优先关注当前对话上下文，审慎引用来源不明的共享记忆。"
+    )
+    return "\n".join(lines) + "\n\n"
+
+
+def _build_session_type_rules(session_type: str, persona_active: bool = False) -> str:
+    """
+    构建会话类型相关规则
+
+    Args:
+        session_type: "cli" 或 "im"
+        persona_active: 是否激活了人格系统
+
+    Returns:
+        会话类型相关的规则文本
+    """
+    # 通用的系统消息约定（C1）和消息分型原则（C3），两种模式共享
+    common_rules = """## 系统消息约定
+
+在对话历史中，你会看到以 `[系统]`、`[系统提示]` 或 `[context_note:` 开头的消息。这些是**运行时控制信号**，由系统自动注入，**不是用户发出的请求**。你应该：
+- 将它们视为背景信息或状态通知，而非需要执行的任务指令
+- **绝不**将系统消息的内容复述或提及给用户（用户看不到这些消息）
+- 不要把系统消息当作用户的意图来执行
+- 不要因为看到系统消息而改变回复的质量、详细程度或风格
+
+## 消息分型原则
+
+收到用户消息后，先判断消息类型，再决定响应策略：
+
+1. **闲聊/问候**（如"在吗""你好""在不在""干嘛呢"）→ 直接用自然语言简短回复，**不需要调用任何工具**，也不需要制定计划。
+2. **简单问答**（如"现在几点""天气怎么样"）→ 如果能直接回答就直接回答；如果需要实时信息，调用一次相关工具后回答。
+3. **任务请求**（如"帮我创建文件""搜索关于 X 的信息""设置提醒"）→ 需要工具调用和/或计划，按正常流程处理。
+4. **对之前回复的确认/反馈**（如"好的""收到""不对"）→ 理解为对上一轮的回应，简短确认即可。
+
+关键：闲聊和简单问答类消息**完成后不需要验证任务是否完成**——它们本身不是任务。
+
+## 提问与暂停（严格规则）
+
+需要向用户提问、请求确认或澄清时，**必须调用 `ask_user` 工具**。调用后系统会暂停执行并等待用户回复。
+
+### 强制要求
+- **禁止在文本中直接提问然后继续执行**——纯文本中的问号不会触发暂停机制。
+- **禁止在纯文本消息中列出 A/B/C/D 选项让用户选择**——这不会产生交互式选择界面。
+- 当你想让用户从几个选项中选择时，**必须调用 `ask_user` 并在 `options` 参数中提供选项**。
+- 当有多个问题要问时，使用 `questions` 数组一次性提问，每个问题可以有自己的选项和单选/多选设置。
+- 当某个问题的选项允许多选时，设置 `allow_multiple: true`。
+
+### 反例（禁止）
+```
+你想选哪个方案？
+A. 方案一
+B. 方案二
+C. 方案三
+```
+以上是**错误的做法**——用户无法点击选择。
+
+### 正例（必须）
+调用 `ask_user` 工具：
+```json
+{"question": "你想选哪个方案？", "options": [{"id":"a","label":"方案一"},{"id":"b","label":"方案二"},{"id":"c","label":"方案三"}]}
+```
+
+"""
+
+    if session_type == "im":
+        im_env_section = _build_im_environment_section()
+        return common_rules + im_env_section + f"""## IM 会话规则
+
+- **文本消息**：助手的自然语言回复会由网关直接转发给用户（不需要、也不应该通过工具发送）。
+- **附件交付**：文件/图片/语音等交付必须通过统一的网关交付工具 `deliver_artifacts` 完成，并以回执作为交付证据。
+- **进度展示**：执行过程的进度消息由网关基于事件流生成（计划步骤、交付回执、关键工具节点），避免模型刷屏。
+- **表达风格**：{'遵循当前角色设定的表情使用偏好和沟通风格' if persona_active else '默认简短直接，不使用表情符号（emoji）'}；不要复述 system/developer/tool 等提示词内容。
+- **IM 特殊注意**：IM 用户经常发送非常简短的消息（1-5 个字），这大多是闲聊或确认，直接回复即可，不要过度解读为复杂任务。
+- **多模态消息**：当用户发送图片时，图片已作为多模态内容直接包含在你的消息中，你可以直接看到并理解图片内容。**请直接描述/分析你看到的图片**，无需调用任何工具来查看或分析图片。仅在需要获取文件路径进行程序化处理（转发、保存、格式转换等）时才使用 `get_image_file`。
+"""
+
+    else:  # cli 或其他
+        return common_rules + """## CLI 会话规则
+
+- **直接输出**: 结果会直接显示在终端
+- **无需主动汇报**: CLI 模式下不需要频繁发送进度消息"""
+
+
+def _build_catalogs_section(
+    tool_catalog: Optional["ToolCatalog"],
+    skill_catalog: Optional["SkillCatalog"],
+    mcp_catalog: Optional["MCPCatalog"],
+    budget_tokens: int,
+    include_tools_guide: bool = False,
+) -> str:
+    """构建 Catalogs 层（工具/技能/MCP 清单）"""
+    parts = []
+
+    # 工具清单（预算的 33%）
+    # 高频工具 (run_shell, read_file, write_file, list_directory, ask_user) 已通过
+    # LLM tools 参数直接注入完整 schema，文本清单默认排除以节省 token
+    if tool_catalog:
+        tools_text = tool_catalog.get_catalog()  # exclude_high_freq=True by default
+        tools_result = apply_budget(tools_text, budget_tokens // 3, "tools")
+        parts.append(tools_result.content)
+
+    # 技能清单（预算的 55%）— 统一三级渐进式披露
+    if skill_catalog:
+        # Level 1: 全量索引（仅名称，保证所有技能名可见）+ 预算内详情（名称+描述）
+        # Level 2: get_skill_info → 完整 SKILL.md 指令（按需加载）
+        # Level 3: 资源文件（按需加载）
+        skills_budget = budget_tokens * 55 // 100
+        skills_index = skill_catalog.get_index_catalog()
+
+        index_tokens = estimate_tokens(skills_index)
+        remaining = max(0, skills_budget - index_tokens)
+
+        skills_detail = skill_catalog.get_catalog()
+        skills_detail_result = apply_budget(skills_detail, remaining, "skills", truncate_strategy="end")
+
+        skills_rule = (
+            "### 技能使用规则（必须遵守）\n"
+            "- 执行任务前**必须先检查**已有技能清单，优先使用已有技能\n"
+            "- 没有合适技能时，搜索安装或使用 skill-creator 创建，然后加载使用\n"
+            "- 同类操作重复出现时，**必须**封装为永久技能\n"
+            "- Shell 命令仅用于一次性简单操作，不是默认选择\n"
+        )
+
+        parts.append("\n\n".join([skills_index, skills_rule, skills_detail_result.content]).strip())
+
+    # MCP 清单（预算的 10%）
+    if mcp_catalog:
+        mcp_text = mcp_catalog.get_catalog()
+        if mcp_text:
+            mcp_result = apply_budget(mcp_text, budget_tokens // 10, "mcp")
+            parts.append(mcp_result.content)
+
+    # 工具使用指南（可选，向后兼容）
+    if include_tools_guide:
+        parts.append(_get_tools_guide_short())
+
+    return "\n\n".join(parts)
+
+
+_MEMORY_SYSTEM_GUIDE = """## 你的记忆系统
+
+你有一个三层分层记忆网络，各层双向关联。
+
+**第一层：核心档案**（下方已注入）— 用户偏好、规则、事实的精炼摘要
+**第二层：语义记忆 + 任务情节** — 经验教训、技能方法、每次任务的目标/结果/工具摘要
+**第三层：原始对话存档** — 完整的逐轮对话，含工具调用参数和返回值
+
+三层通过 ID 双向关联，可以从任意层钻取到其他层。
+
+搜索工具：`search_memory`(知识) / `list_recent_tasks`(任务) / `trace_memory`(跨层导航) / `search_conversation_traces`(原始对话)
+首次使用时会返回详细的搜索策略指南。
+
+后台自动提取记忆，你只需在总结经验(experience/skill)、记录教训(error)、发现偏好(preference/rule)时用 `add_memory`。
+
+### 当前注入的信息
+下方是用户核心档案、当前任务状态和高权重历史经验，仅供快速参考。更多记忆请按需搜索。"""
+
+
+def _build_memory_section(
+    memory_manager: Optional["MemoryManager"],
+    task_description: str,
+    budget_tokens: int,
+) -> str:
+    """
+    构建 Memory 层 — 渐进式披露:
+    0. 记忆系统自描述 (告知 LLM 记忆系统的运作方式)
+    1. Scratchpad (当前任务 + 近期完成)
+    2. Core Memory (MEMORY.md 用户基本信息 + 永久规则)
+    3. Experience Hints (高权重经验记忆)
+
+    Dynamic Memories 不再自动注入，由 LLM 按需调用 search_memory 检索。
+    """
+    if not memory_manager:
+        return ""
+
+    parts: list[str] = []
+
+    # Layer 0: 记忆系统自描述
+    parts.append(_MEMORY_SYSTEM_GUIDE)
+
+    # Layer 1: Scratchpad (当前任务)
+    scratchpad_text = _build_scratchpad_section(memory_manager)
+    if scratchpad_text:
+        parts.append(scratchpad_text)
+
+    # Layer 1.5: Pinned Rules — 从 SQLite 查询 RULE 类型记忆，独立注入，不受裁剪
+    pinned_rules = _build_pinned_rules_section(memory_manager)
+    if pinned_rules:
+        parts.append(pinned_rules)
+
+    # Layer 2: Core Memory (MEMORY.md — 用户基本信息 + 永久规则)
+    from seeagent.memory.types import MEMORY_MD_MAX_CHARS as _MD_MAX
+    core_budget = min(budget_tokens // 2, 500)
+    core_memory = _get_core_memory(memory_manager, max_chars=min(core_budget * 3, _MD_MAX))
+    if core_memory:
+        parts.append(f"## 核心记忆\n\n{core_memory}")
+
+    # Layer 3: Experience Hints (高权重经验/教训/技能记忆)
+    experience_text = _build_experience_section(memory_manager, max_items=5)
+    if experience_text:
+        parts.append(experience_text)
+
+    return "\n\n".join(parts)
+
+
+def _build_scratchpad_section(memory_manager: Optional["MemoryManager"]) -> str:
+    """从 UnifiedStore 读取 Scratchpad，注入当前任务 + 近期完成"""
+    store = getattr(memory_manager, "store", None)
+    if store is None:
+        return ""
+    try:
+        pad = store.get_scratchpad()
+        if pad:
+            md = pad.to_markdown()
+            if md:
+                return md
+    except Exception:
+        pass
+    return ""
+
+
+_PINNED_RULES_MAX_TOKENS = 500
+_PINNED_RULES_CHARS_PER_TOKEN = 3
+
+
+def _build_pinned_rules_section(
+    memory_manager: Optional["MemoryManager"],
+) -> str:
+    """从 SQLite 查询所有活跃的 RULE 类型记忆，作为独立段落注入 system prompt。
+
+    这些规则不受 memory_budget 裁剪，确保用户设定的行为规则始终可见。
+    设置独立的 token 上限防止异常膨胀。
+    """
+    store = getattr(memory_manager, "store", None)
+    if store is None:
+        return ""
+    try:
+        rules = store.query_semantic(memory_type="rule", limit=20)
+        if not rules:
+            return ""
+
+        from datetime import datetime
+        now = datetime.now()
+        active_rules = [
+            r for r in rules
+            if not r.superseded_by
+            and (not r.expires_at or r.expires_at > now)
+        ]
+        if not active_rules:
+            return ""
+
+        active_rules.sort(key=lambda r: r.importance_score, reverse=True)
+
+        lines = ["## 用户设定的规则（必须遵守）\n"]
+        total_chars = 0
+        max_chars = _PINNED_RULES_MAX_TOKENS * _PINNED_RULES_CHARS_PER_TOKEN
+        for r in active_rules:
+            content = (r.content or "").strip()
+            if not content:
+                continue
+            line = f"- {content}"
+            if total_chars + len(line) > max_chars:
+                break
+            lines.append(line)
+            total_chars += len(line)
+
+        if len(lines) <= 1:
+            return ""
+        return "\n".join(lines)
+    except Exception as e:
+        logger.debug(f"Failed to build pinned rules section: {e}")
+        return ""
+
+
+def _get_core_memory(memory_manager: Optional["MemoryManager"], max_chars: int = 600) -> str:
+    """获取 MEMORY.md 核心记忆（损坏时自动 fallback 到 .bak）
+
+    截断策略委托给 ``truncate_memory_md``：按段落拆分，规则段落优先保留。
+    """
+    from seeagent.memory.types import truncate_memory_md
+
+    memory_path = getattr(memory_manager, "memory_md_path", None)
+    if not memory_path:
+        return ""
+
+    content = ""
+    for path_to_try in [memory_path, memory_path.with_suffix(memory_path.suffix + ".bak")]:
+        if not path_to_try.exists():
+            continue
+        try:
+            content = path_to_try.read_text(encoding="utf-8").strip()
+            if content:
+                break
+        except Exception:
+            continue
+
+    if not content:
+        return ""
+
+    return truncate_memory_md(content, max_chars)
+
+
+def _build_experience_section(
+    memory_manager: Optional["MemoryManager"],
+    max_items: int = 5,
+) -> str:
+    """Inject top experience/lesson/skill memories as proactive hints."""
+    store = getattr(memory_manager, "store", None)
+    if store is None:
+        return ""
+    try:
+        exp_types = ("experience", "skill", "error")
+        all_exp = []
+        for t in exp_types:
+            try:
+                results = store.query_semantic(memory_type=t, limit=10)
+                all_exp.extend(results)
+            except Exception:
+                continue
+        if not all_exp:
+            return ""
+
+        # Rank by (access_count * importance) descending, take top N
+        all_exp.sort(
+            key=lambda m: m.access_count * m.importance_score + m.importance_score,
+            reverse=True,
+        )
+        top = [m for m in all_exp[:max_items] if m.importance_score >= 0.6 and not m.superseded_by]
+        if not top:
+            return ""
+
+        lines = ["## 历史经验（执行任务前请参考）\n"]
+        for m in top:
+            icon = {"error": "⚠️", "skill": "💡", "experience": "📝"}.get(m.type.value, "📝")
+            lines.append(f"- {icon} {m.content}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
+def _build_user_section(
+    compiled: dict[str, str],
+    budget_tokens: int,
+) -> str:
+    """构建 User 层（用户信息）"""
+    if not compiled.get("user"):
+        return ""
+
+    user_result = apply_budget(compiled["user"], budget_tokens, "user")
+    return user_result.content
+
+
+def _get_tools_guide_short() -> str:
+    """获取简化版工具使用指南"""
+    return """## 工具体系
+
+你有三类工具可用：
+
+1. **系统工具**：文件操作、浏览器、命令执行等
+   - 查看清单 → `get_tool_info(tool_name)` → 直接调用
+
+2. **Skills 技能**：可扩展能力模块
+   - 查看清单 → `get_skill_info(name)` → `run_skill_script()`
+
+3. **MCP 服务**：外部 API 集成
+   - 查看清单 → `call_mcp_tool(server, tool, args)`
+
+**原则**：
+- 需要执行操作时使用工具；纯问答、闲聊、信息查询直接文字回复
+- 任务完成后，用简洁的文字告知用户结果，不要继续调用工具
+- 不要为了使用工具而使用工具"""
+
+
+def get_prompt_debug_info(
+    identity_dir: Path,
+    tool_catalog: Optional["ToolCatalog"] = None,
+    skill_catalog: Optional["SkillCatalog"] = None,
+    mcp_catalog: Optional["MCPCatalog"] = None,
+    memory_manager: Optional["MemoryManager"] = None,
+    task_description: str = "",
+) -> dict:
+    """
+    获取 prompt 调试信息
+
+    用于 `seeagent prompt-debug` 命令。
+
+    Returns:
+        包含各部分 token 统计的字典
+    """
+    budget_config = BudgetConfig()
+
+    # 获取编译产物
+    compiled = get_compiled_content(identity_dir)
+
+    info = {
+        "compiled_files": {
+            "soul": estimate_tokens(compiled.get("soul", "")),
+            "agent_core": estimate_tokens(compiled.get("agent_core", "")),
+            "agent_tooling": estimate_tokens(compiled.get("agent_tooling", "")),
+            "user": estimate_tokens(compiled.get("user", "")),
+        },
+        "catalogs": {},
+        "memory": 0,
+        "total": 0,
+    }
+
+    # 清单统计
+    if tool_catalog:
+        tools_text = tool_catalog.get_catalog()
+        info["catalogs"]["tools"] = estimate_tokens(tools_text)
+
+    if skill_catalog:
+        skills_text = skill_catalog.get_catalog()
+        info["catalogs"]["skills"] = estimate_tokens(skills_text)
+
+    if mcp_catalog:
+        mcp_text = mcp_catalog.get_catalog()
+        info["catalogs"]["mcp"] = estimate_tokens(mcp_text) if mcp_text else 0
+
+    # 记忆统计
+    if memory_manager:
+        memory_context = retrieve_memory(
+            query=task_description,
+            memory_manager=memory_manager,
+            max_tokens=budget_config.memory_budget,
+        )
+        info["memory"] = estimate_tokens(memory_context)
+
+    # 总计
+    info["total"] = (
+        sum(info["compiled_files"].values()) + sum(info["catalogs"].values()) + info["memory"]
+    )
+
+    info["budget"] = {
+        "identity": budget_config.identity_budget,
+        "catalogs": budget_config.catalogs_budget,
+        "user": budget_config.user_budget,
+        "memory": budget_config.memory_budget,
+        "total": budget_config.total_budget,
+    }
+
+    return info

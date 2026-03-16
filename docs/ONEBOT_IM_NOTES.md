@@ -11,8 +11,8 @@
 
 | 功能 | 关键代码位置 | 说明 |
 |------|------------|------|
-| WebSocket 反向连接（推荐） | `_run_reverse_server()` | OpenAkita 作为 WS 服务端，NapCat/Lagrange 作为客户端连入 |
-| WebSocket 正向连接 | `_receive_loop_with_reconnect()` | OpenAkita 主动连接 OneBot 实现的 WS 服务器 |
+| WebSocket 反向连接（推荐） | `_run_reverse_server()` | SeeAgent 作为 WS 服务端，NapCat/Lagrange 作为客户端连入 |
+| WebSocket 正向连接 | `_receive_loop_with_reconnect()` | SeeAgent 主动连接 OneBot 实现的 WS 服务器 |
 | 消息类型解析 | `_parse_message()` | 支持 text/image/record/video/file/at/face |
 | CQ 码解析 | `_parse_cq_code()` | 兼容字符串格式消息，含实体解码 (`&#44;`, `&#91;`, `&#93;`, `&amp;`) |
 | @机器人 检测 | `_handle_message_event()` 内 at 段检查 | 匹配 `self_id` 或 `all` |
@@ -35,11 +35,11 @@
 | 维度 | 反向 WebSocket (reverse) | 正向 WebSocket (forward) |
 |------|--------------------------|--------------------------|
 | 默认 | ✅ 默认模式 | — |
-| OpenAkita 角色 | WS 服务端 (`websockets.serve`) | WS 客户端 (`websockets.connect`) |
+| SeeAgent 角色 | WS 服务端 (`websockets.serve`) | WS 客户端 (`websockets.connect`) |
 | NapCat 配置 | 配置 Websocket 客户端 → `ws://<host>:<port>` | 配置 Websocket 服务器端口 |
 | 认证 | `Authorization: Bearer <token>` 或 `?access_token=<token>` | `Authorization: Bearer <token>` |
 | 连接管理 | 单连接替换（新连接替旧连接） | 自动重连（指数退避 1s~60s） |
-| 适用场景 | NapCat 和 OpenAkita 同机 / 内网 | OpenAkita 无法被 NapCat 访问时 |
+| 适用场景 | NapCat 和 SeeAgent 同机 / 内网 | SeeAgent 无法被 NapCat 访问时 |
 | 连接超时 | N/A（被动等待） | `open_timeout=10` |
 
 ### NapCat 配置示例（反向模式）
@@ -113,8 +113,8 @@
 NapCat / Lagrange
         │
     ┌───┴───┐
-    │reverse│  (NapCat → OpenAkita WS Server)
-    │forward│  (OpenAkita WS Client → NapCat)
+    │reverse│  (NapCat → SeeAgent WS Server)
+    │forward│  (SeeAgent WS Client → NapCat)
     └───┬───┘
         │ OneBot v11 JSON events
         ▼

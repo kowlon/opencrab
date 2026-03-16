@@ -7,7 +7,7 @@ UT-B01 ~ UT-B08
 """
 
 import pytest
-from openakita.llm.types import (
+from seeagent.llm.types import (
     ImageBlock,
     ImageContent,
     VideoBlock,
@@ -31,9 +31,9 @@ def brain_converter():
     我们 mock 掉外部依赖只保留转换逻辑。
     """
     with (
-        patch("openakita.core.brain.settings") as mock_settings,
-        patch("openakita.core.brain.get_default_config_path") as mock_config_path,
-        patch("openakita.core.brain.LLMClient") as mock_client,
+        patch("seeagent.core.brain.settings") as mock_settings,
+        patch("seeagent.core.brain.get_default_config_path") as mock_config_path,
+        patch("seeagent.core.brain.LLMClient") as mock_client,
     ):
         mock_settings.max_tokens = 4096
         mock_settings.thinking_mode = "auto"
@@ -43,7 +43,7 @@ def brain_converter():
             providers={},
         )
 
-        from openakita.core.brain import Brain
+        from seeagent.core.brain import Brain
 
         brain = Brain()
         yield brain

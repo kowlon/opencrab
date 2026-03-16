@@ -2,7 +2,7 @@
 
 import pytest
 
-from openakita.logging.session_buffer import SessionLogBuffer, LogEntry
+from seeagent.logging.session_buffer import SessionLogBuffer, LogEntry
 
 
 class TestLogEntry:

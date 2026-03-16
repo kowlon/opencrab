@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@summarizer
+name: seeagent/skills@summarizer
 description: Summarize content from any source — URLs, local files, YouTube videos, and raw text. Use when the user asks to summarize a webpage, PDF, document, article, video, or any content. Supports multiple output formats (bullet points, executive summary, detailed notes) and configurable length. Can also extract raw content without summarization.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
   based_on: moltbot/moltbot/summarize
 ---

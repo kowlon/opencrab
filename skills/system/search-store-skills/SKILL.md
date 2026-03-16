@@ -1,6 +1,6 @@
 ---
 name: search-store-skills
-description: Search for Skills on the OpenAkita Platform Skill Store
+description: Search for Skills on the SeeAgent Platform Skill Store
 system: true
 handler: skill_store
 tool-name: search_store_skills
@@ -9,11 +9,11 @@ category: Platform
 
 # search-store-skills
 
-Search for Skills on the OpenAkita Platform Skill Store.
+Search for Skills on the SeeAgent Platform Skill Store.
 
 ## When to Use
 
-- User wants to find or browse Skills on the OpenAkita marketplace
+- User wants to find or browse Skills on the SeeAgent marketplace
 - User asks "有什么技能可以安装" or "搜索一个 XX Skill"
 - User wants to discover Skills by trust level (official / certified / community)
 
@@ -36,7 +36,7 @@ Search for Skills on the OpenAkita Platform Skill Store.
 
 ## Trust Levels
 
-- **official**: Maintained by the OpenAkita team
+- **official**: Maintained by the SeeAgent team
 - **certified**: Reviewed and approved by the team
 - **community**: Community-contributed, use at your own discretion
 

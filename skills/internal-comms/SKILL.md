@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@internal-comms
+name: seeagent/skills@internal-comms
 description: Write internal communications including status reports, leadership updates, 3P updates (Progress/Plans/Problems), company newsletters, FAQs, incident reports, and project updates. Use this skill whenever the user needs to draft any type of internal business communication.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

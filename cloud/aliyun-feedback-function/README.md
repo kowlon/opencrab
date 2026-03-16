@@ -1,4 +1,4 @@
-# OpenAkita 用户反馈函数（阿里云函数计算 FC 3.0）
+# SeeAgent 用户反馈函数（阿里云函数计算 FC 3.0）
 
 接收用户反馈（错误报告 / 功能建议），存储到阿里云 OSS，自动创建 GitHub Issue 用于跟踪管理。
 
@@ -30,7 +30,7 @@
 ### 第 1 步：创建 OSS Bucket（已有可跳过）
 
 1. 登录 [OSS 控制台](https://oss.console.aliyun.com/)
-2. 创建 Bucket（例如 `openakita-feedback`），地域选 **华东1（杭州）**
+2. 创建 Bucket（例如 `seeagent-feedback`），地域选 **华东1（杭州）**
 3. 读写权限：**私有**（FC 函数通过 AK/SK 服务端访问）
 4. 记下：
    - **内网 Endpoint**：`https://oss-cn-hangzhou-internal.aliyuncs.com`（FC 同地域使用，免流量费）
@@ -68,8 +68,8 @@
 
 1. 进入 [GitHub → Settings → Developer Settings → Fine-grained tokens](https://github.com/settings/tokens?type=beta)
 2. 创建新 Token：
-   - 名称：`openakita-feedback-bot`
-   - 仓库范围：**Only select repositories** → `openakita/openakita`
+   - 名称：`seeagent-feedback-bot`
+   - 仓库范围：**Only select repositories** → `seeagent/seeagent`
    - 权限：**Issues: Read and write**
    - 有效期：1 年（到期前记得续期）
 3. 复制 Token（`github_pat_xxx...`）
@@ -79,7 +79,7 @@
 1. 进入 [函数计算 FC 3.0 控制台](https://fcnext.console.aliyun.com/)
 
 2. 点击 **创建函数** → 选择 **事件函数** → **创建事件函数**：
-   - **函数名称**：`openakita-feedback`
+   - **函数名称**：`seeagent-feedback`
    - **运行环境**：Python 3.10
    - **请求处理程序（Handler）**：`index.handler`
    - **内存规格**：256 MB
@@ -108,11 +108,11 @@
    |-----------|---|------|
    | `OSS_ENDPOINT` | `https://oss-cn-hangzhou-internal.aliyuncs.com` | 第 1 步（内网 Endpoint，FC 同地域免流量费） |
    | `OSS_PUBLIC_ENDPOINT` | `https://oss-cn-hangzhou.aliyuncs.com` | 第 1 步（外网 Endpoint，用于生成 Pre-signed URL）<br>若不设置，自动从 `OSS_ENDPOINT` 去掉 `-internal` 推导 |
-   | `OSS_BUCKET` | `openakita-feedback` | 第 1 步 |
+   | `OSS_BUCKET` | `seeagent-feedback` | 第 1 步 |
    | `OSS_ACCESS_KEY_ID` | `LTAI5t...` | 第 2 步 RAM 子账号（同时用于 CAPTCHA 校验） |
    | `OSS_ACCESS_KEY_SECRET` | `xxxxxx` | 第 2 步 RAM 子账号 |
    | `GITHUB_TOKEN` | `github_pat_xxx` | 第 4 步 |
-   | `GITHUB_REPO` | `openakita/openakita` | 固定值 |
+   | `GITHUB_REPO` | `seeagent/seeagent` | 固定值 |
    | `CAPTCHA_SCENE_ID` | 控制台的「场景ID」 | 第 3 步（留空则跳过验证码校验） |
    | `NOTIFY_EMAIL` | `dev@example.com` | 可选，接收邮件通知 |
    | `RESEND_API_KEY` | `re_xxx` | 可选，Resend 邮件服务 |
@@ -128,7 +128,7 @@
    ```
    https://<trigger-id>.cn-hangzhou.fcapp.run
    ```
-   也可以在 FC 控制台或 DNS 中绑定自定义域名（例如 `feedback-openakita.fzstack.com`）。
+   也可以在 FC 控制台或 DNS 中绑定自定义域名（例如 `feedback-seeagent.fzstack.com`）。
 
 ### 第 6 步：测试函数
 
@@ -140,7 +140,7 @@ curl https://<你的触发器URL>/health
 # {"status": "ok", "service": "feedback-fc"}
 ```
 
-### 第 7 步：配置 OpenAkita 后端
+### 第 7 步：配置 SeeAgent 后端
 
 > **官方发行版用户**：`config.py` 已预填了官方 FC 地址和验证码标识的默认值，
 > **无需任何配置即可开箱使用**。以下仅适用于 fork 用户或自建 FC 部署。
@@ -156,7 +156,7 @@ CAPTCHA_SCENE_ID=你的场景ID
 CAPTCHA_PREFIX=你的prefix身份标
 ```
 
-修改后重启 OpenAkita 后端使配置生效。
+修改后重启 SeeAgent 后端使配置生效。
 
 ### 第 8 步：端到端验证
 
@@ -166,7 +166,7 @@ CAPTCHA_PREFIX=你的prefix身份标
    - [ ] FC `/prepare` 正常返回 `upload_url` 和 `report_date`
    - [ ] OSS Bucket 中出现了 `feedback/<日期>/<id>/report.zip` 和 `metadata.json`
    - [ ] FC `/complete/{id}` 正常返回并创建了 GitHub Issue
-   - [ ] `openakita/openakita` 仓库中出现了带标签的 Issue
+   - [ ] `seeagent/seeagent` 仓库中出现了带标签的 Issue
    - [ ] 人机验证弹窗正常弹出（如已配置）
 
 ---
@@ -196,7 +196,7 @@ CAPTCHA_PREFIX=你的prefix身份标
 ## OSS 目录结构
 
 ```
-openakita-feedback/
+seeagent-feedback/
   feedback/
     2026-03-08/
       abc123def456/
@@ -222,7 +222,7 @@ openakita-feedback/
   "title": "应用启动后崩溃",
   "type": "bug",
   "summary": "点击设置后白屏...",
-  "system_info": "OS: Windows 10 | Python: 3.11 | OpenAkita: 1.25.9",
+  "system_info": "OS: Windows 10 | Python: 3.11 | SeeAgent: 1.25.9",
   "captcha_verify_param": "{\"sceneId\":\"xxx\",\"certifyId\":\"xxx\",\"deviceToken\":\"xxx==\",...}"
 }
 ```
@@ -230,7 +230,7 @@ openakita-feedback/
 **响应（200）：**
 ```json
 {
-  "upload_url": "https://openakita-feedback.oss-cn-hangzhou.aliyuncs.com/feedback/2026-03-09/abc123/report.zip?Expires=...&Signature=...",
+  "upload_url": "https://seeagent-feedback.oss-cn-hangzhou.aliyuncs.com/feedback/2026-03-09/abc123/report.zip?Expires=...&Signature=...",
   "report_id": "abc123def456",
   "report_date": "2026-03-09"
 }
@@ -254,7 +254,7 @@ openakita-feedback/
 {
   "status": "ok",
   "report_id": "abc123def456",
-  "issue_url": "https://github.com/openakita/openakita/issues/42"
+  "issue_url": "https://github.com/seeagent/seeagent/issues/42"
 }
 ```
 
@@ -267,9 +267,9 @@ openakita-feedback/
 使用 `scripts/feedback.py` 管理 OSS 上的反馈：
 
 ```bash
-# 设置凭证（或创建 ~/.openakita/feedback.env）
+# 设置凭证（或创建 ~/.seeagent/feedback.env）
 export OSS_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
-export OSS_BUCKET=openakita-feedback
+export OSS_BUCKET=seeagent-feedback
 export OSS_ACCESS_KEY_ID=xxx
 export OSS_ACCESS_KEY_SECRET=xxx
 

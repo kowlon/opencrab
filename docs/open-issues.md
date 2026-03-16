@@ -1,4 +1,4 @@
-# OpenAkita Open Issues 汇总
+# SeeAgent Open Issues 汇总
 
 > 自动生成于 2026-02-24，共 11 个 open issue
 
@@ -9,9 +9,9 @@
 ### #24 — browser_open() 找不到 Chromium 可执行文件
 - **提交者**: @RuikangSun | **日期**: 2026-02-24 | **标签**: `bug`
 - **环境**: Windows 11 / Python 3.11.14 / v1.23.0
-- **问题**: 调用 `browser_open()` 时 Playwright 报 Chromium 可执行文件不存在，路径 `~\.openakita\modules\browser\browsers\chromium-1208\chrome-win64\chrome.exe` 不存在。Agent 尝试自动执行 `playwright install` 但过程被中止。
+- **问题**: 调用 `browser_open()` 时 Playwright 报 Chromium 可执行文件不存在，路径 `~\.seeagent\modules\browser\browsers\chromium-1208\chrome-win64\chrome.exe` 不存在。Agent 尝试自动执行 `playwright install` 但过程被中止。
 - **根因分析**: 浏览器自动化模块安装了 Playwright 包但没有成功下载 Chromium 二进制。可能是打包环境下 `PLAYWRIGHT_BROWSERS_PATH` 指向的目录不对，或下载过程超时/被 run_shell 的 timeout 中断。
-- **涉及代码**: `src/openakita/tools/browser_mcp.py`（浏览器启动逻辑）、模块安装脚本
+- **涉及代码**: `src/seeagent/tools/browser_mcp.py`（浏览器启动逻辑）、模块安装脚本
 - **复现**: 让 Agent 调用 `browser_open()` 即可触发
 
 ---
@@ -51,7 +51,7 @@
 - **环境**: Windows 10 / v1.23.3+7f9a248
 - **问题**: 在技能管理页面切换 skill 启用/禁用状态，UI 显示成功，但运行时没有真正生效，skill 保持之前状态。
 - **根因分析**: 状态变更可能没有正确持久化，或没有通知到运行时 skill registry 重新加载。
-- **涉及代码**: `apps/setup-center/src/App.tsx`（skill 状态切换 UI）、`src/openakita/skills/registry.py`（运行时加载）
+- **涉及代码**: `apps/setup-center/src/App.tsx`（skill 状态切换 UI）、`src/seeagent/skills/registry.py`（运行时加载）
 - **修复建议**: 检查持久化路径 + 确保 runtime registry 重新读取状态（或提示需要重启）
 
 ---
@@ -84,7 +84,7 @@
 ### #21 — 403 错误增加指数退避重试再切换端点
 - **提交者**: @duffy25 | **日期**: 2026-02-23 | **标签**: `enhancement`
 - **需求**: 当 LLM 端点返回 403 时，当前立即切换端点 + 180s 冷却。建议先做 3 次指数退避重试（3s → 6s → 12s，总 ≤30s），全失败再切换。
-- **涉及代码**: `src/openakita/llm/providers/base.py`（端点错误处理 / failover 逻辑）
+- **涉及代码**: `src/seeagent/llm/providers/base.py`（端点错误处理 / failover 逻辑）
 - **实现建议**: 在 `_call_with_failover` 或等价方法中，对 403 状态码增加 retry loop，区分 403 和其他错误码
 
 ---
@@ -93,7 +93,7 @@
 - **提交者**: @yy1588133 | **日期**: 2026-02-22
 - **环境**: Windows 10 / v1.23.3
 - **需求**: 配置层缺少 OpenAI GPT 的 `reasoning_effort` / 思考强度参数（low/medium/high/xhigh）。希望在端点配置中增加统一的推理强度抽象字段。
-- **涉及代码**: `src/openakita/llm/providers/openai.py`（请求构建）、`src/openakita/config/`（配置定义）、`apps/setup-center/src/App.tsx`（UI 配置项）
+- **涉及代码**: `src/seeagent/llm/providers/openai.py`（请求构建）、`src/seeagent/config/`（配置定义）、`apps/setup-center/src/App.tsx`（UI 配置项）
 - **实现建议**: 在端点配置增加 `reasoning_effort` 字段，OpenAI provider 中映射到 API 参数，不支持的 provider 忽略或警告
 
 ---
@@ -105,7 +105,7 @@
   - `mention_only`（仅 @ 时响应）
   - `mention_or_reply`（@ 或回复 Bot 消息时响应）
   - `command_only`（仅命令前缀触发）
-- **涉及代码**: `src/openakita/channels/adapters/telegram.py`（消息过滤逻辑）、`src/openakita/config/`（新增配置项）
+- **涉及代码**: `src/seeagent/channels/adapters/telegram.py`（消息过滤逻辑）、`src/seeagent/config/`（新增配置项）
 - **验收标准**: 默认向后兼容、各模式行为正确、文档补充
 
 ---

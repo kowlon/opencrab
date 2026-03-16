@@ -25,7 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from openakita.orgs.models import (
+from seeagent.orgs.models import (
     EdgeType,
     MsgType,
     NodeStatus,
@@ -82,13 +82,13 @@ def org_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def project_store(org_dir: Path):
-    from openakita.orgs.project_store import ProjectStore
+    from seeagent.orgs.project_store import ProjectStore
     return ProjectStore(org_dir)
 
 
 @pytest.fixture()
 def event_store(org_dir: Path):
-    from openakita.orgs.event_store import OrgEventStore
+    from seeagent.orgs.event_store import OrgEventStore
     return OrgEventStore(org_dir, "org_test")
 
 
@@ -369,7 +369,7 @@ class TestMessengerFrozenBuffer:
     """Verify messages to frozen nodes are buffered, not dropped."""
 
     def test_frozen_node_buffers_messages(self, org_dir):
-        from openakita.orgs.messenger import OrgMessenger
+        from seeagent.orgs.messenger import OrgMessenger
         org = _make_org()
         m = OrgMessenger(org, org_dir)
         m.register_node("cto", AsyncMock())
@@ -394,7 +394,7 @@ class TestMessengerFrozenBuffer:
             loop.close()
 
     def test_unfreeze_delivers_buffered(self, org_dir):
-        from openakita.orgs.messenger import OrgMessenger
+        from seeagent.orgs.messenger import OrgMessenger
         org = _make_org()
         m = OrgMessenger(org, org_dir)
         handler = AsyncMock()
@@ -427,7 +427,7 @@ class TestSecurityFixes:
     """Verify path traversal prevention."""
 
     def test_policy_path_blocks_backslash(self):
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         rt = MagicMock()
         rt._manager = MagicMock()
         handler = OrgToolHandler(rt)
@@ -448,7 +448,7 @@ class TestFrozenOverride:
     """Verify _set_node_status doesn't override FROZEN."""
 
     def test_frozen_node_stays_frozen(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
 
         org = _make_org()
         cto = org.get_node("cto")
@@ -461,7 +461,7 @@ class TestFrozenOverride:
         assert cto.status == NodeStatus.FROZEN
 
     def test_unfreeze_reason_works(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
 
         org = _make_org()
         cto = org.get_node("cto")
@@ -484,9 +484,9 @@ class TestAcceptRejectIdempotency:
 
     @pytest.mark.asyncio
     async def test_self_acceptance_blocked(self, org_dir, sample_org):
-        from openakita.orgs.tool_handler import OrgToolHandler
-        from openakita.orgs.messenger import OrgMessenger
-        from openakita.orgs.event_store import OrgEventStore
+        from seeagent.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.messenger import OrgMessenger
+        from seeagent.orgs.event_store import OrgEventStore
 
         rt = MagicMock()
         rt._manager = MagicMock()
@@ -511,8 +511,8 @@ class TestAcceptRejectIdempotency:
 
     @pytest.mark.asyncio
     async def test_self_rejection_blocked(self, org_dir, sample_org):
-        from openakita.orgs.tool_handler import OrgToolHandler
-        from openakita.orgs.messenger import OrgMessenger
+        from seeagent.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.messenger import OrgMessenger
 
         rt = MagicMock()
         rt._manager = MagicMock()
@@ -538,7 +538,7 @@ class TestHeartbeatRace:
 
     @pytest.mark.asyncio
     async def test_skips_when_root_busy(self, org_dir, sample_org):
-        from openakita.orgs.heartbeat import OrgHeartbeat
+        from seeagent.orgs.heartbeat import OrgHeartbeat
 
         sample_org.nodes[0].status = NodeStatus.BUSY
 
@@ -581,8 +581,8 @@ class TestBlackboardTTL:
     """Verify blackboard TTL enforcement."""
 
     def test_expired_entries_filtered(self, org_dir):
-        from openakita.orgs.blackboard import OrgBlackboard
-        from openakita.orgs.models import MemoryType
+        from seeagent.orgs.blackboard import OrgBlackboard
+        from seeagent.orgs.models import MemoryType
 
         bb = OrgBlackboard(org_dir, "org_test")
         bb.write_org(
@@ -594,8 +594,8 @@ class TestBlackboardTTL:
         assert len(entries) >= 1
 
     def test_ttl_hours_respected(self, org_dir):
-        from openakita.orgs.blackboard import OrgBlackboard
-        from openakita.orgs.models import MemoryType, OrgMemoryEntry
+        from seeagent.orgs.blackboard import OrgBlackboard
+        from seeagent.orgs.models import MemoryType, OrgMemoryEntry
         import json
         from datetime import datetime, timezone, timedelta
 
@@ -630,7 +630,7 @@ class TestNewOrgToolDefinitions:
     """Verify all new org tools are properly defined."""
 
     def test_all_new_tools_exist(self):
-        from openakita.orgs.tools import ORG_NODE_TOOLS
+        from seeagent.orgs.tools import ORG_NODE_TOOLS
 
         tool_names = {t["name"] for t in ORG_NODE_TOOLS}
 
@@ -647,7 +647,7 @@ class TestNewOrgToolDefinitions:
             assert name in tool_names, f"Missing tool definition: {name}"
 
     def test_tool_schema_valid(self):
-        from openakita.orgs.tools import ORG_NODE_TOOLS
+        from seeagent.orgs.tools import ORG_NODE_TOOLS
 
         for tool in ORG_NODE_TOOLS:
             assert "name" in tool
@@ -666,7 +666,7 @@ class TestPlanToolsInKeep:
     """Verify Plan tools are in the _KEEP list for all org agents."""
 
     def test_plan_tools_kept(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
 
         source = OrgRuntime._create_node_agent.__code__
         source_text = ""
@@ -690,8 +690,8 @@ class TestIdentityInjection:
     """Verify identity context includes project tasks in command mode."""
 
     def test_command_mode_injects_project_context(self, org_dir, sample_org):
-        from openakita.orgs.identity import OrgIdentity, ResolvedIdentity
-        from openakita.orgs.project_store import ProjectStore
+        from seeagent.orgs.identity import OrgIdentity, ResolvedIdentity
+        from seeagent.orgs.project_store import ProjectStore
 
         sample_org.operation_mode = "command"
 
@@ -714,7 +714,7 @@ class TestIdentityInjection:
         assert "做产品调研" in prompt
 
     def test_auto_delegate_injection(self, org_dir, sample_org):
-        from openakita.orgs.identity import OrgIdentity
+        from seeagent.orgs.identity import OrgIdentity
 
         identity = OrgIdentity(org_dir)
 
@@ -746,11 +746,11 @@ class TestWatchdogMechanism:
         assert org.watchdog_stuck_threshold_s == 600
 
     def test_watchdog_notify_delegator_method_exists(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         assert hasattr(OrgRuntime, "_watchdog_notify_delegator")
 
     def test_watchdog_loop_method_exists(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         assert hasattr(OrgRuntime, "_watchdog_loop")
 
 
@@ -764,7 +764,7 @@ class TestNoHardTimeout:
 
     def test_no_wait_for_in_run_agent_task(self):
         import inspect
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
 
         source = inspect.getsource(OrgRuntime._run_agent_task)
         assert "wait_for" not in source, (
@@ -781,11 +781,11 @@ class TestHealthCheckLoop:
     """Verify health_check_loop exists and is separate from idle_probe."""
 
     def test_health_check_loop_exists(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         assert hasattr(OrgRuntime, "_health_check_loop")
 
     def test_idle_probe_loop_exists(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         assert hasattr(OrgRuntime, "_idle_probe_loop")
 
 
@@ -799,13 +799,13 @@ class TestCloneDismissMessenger:
 
     def test_scaler_registers_new_node(self):
         import inspect
-        from openakita.orgs.scaler import OrgScaler
+        from seeagent.orgs.scaler import OrgScaler
         source = inspect.getsource(OrgScaler.approve_request)
         assert "register_node" in source or "messenger" in source
 
     def test_scaler_dismiss_cleans_up(self):
         import inspect
-        from openakita.orgs.scaler import OrgScaler
+        from seeagent.orgs.scaler import OrgScaler
         source = inspect.getsource(OrgScaler.dismiss_node)
         assert "unregister_node" in source
 
@@ -819,18 +819,18 @@ class TestRecalcParentProgress:
     """Verify accept/reject triggers parent progress recalculation."""
 
     def test_recalc_parent_progress_method_exists(self):
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         assert hasattr(OrgToolHandler, "_recalc_parent_progress")
 
     def test_accept_calls_recalc(self):
         import inspect
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         source = inspect.getsource(OrgToolHandler._handle_org_accept_deliverable)
         assert "_recalc_parent_progress" in source
 
     def test_reject_calls_recalc(self):
         import inspect
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         source = inspect.getsource(OrgToolHandler._handle_org_reject_deliverable)
         assert "_recalc_parent_progress" in source
 
@@ -844,30 +844,30 @@ class TestExecutionLogTracking:
     """Verify execution_log is appended on key events."""
 
     def test_append_execution_log_method(self):
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         assert hasattr(OrgToolHandler, "_append_execution_log")
 
     def test_delegation_logs(self):
         import inspect
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         source = inspect.getsource(OrgToolHandler._handle_org_delegate_task)
         assert "_append_execution_log" in source
 
     def test_deliver_logs(self):
         import inspect
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         source = inspect.getsource(OrgToolHandler._handle_org_submit_deliverable)
         assert "_append_execution_log" in source
 
     def test_accept_logs(self):
         import inspect
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         source = inspect.getsource(OrgToolHandler._handle_org_accept_deliverable)
         assert "_append_execution_log" in source
 
     def test_reject_logs(self):
         import inspect
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         source = inspect.getsource(OrgToolHandler._handle_org_reject_deliverable)
         assert "_append_execution_log" in source
 
@@ -881,12 +881,12 @@ class TestPlanTaskBridge:
     """Verify Plan tools bridge to ProjectTask."""
 
     def test_bridge_method_exists(self):
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         assert hasattr(OrgToolHandler, "_bridge_plan_to_task")
 
     def test_bridge_in_runtime_patch(self):
         import inspect
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         source = inspect.getsource(OrgRuntime._create_node_agent)
         assert "_bridge_plan_to_task" in source or "plan" in source.lower()
 
@@ -901,7 +901,7 @@ class TestAPIEndpoints:
 
     def test_api_task_detail_routes(self):
         import inspect
-        from openakita.api.routes import orgs
+        from seeagent.api.routes import orgs
         source = inspect.getsource(orgs)
         assert "tasks/{task_id}" in source or "tasks/{task_id}/tree" in source
         assert "nodes/{node_id}/tasks" in source or "node_id" in source
@@ -909,7 +909,7 @@ class TestAPIEndpoints:
 
     def test_dispatch_endpoint(self):
         import inspect
-        from openakita.api.routes import orgs
+        from seeagent.api.routes import orgs
         source = inspect.getsource(orgs)
         assert "dispatch" in source
 
@@ -944,7 +944,7 @@ class TestBroadcastThrottle:
 
     def test_broadcast_no_trigger(self):
         import inspect
-        from openakita.orgs.messenger import OrgMessenger
+        from seeagent.orgs.messenger import OrgMessenger
         source = inspect.getsource(OrgMessenger._broadcast)
         assert "trigger_handler" in source
 
@@ -959,7 +959,7 @@ class TestScheduleApproval:
 
     def test_schedule_through_approval(self):
         import inspect
-        from openakita.orgs.tool_handler import OrgToolHandler
+        from seeagent.orgs.tool_handler import OrgToolHandler
         source = inspect.getsource(OrgToolHandler._handle_org_create_schedule)
         assert "push_approval" in source or "approval" in source
 
@@ -973,12 +973,12 @@ class TestSaveConcurrencyLock:
     """Verify _save_org uses per-org asyncio.Lock."""
 
     def test_save_lock_exists(self):
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         assert hasattr(OrgRuntime, "_get_save_lock")
 
     def test_save_org_uses_lock(self):
         import inspect
-        from openakita.orgs.runtime import OrgRuntime
+        from seeagent.orgs.runtime import OrgRuntime
         source = inspect.getsource(OrgRuntime._save_org)
         assert "_get_save_lock" in source or "_save_locks" in source
 

@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@knowledge-capture
+name: seeagent/skills@knowledge-capture
 description: Transform conversations and unstructured information into structured Notion documentation. Extract key insights, decisions, and action items. Create cross-linked knowledge bases with templates for meeting notes, how-to guides, decision records, and project documentation. Integrates with Notion API for seamless content creation.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
   upstream: tommy-ca/notion-skills/knowledge-capture
 ---

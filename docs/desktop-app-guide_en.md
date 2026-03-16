@@ -1,6 +1,6 @@
-# OpenAkita Desktop Terminal - User Guide & Feature Overview
+# SeeAgent Desktop Terminal - User Guide & Feature Overview
 
-> OpenAkita Desktop Terminal — an all-in-one desktop client integrating AI chat, IM channel monitoring, skill management, system status, and step-by-step configuration.
+> SeeAgent Desktop Terminal — an all-in-one desktop client integrating AI chat, IM channel monitoring, skill management, system status, and step-by-step configuration.
 
 ---
 
@@ -19,10 +19,10 @@
 
 ## Overview
 
-OpenAkita Desktop Terminal is built with **Tauri 2 + React 18**, connecting to the `openakita serve` backend via HTTP SSE. It supports two operating modes:
+SeeAgent Desktop Terminal is built with **Tauri 2 + React 18**, connecting to the `seeagent serve` backend via HTTP SSE. It supports two operating modes:
 
 - **Local mode**: The desktop app starts the local backend service automatically (requires completing the configuration wizard)
-- **Remote mode**: Connect to a running `openakita serve` instance (ideal for development, debugging, or server deployment)
+- **Remote mode**: Connect to a running `seeagent serve` instance (ideal for development, debugging, or server deployment)
 
 ### Interface Layout
 
@@ -47,7 +47,7 @@ OpenAkita Desktop Terminal is built with **Tauri 2 + React 18**, connecting to t
 ## Quick Start
 
 1. **First Launch**: Expand "Config" in the sidebar and follow the 9-step wizard
-2. **Start Service**: Click "Start Service" in the topbar, or run `openakita serve` in terminal
+2. **Start Service**: Click "Start Service" in the topbar, or run `seeagent serve` in terminal
 3. **Connect Service**: If you already have a backend running, click "Connect" and enter the address (default `127.0.0.1:18900`)
 4. **Start Using**: Click "Chat" in the sidebar to begin
 
@@ -180,7 +180,7 @@ Each channel displays:
 
 ## 3. Skill Management
 
-Skills are extensible capability modules for OpenAkita, following the Agent Skills standard.
+Skills are extensible capability modules for SeeAgent, following the Agent Skills standard.
 
 ### 3.1 Installed Skills
 
@@ -287,7 +287,7 @@ The wizard has 9 steps to guide users from zero to running. Completed steps are 
 ### Step 4: Installation
 
 - **Create virtual environment**: One-click venv creation in workspace
-- **Install openakita**: From PyPI with:
+- **Install seeagent**: From PyPI with:
   - Version selection
   - Mirror source configuration (Tsinghua, Alibaba, etc.)
   - Install options (all / windows / browser extras)
@@ -357,7 +357,7 @@ The wizard has 9 steps to guide users from zero to running. Completed steps are 
 
 ### Tips
 
-1. **Remote debugging**: Run `openakita serve` in terminal, then click "Connect" in the desktop app. Python code changes take effect immediately (no recompilation needed)
+1. **Remote debugging**: Run `seeagent serve` in terminal, then click "Connect" in the desktop app. Python code changes take effect immediately (no recompilation needed)
 2. **Endpoint cooldown**: If an endpoint fails 3 times consecutively, it enters a 1-hour cooldown. Use the Status panel to manually check and clear
 3. **Complex commands**: On Windows, multi-line Python commands are automatically written to temp files, avoiding cmd.exe line truncation issues
 4. **Skill search**: The marketplace supports English keywords like `react`, `deploy`, `testing`, `changelog`
@@ -392,4 +392,4 @@ Desktop Terminal (Tauri 2 + React 18)
 
 ---
 
-*This document is based on OpenAkita v1.10.2, last updated: 2026-02-12*
+*This document is based on SeeAgent v1.10.2, last updated: 2026-02-12*

@@ -5,7 +5,7 @@ UT-V01 ~ UT-V18
 """
 
 import pytest
-from openakita.llm.types import (
+from seeagent.llm.types import (
     ImageContent,
     VideoContent,
     AudioContent,
@@ -17,7 +17,7 @@ from openakita.llm.types import (
     TextBlock,
     UnsupportedMediaError,
 )
-from openakita.llm.converters.multimodal import (
+from seeagent.llm.converters.multimodal import (
     convert_image_to_openai,
     convert_video_to_kimi,
     convert_content_blocks_to_openai,

@@ -2,7 +2,7 @@
 
 ## Overview
 
-技能系统允许 OpenAkita 动态加载、执行和管理技能。
+技能系统允许 SeeAgent 动态加载、执行和管理技能。
 
 ## Jobs to Be Done
 

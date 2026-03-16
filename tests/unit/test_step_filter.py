@@ -1,8 +1,8 @@
 """Tests for StepFilter — tool call classification."""
 from __future__ import annotations
 
-from openakita.api.adapters.seecrab_models import FilterResult, StepFilterConfig
-from openakita.api.adapters.step_filter import StepFilter
+from seeagent.api.adapters.seecrab_models import FilterResult, StepFilterConfig
+from seeagent.api.adapters.step_filter import StepFilter
 
 
 class TestClassify:

@@ -14,7 +14,7 @@ export const useChatStore = defineStore('chat', () => {
     currentReply.value = {
       replyId,
       agentId: 'main',
-      agentName: 'OpenCrab',
+      agentName: 'SeeAgent',
       thinking: '',
       thinkingDone: false,
       planChecklist: null,
@@ -182,7 +182,7 @@ export const useChatStore = defineStore('chat', () => {
         msg.reply = {
           replyId: msg.id,
           agentId: 'main',
-          agentName: 'OpenCrab',
+          agentName: 'SeeAgent',
           thinking: '',
           thinkingDone: true,
           planChecklist: null,

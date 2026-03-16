@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@code-review
+name: seeagent/skills@code-review
 description: Review code changes for correctness, security, and maintainability. Supports local git diffs (staged or working tree) and remote Pull Requests (by ID or URL). Use when the user asks to review code, check a PR, audit changes, or wants feedback on code quality before merging.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

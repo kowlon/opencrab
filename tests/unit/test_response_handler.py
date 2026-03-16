@@ -2,7 +2,7 @@
 
 import pytest
 
-from openakita.core.response_handler import (
+from seeagent.core.response_handler import (
     strip_thinking_tags,
     strip_tool_simulation_text,
     clean_llm_response,

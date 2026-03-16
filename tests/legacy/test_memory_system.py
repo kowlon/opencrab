@@ -20,12 +20,12 @@ from unittest.mock import Mock, AsyncMock, patch
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from openakita.memory.types import Memory, MemoryType, MemoryPriority, ConversationTurn
-from openakita.memory.vector_store import VectorStore
-from openakita.memory.extractor import MemoryExtractor
-from openakita.memory.manager import MemoryManager
-from openakita.memory.consolidator import MemoryConsolidator
-from openakita.memory.daily_consolidator import DailyConsolidator
+from seeagent.memory.types import Memory, MemoryType, MemoryPriority, ConversationTurn
+from seeagent.memory.vector_store import VectorStore
+from seeagent.memory.extractor import MemoryExtractor
+from seeagent.memory.manager import MemoryManager
+from seeagent.memory.consolidator import MemoryConsolidator
+from seeagent.memory.daily_consolidator import DailyConsolidator
 
 try:
     import sentence_transformers  # noqa: F401
@@ -746,7 +746,7 @@ class TestSessionTaskManagement:
     
     def test_53_set_task(self):
         """测试设置任务"""
-        from openakita.sessions.session import Session
+        from seeagent.sessions.session import Session
         session = Session.create(channel="test", chat_id="123", user_id="user1")
         
         session.set_task("task_001", "完成代码审查")
@@ -757,7 +757,7 @@ class TestSessionTaskManagement:
     
     def test_54_complete_task_success(self):
         """测试成功完成任务"""
-        from openakita.sessions.session import Session
+        from seeagent.sessions.session import Session
         session = Session.create(channel="test", chat_id="123", user_id="user1")
         session.set_task("task_001", "测试任务")
         
@@ -769,7 +769,7 @@ class TestSessionTaskManagement:
     
     def test_55_complete_task_failure(self):
         """测试任务失败"""
-        from openakita.sessions.session import Session
+        from seeagent.sessions.session import Session
         session = Session.create(channel="test", chat_id="123", user_id="user1")
         session.set_task("task_001", "测试任务")
         
@@ -779,7 +779,7 @@ class TestSessionTaskManagement:
     
     def test_56_get_task_status(self):
         """测试获取任务状态"""
-        from openakita.sessions.session import Session
+        from seeagent.sessions.session import Session
         session = Session.create(channel="test", chat_id="123", user_id="user1")
         session.set_task("task_001", "测试任务")
         
@@ -791,7 +791,7 @@ class TestSessionTaskManagement:
     
     def test_57_has_active_task(self):
         """测试检查是否有活跃任务"""
-        from openakita.sessions.session import Session
+        from seeagent.sessions.session import Session
         session = Session.create(channel="test", chat_id="123", user_id="user1")
         
         assert session.has_active_task() == False

@@ -8,7 +8,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 import httpx
 
-from openakita.llm.registries import (
+from seeagent.llm.registries import (
     DashScopeRegistry,
     OpenRouterRegistry,
     SiliconFlowRegistry,
@@ -16,7 +16,7 @@ from openakita.llm.registries import (
     get_registry,
     list_providers,
 )
-from openakita.llm.registries.base import ModelInfo
+from seeagent.llm.registries.base import ModelInfo
 
 
 class TestDashScopeRegistry:

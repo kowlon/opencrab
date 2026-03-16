@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from openakita.orgs.notifier import OrgNotifier
-from openakita.orgs.models import InboxMessage, InboxPriority
+from seeagent.orgs.notifier import OrgNotifier
+from seeagent.orgs.models import InboxMessage, InboxPriority
 
 
 @pytest.fixture()
@@ -105,7 +105,7 @@ class TestHandleImReply:
         assert result["matched"] is False
 
     async def test_valid_approval(self, notifier: OrgNotifier, persisted_org, mock_runtime):
-        from openakita.orgs.inbox import OrgInbox
+        from seeagent.orgs.inbox import OrgInbox
         inbox = OrgInbox(mock_runtime)
         mock_runtime.get_inbox = MagicMock(return_value=inbox)
         msg = inbox.push(persisted_org.id, "审批", "body", requires_approval=True)

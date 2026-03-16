@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@xiaohongshu-creator
+name: seeagent/skills@xiaohongshu-creator
 description: Create engaging Xiaohongshu (RED/小红书) content including titles, body text, hashtags, and image style recommendations. Supports multiple content types such as product reviews, tutorials, lifestyle sharing, and shopping guides with platform-specific optimization.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

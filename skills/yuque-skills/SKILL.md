@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@yuque-skills
+name: seeagent/skills@yuque-skills
 description: Manage Yuque (语雀) knowledge bases, documents, and team collaboration through API integration. Supports personal search, weekly reports, knowledge base management, document CRUD, and group collaboration workflows. Based on yuque/yuque-skills.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 
@@ -92,7 +92,7 @@ YUQUE_TOKEN = os.environ["YUQUE_TOKEN"]
 headers = {
     "X-Auth-Token": YUQUE_TOKEN,
     "Content-Type": "application/json",
-    "User-Agent": "OpenAkita-Agent/1.0"
+    "User-Agent": "SeeAgent-Agent/1.0"
 }
 
 async def yuque_api(method, path, data=None):

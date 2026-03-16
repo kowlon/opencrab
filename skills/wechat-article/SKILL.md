@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@wechat-article
+name: seeagent/skills@wechat-article
 description: Create and format WeChat Official Account (公众号) articles with proper Markdown-to-WeChat HTML conversion, rich formatting, cover image guidance, and both API and manual publishing workflows.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 

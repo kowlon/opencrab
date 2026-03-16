@@ -3,9 +3,9 @@
 import pytest
 from datetime import datetime
 
-from openakita.memory.retrieval import RetrievalEngine
-from openakita.memory.types import Episode, MemoryType, SemanticMemory
-from openakita.memory.unified_store import UnifiedStore
+from seeagent.memory.retrieval import RetrievalEngine
+from seeagent.memory.types import Episode, MemoryType, SemanticMemory
+from seeagent.memory.unified_store import UnifiedStore
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ class TestRetrievalEngine:
         assert len(result) < 200  # ~50 tokens * ~3 chars/token
 
     def test_reranking_scoring(self, engine):
-        from openakita.memory.retrieval import RetrievalCandidate
+        from seeagent.memory.retrieval import RetrievalCandidate
 
         candidates = [
             RetrievalCandidate(

@@ -151,7 +151,7 @@ jobs:
 
       - name: Run all tests
         if: ${{ hashFiles('tests/**') != '' }}
-        run: pytest tests/ -v --cov=src/openakita --cov-report=xml -k "not TestVectorStore"
+        run: pytest tests/ -v --cov=src/seeagent --cov-report=xml -k "not TestVectorStore"
 
       - name: Skip tests (no tests directory)
         if: ${{ hashFiles('tests/**') == '' }}
@@ -244,7 +244,7 @@ jobs:
         if: ${{ hashFiles('apps/setup-center/src-tauri/Cargo.toml') != '' }}
         shell: bash
         run: |
-          mkdir -p apps/setup-center/src-tauri/resources/openakita-server
+          mkdir -p apps/setup-center/src-tauri/resources/seeagent-server
           # user_custom.md is gitignored (personal data); create placeholder for include_str!()
           mkdir -p identity/personas
           if [ ! -f identity/personas/user_custom.md ]; then
@@ -304,7 +304,7 @@ jobs:
       - name: Clean previous PyInstaller output
         run: |
           rm -rf dist/
-          rm -rf build/openakita-server
+          rm -rf build/seeagent-server
           rm -rf build/pyinstaller_work
 
       - name: Package Python backend (PyInstaller)
@@ -314,11 +314,11 @@ jobs:
         run: |
           RESOURCE_DIR="apps/setup-center/src-tauri/resources"
           mkdir -p "$RESOURCE_DIR"
-          rm -rf "$RESOURCE_DIR/openakita-server"
-          cp -r dist/openakita-server "$RESOURCE_DIR/openakita-server"
+          rm -rf "$RESOURCE_DIR/seeagent-server"
+          cp -r dist/seeagent-server "$RESOURCE_DIR/seeagent-server"
 
       - name: Verify bundled Python contract
-        run: python build/verify_bundled_python_contract.py --backend-dir apps/setup-center/src-tauri/resources/openakita-server
+        run: python build/verify_bundled_python_contract.py --backend-dir apps/setup-center/src-tauri/resources/seeagent-server
 
       - name: Create gitignored placeholders
         run: |

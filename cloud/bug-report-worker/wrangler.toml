@@ -4,7 +4,7 @@ compatibility_date = "2025-01-01"
 workers_dev = true
 
 routes = [
-  { pattern = "feedback.openakita.ai/*", zone_name = "openakita.ai" }
+  { pattern = "feedback.seeagent.ai/*", zone_name = "seeagent.ai" }
 ]
 
 [[r2_buckets]]

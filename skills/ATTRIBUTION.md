@@ -4,9 +4,9 @@
 
 ---
 
-This document acknowledges the open-source projects and authors whose work has been adapted or derived to create skills in the OpenAkita project. We are grateful to the open-source community for sharing these valuable resources.
+This document acknowledges the open-source projects and authors whose work has been adapted or derived to create skills in the SeeAgent project. We are grateful to the open-source community for sharing these valuable resources.
 
-本文档致谢那些为 OpenAkita 项目技能提供基础的开源项目和作者。我们感谢开源社区分享这些宝贵的资源。
+本文档致谢那些为 SeeAgent 项目技能提供基础的开源项目和作者。我们感谢开源社区分享这些宝贵的资源。
 
 **License Compatibility Note / 许可证兼容性说明:** All credited projects use permissive licenses (primarily MIT). Our adaptations maintain compatibility with these licenses and comply with their attribution requirements.
 

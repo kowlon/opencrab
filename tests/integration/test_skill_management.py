@@ -2,7 +2,7 @@
 
 覆盖 v1.25.9 修复的技能相关 bug：
 1. 已安装技能列表 API 返回正确数据
-2. 含斜杠的技能名（如 openakita/skills@canvas-design）能查看详情不报 404
+2. 含斜杠的技能名（如 seeagent/skills@canvas-design）能查看详情不报 404
 3. 技能内容读取 GET /api/skills/content/{skill_name:path}
 4. 技能内容更新 PUT /api/skills/content/{skill_name:path}（非系统技能）
 5. 系统技能不可编辑
@@ -13,7 +13,7 @@
 import pytest
 import httpx
 
-from openakita.api.server import create_app
+from seeagent.api.server import create_app
 
 
 @pytest.fixture
@@ -71,7 +71,7 @@ class TestListSkills:
 class TestSkillWithSlashName:
 
     async def test_slash_skill_name_not_404(self, client):
-        resp = await client.get("/api/skills/content/openakita/skills@canvas-design")
+        resp = await client.get("/api/skills/content/seeagent/skills@canvas-design")
         assert resp.status_code != 404
 
     async def test_nested_slash_skill_name(self, client):

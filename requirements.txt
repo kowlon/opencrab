@@ -1,5 +1,5 @@
 # =====================================================
-# OpenAkita - 依赖列表
+# SeeAgent - 依赖列表
 # Python 版本要求: >= 3.11
 #
 # 权威来源: pyproject.toml
@@ -60,8 +60,8 @@ uvicorn>=0.27.0            # ASGI 服务器
 python-telegram-bot>=21.0  # Telegram Bot API
 
 # =====================================================
-# 可选依赖 - IM 通道 (pip install openakita[all] 全装)
-# 按需取消注释，或使用 pip install openakita[feishu] 等
+# 可选依赖 - IM 通道 (pip install seeagent[all] 全装)
+# 按需取消注释，或使用 pip install seeagent[feishu] 等
 # =====================================================
 
 # 飞书

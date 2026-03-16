@@ -9,13 +9,13 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from openakita.channels.types import (
+from seeagent.channels.types import (
     MediaFile,
     MessageContent,
     MessageType,
     UnifiedMessage,
 )
-from openakita.sessions.session import Session, SessionConfig, SessionContext, SessionState
+from seeagent.sessions.session import Session, SessionConfig, SessionContext, SessionState
 
 
 def create_test_session(

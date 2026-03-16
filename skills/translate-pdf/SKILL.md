@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@translate-pdf
+name: seeagent/skills@translate-pdf
 description: Translate PDF documents while preserving original layout, styling, tables, images, and formatting. Supports Simplified Chinese, Traditional Chinese, English, Japanese, Korean, and more. Page-by-page translation with structure preservation.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 
@@ -475,7 +475,7 @@ glossary = {
   "source_lang": "en",
   "target_lang": "zh-CN",
   "terms": {
-    "OpenAkita": "OpenAkita",
+    "SeeAgent": "SeeAgent",
     "Agent": "智能体",
     "fine-tuning": "微调",
     "prompt engineering": "提示词工程"

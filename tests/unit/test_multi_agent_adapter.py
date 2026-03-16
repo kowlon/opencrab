@@ -5,7 +5,7 @@ import asyncio
 
 import pytest
 
-from openakita.api.adapters.multi_agent_adapter import MultiAgentAdapter
+from seeagent.api.adapters.multi_agent_adapter import MultiAgentAdapter
 
 
 async def _fake_stream(agent_id: str, events: list[dict]):

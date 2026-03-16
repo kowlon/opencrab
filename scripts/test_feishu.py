@@ -156,7 +156,7 @@ def test_feishu_adapter():
     print("=" * 60)
     
     try:
-        from src.openakita.channels.adapters.feishu import FeishuAdapter
+        from src.seeagent.channels.adapters.feishu import FeishuAdapter
         
         app_id = os.getenv("FEISHU_APP_ID")
         app_secret = os.getenv("FEISHU_APP_SECRET")

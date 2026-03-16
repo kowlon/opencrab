@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@mcp-builder
+name: seeagent/skills@mcp-builder
 description: Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
 ---
 
@@ -196,9 +196,9 @@ Create an XML file with this structure:
 
 ---
 
-### Phase 5: Register in OpenAkita (CRITICAL)
+### Phase 5: Register in SeeAgent (CRITICAL)
 
-**This step is mandatory.** After building and testing the MCP server, you MUST register it into the OpenAkita system so the user can actually use it. Do NOT just show config snippets — call `add_mcp_server` to complete the registration.
+**This step is mandatory.** After building and testing the MCP server, you MUST register it into the SeeAgent system so the user can actually use it. Do NOT just show config snippets — call `add_mcp_server` to complete the registration.
 
 #### 5.1 Install Dependencies
 

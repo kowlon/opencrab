@@ -1,7 +1,7 @@
 # LLM 模型 API 接口特性调研报告
 
 > 调研日期: 2026-02-02  
-> 调研目的: 了解各主流 LLM 模型在工具调用、Thinking 模式、多模态传输等方面的接口差异，为 OpenAkita 多模型适配提供参考
+> 调研目的: 了解各主流 LLM 模型在工具调用、Thinking 模式、多模态传输等方面的接口差异，为 SeeAgent 多模型适配提供参考
 
 ## 一、调研范围
 
@@ -181,9 +181,9 @@
 ```
 
 **系统处理方案** (已实现):
-- 文件: `src/openakita/llm/converters/tools.py`
+- 文件: `src/seeagent/llm/converters/tools.py`
 - 函数: `parse_text_tool_calls()`, `has_text_tool_calls()`
-- 在 `src/openakita/llm/providers/anthropic.py` 的 `_parse_response()` 中自动检测和解析
+- 在 `src/seeagent/llm/providers/anthropic.py` 的 `_parse_response()` 中自动检测和解析
 
 **Thinking 内容处理**:
 - Anthropic API: thinking 作为独立 block
@@ -230,7 +230,7 @@
 - 需要从 `functions.get_weather:0` 中提取函数名 `get_weather`
 
 **系统处理方案** (已实现):
-- 文件: `src/openakita/llm/converters/tools.py`
+- 文件: `src/seeagent/llm/converters/tools.py`
 - 函数: `_parse_kimi_tool_calls()`
 
 **Tool ID 一致性问题**:
@@ -759,4 +759,4 @@ def extract_frames(video_path, sample_rate=1):
 
 ### 相关项目文档
 
-- [OpenAkita LLM Tool Call Formats](./llm-tool-call-formats.md) - 工具调用格式快速参考
+- [SeeAgent LLM Tool Call Formats](./llm-tool-call-formats.md) - 工具调用格式快速参考

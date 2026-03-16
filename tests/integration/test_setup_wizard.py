@@ -11,7 +11,7 @@ import json
 import pytest
 from pathlib import Path
 
-from openakita.setup.wizard import SetupWizard
+from seeagent.setup.wizard import SetupWizard
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ class TestGenerateEnvContent:
     def test_env_contains_agent_settings(self, wizard):
         wizard.config = {}
         content = wizard._generate_env_content()
-        assert "AGENT_NAME=OpenAkita" in content
+        assert "AGENT_NAME=SeeAgent" in content
         assert "AUTO_CONFIRM=false" in content
         assert "DATABASE_PATH=data/agent.db" in content
 
@@ -178,7 +178,7 @@ class TestCreateIdentityExamples:
         soul = tmp_path / "identity" / "SOUL.md"
         assert soul.exists()
         content = soul.read_text(encoding="utf-8")
-        assert "OpenAkita" in content
+        assert "SeeAgent" in content
 
     def test_does_not_overwrite_existing(self, wizard, tmp_path):
         identity_dir = tmp_path / "identity"

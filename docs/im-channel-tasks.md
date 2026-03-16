@@ -6,7 +6,7 @@
 
 ## 概述
 
-OpenAkita 通过统一的 `ChannelAdapter` 接口接入各 IM 平台。目前已接入 6 个平台（Telegram、飞书、钉钉、企业微信、QQ 官方机器人、OneBot），但部分平台存在功能不全的问题，同时还有多个国际主流 IM 尚未接入。
+SeeAgent 通过统一的 `ChannelAdapter` 接口接入各 IM 平台。目前已接入 6 个平台（Telegram、飞书、钉钉、企业微信、QQ 官方机器人、OneBot），但部分平台存在功能不全的问题，同时还有多个国际主流 IM 尚未接入。
 
 IM 通道模块是相对独立的子系统，非常适合社区贡献者参与。每个适配器只需实现 `ChannelAdapter` 基类的抽象方法，不涉及核心 Agent 逻辑的修改。
 
@@ -19,11 +19,11 @@ Agent 回复 ← Adapter (发送) ← OutgoingMessage ← Gateway (路由)
 ```
 
 **关键文件**:
-- 基类: `src/openakita/channels/base.py` — `ChannelAdapter` 抽象类
-- 消息类型: `src/openakita/channels/types.py` — `UnifiedMessage`, `OutgoingMessage`, `MediaFile`
-- 消息网关: `src/openakita/channels/gateway.py` — 统一路由和预处理
-- 适配器目录: `src/openakita/channels/adapters/` — 各平台实现
-- 注册入口: `src/openakita/main.py` — `_create_bot_adapter()` 和 `start_im_channels()`
+- 基类: `src/seeagent/channels/base.py` — `ChannelAdapter` 抽象类
+- 消息类型: `src/seeagent/channels/types.py` — `UnifiedMessage`, `OutgoingMessage`, `MediaFile`
+- 消息网关: `src/seeagent/channels/gateway.py` — 统一路由和预处理
+- 适配器目录: `src/seeagent/channels/adapters/` — 各平台实现
+- 注册入口: `src/seeagent/main.py` — `_create_bot_adapter()` 和 `start_im_channels()`
 
 **必须实现的抽象方法**:
 | 方法 | 说明 |
@@ -407,12 +407,12 @@ MESSENGER_WEBHOOK_PORT=9884
 
 ### 4.1 开发步骤
 
-1. **创建适配器文件**: 在 `src/openakita/channels/adapters/` 下新建 `<platform>.py`
+1. **创建适配器文件**: 在 `src/seeagent/channels/adapters/` 下新建 `<platform>.py`
 2. **继承 ChannelAdapter**: 实现所有抽象方法
-3. **添加配置项**: 在 `src/openakita/config.py` 中添加平台配置字段
-4. **注册适配器**: 在 `src/openakita/main.py` 的 `_create_bot_adapter()` 和 `start_im_channels()` 中添加创建/启动逻辑
+3. **添加配置项**: 在 `src/seeagent/config.py` 中添加平台配置字段
+4. **注册适配器**: 在 `src/seeagent/main.py` 的 `_create_bot_adapter()` 和 `start_im_channels()` 中添加创建/启动逻辑
 5. **添加依赖**: 在 `pyproject.toml` 中添加可选依赖组
-6. **导出适配器**: 在 `src/openakita/channels/adapters/__init__.py` 中导出
+6. **导出适配器**: 在 `src/seeagent/channels/adapters/__init__.py` 中导出
 7. **编写测试**: 在 `tests/` 下添加单元测试和集成测试
 8. **编写文档**: 更新 `docs/im-channels.md`，添加平台配置说明
 
@@ -504,7 +504,7 @@ class PlatformAdapter(ChannelAdapter):
 
 ## 五、如何认领任务
 
-1. 在 [GitHub Issues](https://github.com/openakita/openakita/issues) 中找到对应任务的 Issue（标签: `im-channel`）
+1. 在 [GitHub Issues](https://github.com/seeagent/seeagent/issues) 中找到对应任务的 Issue（标签: `im-channel`）
 2. 留言表示认领意向，说明预计完成时间
 3. 维护者确认后会将 Issue assign 给你
 4. Fork 仓库，按照 [CONTRIBUTING.md](../CONTRIBUTING.md) 指南开发
@@ -536,4 +536,4 @@ class PlatformAdapter(ChannelAdapter):
 
 ---
 
-*本文档持续更新。如有问题或建议，请在 [GitHub Discussions](https://github.com/openakita/openakita/discussions) 中讨论。*
+*本文档持续更新。如有问题或建议，请在 [GitHub Discussions](https://github.com/seeagent/seeagent/discussions) 中讨论。*

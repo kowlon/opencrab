@@ -3,7 +3,7 @@
 import pytest
 import httpx
 
-from openakita.api.server import create_app
+from seeagent.api.server import create_app
 
 
 @pytest.fixture

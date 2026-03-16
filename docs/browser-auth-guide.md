@@ -2,7 +2,7 @@
 
 ## 问题背景
 
-默认情况下，OpenAkita 的浏览器工具会启动一个新的浏览器实例，没有用户的登录状态、Cookie 或密码管理器。本指南介绍如何让 AI Agent 连接到您**真实的 Chrome 浏览器**，保留所有登录状态。
+默认情况下，SeeAgent 的浏览器工具会启动一个新的浏览器实例，没有用户的登录状态、Cookie 或密码管理器。本指南介绍如何让 AI Agent 连接到您**真实的 Chrome 浏览器**，保留所有登录状态。
 
 ## 方案概览
 
@@ -57,7 +57,7 @@ google-chrome --remote-debugging-port=9222
 
 ### 使用方式
 
-OpenAkita 启动后，Chrome DevTools MCP 会自动作为外部 MCP 服务器加载。可以通过以下方式调用：
+SeeAgent 启动后，Chrome DevTools MCP 会自动作为外部 MCP 服务器加载。可以通过以下方式调用：
 
 ```
 # 通过 MCP 工具调用
@@ -110,14 +110,14 @@ call_mcp_tool("chrome-devtools", "take_screenshot", {})
 
 ### 使用方式
 
-扩展启动后会在 `http://127.0.0.1:12306/mcp` 暴露 MCP 接口。OpenAkita 会自动检测。
+扩展启动后会在 `http://127.0.0.1:12306/mcp` 暴露 MCP 接口。SeeAgent 会自动检测。
 
 ---
 
 ## 常见问题
 
 ### Q: 两种方案可以同时使用吗？
-A: 可以。Chrome DevTools MCP 和 mcp-chrome 扩展互不冲突，OpenAkita 会根据可用性自动选择。
+A: 可以。Chrome DevTools MCP 和 mcp-chrome 扩展互不冲突，SeeAgent 会根据可用性自动选择。
 
 ### Q: 密码管理器（1Password/Bitwarden）能正常工作吗？
 A: 使用 Chrome DevTools MCP 的 autoConnect 模式或 mcp-chrome 扩展时，所有 Chrome 扩展（包括密码管理器）都正常工作。

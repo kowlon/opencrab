@@ -10,7 +10,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 
-from openakita.llm.types import (
+from seeagent.llm.types import (
     Message,
     TextBlock,
     ToolUseBlock,
@@ -20,7 +20,7 @@ from openakita.llm.types import (
     StopReason,
     Tool,
 )
-from openakita.llm.client import LLMClient
+from seeagent.llm.client import LLMClient
 
 
 @pytest.fixture
@@ -120,7 +120,7 @@ class TestMediaHandlerCompatibility:
     @pytest.mark.asyncio
     async def test_reg_03_image_handling(self, test_client):
         """REG-03: MediaHandler 图片处理兼容"""
-        from openakita.llm.types import ImageBlock, ImageContent
+        from seeagent.llm.types import ImageBlock, ImageContent
         
         mock_response = create_mock_response("Image described")
         
@@ -142,7 +142,7 @@ class TestMediaHandlerCompatibility:
     @pytest.mark.asyncio
     async def test_reg_04_multimodal_message(self, test_client):
         """REG-04: MediaHandler 多模态消息兼容"""
-        from openakita.llm.types import ImageBlock, ImageContent
+        from seeagent.llm.types import ImageBlock, ImageContent
         
         mock_response = create_mock_response("Processed")
         

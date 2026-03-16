@@ -1,9 +1,9 @@
 ---
-name: openakita/skills@youtube-summarizer
+name: seeagent/skills@youtube-summarizer
 description: Summarize YouTube videos by extracting transcripts and generating structured notes. Use when the user wants to summarize a YouTube video, extract key points from a talk, create study notes from a lecture, or get timestamps for important moments. Supports multiple URL formats and languages.
 license: MIT
 metadata:
-  author: openakita
+  author: seeagent
   version: "1.0.0"
   based_on: sickn33/antigravity-awesome-skills/youtube-summarizer
 ---

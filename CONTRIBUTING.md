@@ -1,6 +1,6 @@
-# Contributing to OpenAkita
+# Contributing to SeeAgent
 
-First off, thank you for considering contributing to OpenAkita! It's people like you that make OpenAkita such a great tool.
+First off, thank you for considering contributing to SeeAgent! It's people like you that make SeeAgent such a great tool.
 
 ## Table of Contents
 
@@ -31,14 +31,14 @@ This project and everyone participating in it is governed by our [Code of Conduc
 2. Clone your fork locally:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/openakita.git
-cd openakita
+git clone https://github.com/YOUR_USERNAME/seeagent.git
+cd seeagent
 ```
 
 3. Add the upstream repository:
 
 ```bash
-git remote add upstream https://github.com/openakita/openakita.git
+git remote add upstream https://github.com/seeagent/seeagent.git
 ```
 
 4. Keep your fork synchronized:
@@ -53,7 +53,7 @@ git merge upstream/main
 
 ### Reporting Bugs
 
-Before creating bug reports, please check the [existing issues](https://github.com/openakita/openakita/issues) to avoid duplicates.
+Before creating bug reports, please check the [existing issues](https://github.com/seeagent/seeagent/issues) to avoid duplicates.
 
 When you create a bug report, please include as many details as possible:
 
@@ -116,7 +116,7 @@ pre-commit install
 pytest tests/ -v
 
 # Run with coverage
-pytest tests/ --cov=src/openakita --cov-report=html
+pytest tests/ --cov=src/seeagent --cov-report=html
 
 # Run specific test file
 pytest tests/test_agent.py -v
@@ -161,7 +161,7 @@ import logging
 from anthropic import Anthropic
 
 # Local imports
-from openakita.core.agent import Agent
+from seeagent.core.agent import Agent
 ```
 
 ### Docstrings
@@ -302,19 +302,19 @@ Describe the tests you ran.
 ### Getting Help
 
 - 📖 [Documentation](docs/)
-- 💬 [GitHub Discussions](https://github.com/openakita/openakita/discussions)
-- 🐛 [Issue Tracker](https://github.com/openakita/openakita/issues)
+- 💬 [GitHub Discussions](https://github.com/seeagent/seeagent/discussions)
+- 🐛 [Issue Tracker](https://github.com/seeagent/seeagent/issues)
 
 ### Recognition
 
 Contributors are recognized in:
-- The [Contributors](https://github.com/openakita/openakita/graphs/contributors) page
+- The [Contributors](https://github.com/seeagent/seeagent/graphs/contributors) page
 - Release notes for significant contributions
 - Our README (for major contributors)
 
 ## Thank You!
 
-Your contributions make OpenAkita better for everyone. We appreciate your time and effort!
+Your contributions make SeeAgent better for everyone. We appreciate your time and effort!
 
 ---
 
