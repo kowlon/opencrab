@@ -25,7 +25,6 @@ export const useChatStore = defineStore('chat', () => {
         total: { state: 'idle', value: null },
       },
       askUser: null,
-      artifacts: [],
       isDone: false,
     }
     isStreaming.value = true
@@ -87,10 +86,6 @@ export const useChatStore = defineStore('chat', () => {
       case 'agent_header':
         reply.agentId = (event as any).agent_id ?? 'main'
         reply.agentName = (event as any).agent_name ?? 'Agent'
-        break
-
-      case 'artifact':
-        reply.artifacts.push(event as any)
         break
 
       case 'done':
@@ -193,7 +188,6 @@ export const useChatStore = defineStore('chat', () => {
             total: { state: 'idle', value: null },
           },
           askUser: null,
-          artifacts: [],
           isDone: true,
         }
       }

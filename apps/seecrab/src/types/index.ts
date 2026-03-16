@@ -2,7 +2,7 @@
 
 export type SSEEventType =
   | 'thinking' | 'plan_checklist' | 'step_card' | 'ai_text'
-  | 'ask_user' | 'agent_header' | 'artifact'
+  | 'ask_user' | 'agent_header'
   | 'timer_update' | 'heartbeat' | 'done' | 'error'
   | 'session_title'
 
@@ -30,7 +30,6 @@ export interface ReplyState {
   summaryText: string
   timer: TimerState
   askUser: AskUserState | null
-  artifacts: Artifact[]
   isDone: boolean
 }
 
@@ -81,13 +80,6 @@ export interface AskUserState {
   options: { label: string; value: string }[]
   answered: boolean
   answer?: string
-}
-
-export interface Artifact {
-  artifact_type: string
-  file_url: string
-  filename: string
-  mime_type: string
 }
 
 export interface Session {
