@@ -685,14 +685,25 @@ class AgentOrchestrator:
         agent._is_sub_agent_call = is_sub_agent
         _start = time.time()
         try:
-            session_messages = session.context.get_messages()
-            result = await agent.chat_with_session(
-                message=message,
-                session_messages=session_messages,
-                session_id=session.id,
-                session=session,
-                gateway=gateway,
+            # Check for SSE event bus (SeeCrab streaming scenario)
+            event_bus = getattr(
+                getattr(session, "context", None), "_sse_event_bus", None,
             )
+
+            if event_bus is not None and is_sub_agent:
+                result = await _call_agent_streaming(
+                    agent, session, message, event_bus, gateway,
+                )
+            else:
+                session_messages = session.context.get_messages()
+                result = await agent.chat_with_session(
+                    message=message,
+                    session_messages=session_messages,
+                    session_id=session.id,
+                    session=session,
+                    gateway=gateway,
+                )
+
             # Persist sub-agent work record into parent session
             try:
                 _persist_sub_agent_record(agent, session, message, result, _start)
@@ -1052,6 +1063,56 @@ def _build_work_summary(record: dict) -> str:
         lines.append(f"结果摘要: {result_brief}")
 
     return "\n".join(lines)
+
+
+async def _call_agent_streaming(agent, session, message, event_bus, gateway=None):
+    """Stream sub-agent events into event_bus for SeeCrab real-time display."""
+    profile = getattr(agent, "_agent_profile", None)
+    agent_id = profile.id if profile else "sub_agent"
+    agent_name = profile.get_display_name() if profile else agent_id
+    agent_desc = getattr(profile, "description", "") if profile else ""
+
+    # Inject agent_header (sub-agent starts)
+    await event_bus.put({
+        "type": "agent_header",
+        "agent_id": agent_id,
+        "agent_name": agent_name,
+        "agent_description": agent_desc,
+    })
+
+    full_text = ""
+    session_messages = session.context.get_messages()
+
+    try:
+        async for event in agent.chat_with_session_stream(
+            message=message,
+            session_messages=session_messages,
+            session_id=session.id,
+            session=session,
+        ):
+            etype = event.get("type", "")
+            if etype == "text_delta":
+                full_text += event.get("content", "")
+            if etype == "done":
+                continue  # sub-agent done is not forwarded
+            await event_bus.put(event)
+    except Exception as e:
+        logger.error(f"[Orchestrator] Streaming sub-agent failed: {e}", exc_info=True)
+        await event_bus.put({
+            "type": "error",
+            "message": f"Sub-agent {agent_name} failed: {e}",
+            "code": "agent_error",
+            "agent_id": agent_id,
+        })
+    finally:
+        # Inject agent_header (restore main agent)
+        await event_bus.put({
+            "type": "agent_header",
+            "agent_id": "main",
+            "agent_name": "SeeAgent",
+        })
+
+    return full_text
 
 
 def _persist_sub_agent_record(
