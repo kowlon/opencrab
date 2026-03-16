@@ -147,6 +147,9 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
             brain = getattr(agent, "brain", None)
             adapter = SeeCrabAdapter(brain=brain, user_messages=user_messages)
+            event_bus = asyncio.Queue()
+            if session and hasattr(session, "context"):
+                session.context._sse_event_bus = event_bus
             reply_id = f"reply_{uuid.uuid4().hex[:12]}"
 
             raw_stream = agent.chat_with_session_stream(
@@ -192,7 +195,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 "timer": {"ttft": None, "total": None},
             }
 
-            async for event in adapter.transform(raw_stream, reply_id=reply_id):
+            async for event in adapter.transform(raw_stream, reply_id=reply_id, event_bus=event_bus):
                 if disconnect_event.is_set():
                     break
                 payload = json.dumps(event, ensure_ascii=False)
