@@ -174,18 +174,19 @@ export const useChatStore = defineStore('chat', () => {
         timestamp: ts,
       }
       if (m.role === 'assistant' && m.content) {
+        const rs = m.reply_state
         msg.reply = {
           replyId: msg.id,
           agentId: 'main',
           agentName: 'SeeAgent',
-          thinking: '',
+          thinking: rs?.thinking ?? '',
           thinkingDone: true,
-          planChecklist: null,
-          stepCards: [],
+          planChecklist: rs?.plan_checklist ?? null,
+          stepCards: (rs?.step_cards ?? []).map(_mapStepCard),
           summaryText: m.content,
           timer: {
-            ttft: { state: 'idle', value: null },
-            total: { state: 'idle', value: null },
+            ttft: { state: 'done' as const, value: rs?.timer?.ttft ?? null },
+            total: { state: 'done' as const, value: rs?.timer?.total ?? null },
           },
           askUser: null,
           isDone: true,
@@ -193,6 +194,22 @@ export const useChatStore = defineStore('chat', () => {
       }
       return msg
     })
+  }
+
+  function _mapStepCard(raw: any): StepCard {
+    return {
+      stepId: raw.step_id,
+      title: raw.title,
+      status: raw.status,
+      sourceType: raw.source_type,
+      cardType: raw.card_type,
+      duration: raw.duration ?? null,
+      planStepIndex: raw.plan_step_index ?? null,
+      agentId: raw.agent_id ?? 'main',
+      input: raw.input ?? null,
+      output: raw.output ?? null,
+      absorbedCalls: raw.absorbed_calls ?? [],
+    }
   }
 
   async function loadSessionMessages(sessionId: string) {
