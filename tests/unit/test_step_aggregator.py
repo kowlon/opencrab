@@ -319,3 +319,48 @@ class TestUserMentionIDLE:
         card = next(e for e in events if e["type"] == "step_card")
         assert card["status"] == "running"
         assert agg.state == AggregatorState.IDLE
+
+
+class TestAgentTrigger:
+    pytestmark = pytest.mark.asyncio
+
+    async def test_agent_trigger_creates_card_with_dynamic_title(self):
+        tg, cb, timer = _make_deps()
+        agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
+        events = await agg.on_tool_call_start(
+            "delegate_to_agent",
+            {"agent_id": "researcher", "message": "搜索论文", "reason": "需要调研"},
+            "t1",
+            FilterResult.AGENT_TRIGGER,
+        )
+        assert len(events) >= 1
+        card = next(e for e in events if e["type"] == "step_card")
+        assert card["status"] == "running"
+        assert "researcher" in card["title"]
+        assert agg.state == AggregatorState.IDLE  # no absorb state
+        assert "t1" in agg._independent_cards
+
+    async def test_agent_trigger_completed_on_tool_end(self):
+        tg, cb, timer = _make_deps()
+        agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
+        await agg.on_tool_call_start(
+            "delegate_to_agent",
+            {"agent_id": "researcher", "message": "搜索"},
+            "t1",
+            FilterResult.AGENT_TRIGGER,
+        )
+        events = await agg.on_tool_call_end(
+            "delegate_to_agent", "t1", "研究结果...", False,
+        )
+        assert len(events) == 1
+        assert events[0]["status"] == "completed"
+        assert events[0]["output"] is not None
+
+    async def test_agent_trigger_with_empty_args(self):
+        tg, cb, timer = _make_deps()
+        agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
+        events = await agg.on_tool_call_start(
+            "delegate_to_agent", {}, "t1", FilterResult.AGENT_TRIGGER,
+        )
+        card = next(e for e in events if e["type"] == "step_card")
+        assert "专家" in card["title"]

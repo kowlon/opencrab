@@ -234,6 +234,8 @@ class StepAggregator:
             return self._start_skill(tool_name, args)
         if fr == FilterResult.MCP_TRIGGER:
             return self._start_mcp(tool_name, args)
+        if fr == FilterResult.AGENT_TRIGGER:
+            return self._start_agent_delegation(tool_name, args, tool_id)
         if fr in (FilterResult.WHITELIST, FilterResult.USER_MENTION):
             return self._create_independent_card(tool_name, args, tool_id)
         return []
@@ -336,6 +338,65 @@ class StepAggregator:
             source_type="tool", tool_name=tool_name,
             input_data=args,
         )]
+
+    def _start_agent_delegation(
+        self, tool_name: str, args: dict, tool_id: str,
+    ) -> list[dict]:
+        """Create delegation card: instant title + async LLM upgrade."""
+        step_id = f"agent_{uuid.uuid4().hex[:8]}"
+        instant_title = self.title_gen.delegation_instant_title(args)
+        self.timer.start_step(step_id)
+        # Track for on_tool_call_end completion
+        if tool_id:
+            self._independent_cards[tool_id] = (step_id, instant_title)
+        # Fire async LLM title generation
+        agent_meta = {
+            "name": args.get("agent_id", ""),
+            "description": "",
+        }
+        task_meta = {
+            "message": args.get("message", ""),
+            "reason": args.get("reason", ""),
+        }
+        asyncio.create_task(
+            self._resolve_delegation_title(
+                step_id, agent_meta, task_meta, instant_title,
+            )
+        )
+        return [self.card_builder.build_step_card(
+            step_id=step_id, title=instant_title, status="running",
+            source_type="tool", tool_name=tool_name, input_data=args,
+        )]
+
+    async def _resolve_delegation_title(
+        self,
+        step_id: str,
+        agent_meta: dict,
+        task_meta: dict,
+        fallback: str,
+    ) -> None:
+        """Async: generate LLM title for delegation, update tracked card."""
+        try:
+            title = await self.title_gen.generate_delegation_title(
+                agent_meta, task_meta,
+            )
+        except Exception:
+            title = fallback
+        # Update tracked card title so on_tool_call_end uses the new title
+        for tid, (sid, _) in list(self._independent_cards.items()):
+            if sid == step_id:
+                self._independent_cards[tid] = (sid, title)
+                break
+        # Enqueue title update for the adapter to pick up
+        if self._title_update_queue is not None:
+            await self._title_update_queue.put({
+                "type": "step_card", "step_id": step_id,
+                "title": title, "status": "running",
+                "source_type": "tool", "card_type": "default",
+                "duration": None, "plan_step_index": None,
+                "agent_id": "main", "input": None,
+                "output": None, "absorbed_calls": [],
+            })
 
     def _complete_pending(self) -> list[dict]:
         if self.pending_card is None:
