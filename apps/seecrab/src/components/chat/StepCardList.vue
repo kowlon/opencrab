@@ -1,6 +1,6 @@
 <template>
   <div class="step-card-list">
-    <template v-for="(item, i) in renderItems" :key="item.key">
+    <template v-for="item in renderItems" :key="item.key">
       <StepCard v-if="item.type === 'card'" :card="item.card!" />
       <AgentSummaryBlock
         v-else-if="item.type === 'summary'"
