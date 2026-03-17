@@ -1,11 +1,18 @@
 <template>
-  <div class="ask-user">
+  <div class="ask-user" :class="{ answered: ask.answered }">
     <div class="ask-header">
       <span class="material-symbols-rounded ask-icon">help</span>
       <p class="question">{{ ask.question }}</p>
     </div>
     <div class="options">
-      <button v-for="opt in ask.options" :key="opt.value" class="option-btn" @click="submitAnswer(opt.value)">
+      <button
+        v-for="opt in ask.options"
+        :key="opt.value"
+        class="option-btn"
+        :class="{ selected: ask.answered && ask.answer === opt.value }"
+        :disabled="ask.answered"
+        @click="submitAnswer(opt.label, opt.value)"
+      >
         {{ opt.label }}
       </button>
     </div>
@@ -13,16 +20,27 @@
 </template>
 
 <script setup lang="ts">
+import { useChatStore } from '@/stores/chat'
 import { useSessionStore } from '@/stores/session'
-import { httpClient } from '@/api/http-client'
+import { sseClient } from '@/api/sse-client'
 import type { AskUserState } from '@/types'
 
-defineProps<{ ask: AskUserState }>()
+const props = defineProps<{ ask: AskUserState }>()
+const chatStore = useChatStore()
 const sessionStore = useSessionStore()
 
-async function submitAnswer(value: string) {
-  if (sessionStore.activeSessionId) {
-    await httpClient.submitAnswer(sessionStore.activeSessionId, value)
+async function submitAnswer(label: string, value: string) {
+  if (props.ask.answered) return
+
+  // Mark as answered (disables buttons)
+  props.ask.answered = true
+  props.ask.answer = value
+
+  // Send as a new user message to continue the conversation
+  const convId = sessionStore.activeSessionId
+  chatStore.addUserMessage(label)
+  if (convId) {
+    await sseClient.sendMessage(label, convId, { thinking_mode: 'auto' })
   }
 }
 </script>
@@ -35,6 +53,9 @@ async function submitAnswer(value: string) {
   border: 1px solid var(--border-accent);
   border-radius: var(--radius-md);
   animation: fadeIn 0.3s var(--ease-out) both;
+}
+.ask-user.answered {
+  opacity: 0.7;
 }
 .ask-header {
   display: flex;
@@ -71,9 +92,19 @@ async function submitAnswer(value: string) {
   font-weight: 500;
   transition: all 0.15s var(--ease-out);
 }
-.option-btn:hover {
+.option-btn:hover:not(:disabled) {
   background: var(--accent-dim);
   border-color: var(--accent);
   color: var(--accent);
+}
+.option-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.option-btn.selected {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: 1;
 }
 </style>
