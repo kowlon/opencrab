@@ -1,13 +1,12 @@
 <template>
-  <div v-if="summary" class="agent-summary-block">
-    <div class="summary-header">
+  <div v-if="summary" class="agent-summary-block" :class="{ expanded }">
+    <div class="summary-header" @click="expanded = !expanded">
       <span class="material-symbols-rounded icon">smart_toy</span>
       <span class="label">{{ agentId }} 总结</span>
-      <button v-if="isLong" class="toggle" @click="expanded = !expanded">
-        {{ expanded ? '收起' : '展开' }}
-      </button>
+      <span v-if="!expanded" class="preview">{{ previewText }}</span>
+      <span class="material-symbols-rounded toggle-icon">{{ expanded ? 'expand_less' : 'expand_more' }}</span>
     </div>
-    <div class="summary-content" v-html="renderedText"></div>
+    <div v-if="expanded" class="summary-content" v-html="renderedText"></div>
   </div>
 </template>
 
@@ -18,15 +17,12 @@ import { useMarkdown } from '@/composables/useMarkdown'
 const props = defineProps<{ agentId: string; summary: string }>()
 const { render } = useMarkdown()
 const expanded = ref(false)
-const MAX_LEN = 500
 
-const isLong = computed(() => props.summary.length > MAX_LEN)
-const displayText = computed(() =>
-  isLong.value && !expanded.value
-    ? props.summary.slice(0, MAX_LEN) + '...'
-    : props.summary
-)
-const renderedText = computed(() => render(displayText.value))
+const previewText = computed(() => {
+  const plain = props.summary.replace(/[#*_`>\[\]()!-]/g, '').replace(/\n+/g, ' ').trim()
+  return plain.length > 80 ? plain.slice(0, 80) + '...' : plain
+})
+const renderedText = computed(() => render(props.summary))
 </script>
 
 <style scoped>
@@ -40,12 +36,19 @@ const renderedText = computed(() => render(displayText.value))
   border-radius: var(--radius-md);
   font-size: 13px;
   animation: fadeIn 0.3s var(--ease-out) both;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out);
+}
+.agent-summary-block:hover {
+  background: var(--bg-elevated);
+}
+.agent-summary-block.expanded {
+  cursor: default;
 }
 .summary-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 4px;
   color: var(--text-ghost);
   font-size: 11px;
 }
@@ -53,20 +56,23 @@ const renderedText = computed(() => render(displayText.value))
   font-size: 14px;
 }
 .summary-header .label {
+  white-space: nowrap;
+}
+.preview {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
-.toggle {
-  background: none;
-  border: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 0;
-}
-.toggle:hover {
-  text-decoration: underline;
+.toggle-icon {
+  font-size: 16px;
+  color: var(--text-ghost);
+  transition: transform 0.15s;
 }
 .summary-content {
+  margin-top: 8px;
   color: var(--text-secondary);
   line-height: 1.6;
 }
