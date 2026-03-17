@@ -108,7 +108,7 @@ class StepAggregator:
                 tool_name=tool_name,
                 agent_id=self._agent_id,
                 duration=duration,
-                output_data=result[:2000] if result else None,
+                output_data=result or None,
             )]
 
         # Update absorbed call with result (Plan mode)

@@ -39,7 +39,7 @@ const rendered = computed(() => render(props.content))
   border-radius: var(--radius-sm);
   font-size: 13px;
   line-height: 1.6;
-  max-height: 400px;
+  max-height: none;
   overflow-y: auto;
   color: var(--text-primary);
 }
