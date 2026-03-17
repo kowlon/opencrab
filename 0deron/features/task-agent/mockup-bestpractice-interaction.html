@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SeeAgent — 最佳实践任务管理交互模拟</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-abyss: #080b12; --bg-deep: #0c1018; --bg-mid: #111621;
+  --bg-surface: #171d2a; --bg-elevated: #1e2536; --bg-hover: #252d40;
+  --text-bright: #e8edf5; --text-primary: #c4cdd9; --text-secondary: #8494a7;
+  --text-muted: #556174; --text-ghost: #3d4b5e;
+  --accent: #38bdcc; --accent-dim: rgba(56, 189, 204, 0.12);
+  --accent-glow: rgba(56, 189, 204, 0.25); --accent-bright: #5dd8e6;
+  --coral: #f0806c; --coral-dim: rgba(240, 128, 108, 0.12);
+  --success: #3dd68c; --success-dim: rgba(61, 214, 140, 0.12);
+  --error: #ef6b6b; --error-dim: rgba(239, 107, 107, 0.12);
+  --warning: #e5b94e; --warning-dim: rgba(229, 185, 78, 0.12);
+  --border: rgba(56, 189, 204, 0.08); --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-accent: rgba(56, 189, 204, 0.2);
+  --sidebar-width: 260px; --right-panel-width: 460px;
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px; --radius-xl: 20px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-abyss); color: var(--text-primary);
+  height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased; letter-spacing: -0.01em;
+}
+::selection { background: var(--accent-dim); color: var(--accent-bright); }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes slideInRight { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.app-layout { display: flex; width: 100%; height: 100vh; overflow: hidden; position: relative; }
+.bg-mesh {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse 600px 400px at 10% 90%, rgba(56,189,204,0.03), transparent),
+    radial-gradient(ellipse 500px 500px at 85% 20%, rgba(240,128,108,0.02), transparent),
+    radial-gradient(ellipse 800px 600px at 50% 50%, rgba(56,189,204,0.015), transparent);
+}
+
+/* ═══ Sidebar ═══ */
+.sidebar {
+  width: var(--sidebar-width); flex-shrink: 0; background: var(--bg-deep);
+  border-right: 1px solid var(--border-subtle); display: flex; flex-direction: column; z-index: 10;
+}
+.sidebar-header { padding: 16px 18px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border-subtle); }
+.sidebar-header .logo {
+  width: 28px; height: 28px; background: linear-gradient(135deg, var(--accent), var(--coral));
+  border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white;
+}
+.sidebar-header .brand { font-size: 16px; font-weight: 700; color: var(--text-bright); }
+.new-chat-btn {
+  margin: 12px 14px; padding: 9px; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); color: var(--text-primary); cursor: pointer;
+  font-size: 13px; font-family: inherit; font-weight: 500;
+  display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s;
+}
+.new-chat-btn:hover { background: var(--bg-elevated); }
+.sidebar-label { padding: 6px 18px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-ghost); }
+.session-list { flex: 1; overflow-y: auto; padding: 0 8px; }
+.session-item { padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; margin-bottom: 2px; transition: all 0.15s; }
+.session-item:hover { background: var(--bg-surface); }
+.session-item.active { background: var(--bg-elevated); border: 1px solid var(--border); }
+.session-item .title { font-size: 13px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+.session-item .meta { font-size: 11px; color: var(--text-ghost); }
+
+/* ═══ Main Chat ═══ */
+.main-chat { flex: 1; min-width: 0; display: flex; flex-direction: column; z-index: 1; position: relative; }
+.chat-header { padding: 14px 24px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 8px; }
+.chat-header .chat-title { font-size: 14px; font-weight: 600; color: var(--text-bright); }
+.messages-area { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.messages-inner { max-width: 820px; margin: 0 auto; }
+
+.user-msg { display: flex; justify-content: flex-end; align-items: flex-start; gap: 8px; margin-bottom: 20px; animation: fadeIn 0.3s var(--ease-out) both; }
+.user-bubble {
+  max-width: 70%; padding: 10px 16px;
+  background: linear-gradient(135deg, var(--accent), #2da0ad);
+  color: white;
+  border-radius: 16px 16px 4px 16px;
+  font-size: 14px; line-height: 1.6; word-break: break-word;
+  box-shadow: 0 2px 12px rgba(56, 189, 204, 0.15);
+}
+.user-avatar {
+  width: 26px; height: 26px; border-radius: var(--radius-sm);
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-secondary); display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; flex-shrink: 0;
+}
+.bot-reply { margin-bottom: 24px; animation: fadeIn 0.4s var(--ease-out) both; }
+.reply-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.reply-header .avatar {
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, #6366f1, #38bdcc);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.reply-header .avatar-icon { font-size: 20px; color: white; font-variation-settings: 'FILL' 1; }
+.reply-header .agent-name { font-weight: 600; font-size: 14px; color: var(--text-bright); }
+.reply-header .timers {
+  display: flex; align-items: center; gap: 6px; margin-left: auto;
+  font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted);
+}
+.timer-value { color: var(--success); font-weight: 600; }
+.timer-value.running { animation: pulse 1.5s infinite; color: var(--accent); }
+
+/* ThinkingBlock */
+.thinking-block {
+  margin-bottom: 8px; border-radius: var(--radius-md); background: var(--bg-surface);
+  border: 1px solid var(--border-subtle); overflow: hidden; animation: fadeIn 0.3s var(--ease-out) both;
+}
+.thinking-toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 9px 12px;
+  background: none; border: none; color: var(--text-secondary); cursor: pointer;
+  font-size: 12px; font-family: inherit; transition: color 0.15s;
+}
+.thinking-toggle:hover { color: var(--text-primary); }
+.thinking-toggle .toggle-icon { font-size: 16px; color: var(--accent); }
+.thinking-toggle .toggle-icon.spin { animation: spin 1.2s linear infinite; }
+.thinking-toggle .label { flex: 1; text-align: left; font-weight: 500; }
+.thinking-toggle .chevron { font-size: 18px; color: var(--text-ghost); }
+.thinking-content {
+  padding: 0 12px 12px; font-size: 12px; color: var(--text-muted);
+  white-space: pre-wrap; line-height: 1.6; max-height: 200px; overflow-y: auto;
+  font-family: 'JetBrains Mono', monospace; display: none;
+}
+.thinking-block.expanded .thinking-content { display: block; }
+
+/* Step Cards */
+.step-card {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+  background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); cursor: pointer; margin-bottom: 4px; font-size: 13px;
+  transition: all 0.15s var(--ease-out); animation: fadeIn 0.3s var(--ease-out) both;
+}
+.step-card:hover { background: var(--bg-elevated); border-color: var(--border); transform: translateX(2px); }
+.step-card.completed { border-left: 2px solid var(--success); }
+.step-card.running { border-left: 2px solid var(--accent); }
+.step-card.is-sub-agent {
+  margin-left: 24px;
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg-surface));
+  border-color: color-mix(in srgb, var(--accent) 15%, var(--border-subtle));
+}
+.step-card.is-sub-agent.completed { border-left-color: var(--accent); }
+.step-card .status-icon { font-size: 15px; }
+.step-card.completed .status-icon { color: var(--success); }
+.step-card.running .status-icon { color: var(--accent); animation: pulse 1.5s infinite; }
+.step-card .card-type-icon { font-size: 14px; color: var(--text-ghost); }
+.step-card .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
+.step-card .duration { color: var(--text-ghost); font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+.step-card .arrow { color: var(--text-ghost); font-size: 16px; transition: all 0.15s; }
+.step-card:hover .arrow { color: var(--accent); transform: translateX(2px); }
+.step-card.selected { border-color: var(--accent); background: var(--accent-dim); }
+.step-card-list { margin: 8px 0; }
+
+/* Trigger */
+.bp-trigger {
+  padding: 14px 16px; background: var(--bg-surface); border: 1px solid var(--border-accent);
+  border-radius: var(--radius-md); margin-bottom: 14px; animation: fadeIn 0.3s var(--ease-out) both;
+}
+.bp-trigger .trigger-msg { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+.bp-trigger .trigger-msg .material-symbols-rounded { font-size: 18px; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+.bp-trigger .trigger-msg p { font-size: 14px; color: var(--text-bright); line-height: 1.5; }
+.bp-trigger .trigger-actions { display: flex; gap: 8px; padding-left: 26px; }
+.trigger-btn {
+  padding: 7px 16px; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text-primary); cursor: pointer;
+  font-size: 13px; font-family: inherit; font-weight: 500; transition: all 0.15s;
+}
+.trigger-btn:hover { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.trigger-btn.primary { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.trigger-btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+
+/* Task Card */
+.task-card {
+  padding: 14px 16px; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md); margin-bottom: 12px; animation: fadeIn 0.3s var(--ease-out) both;
+  transition: all 0.15s var(--ease-out);
+}
+.task-card:hover { border-color: var(--border-accent); background: var(--bg-elevated); }
+.task-card-header { display: flex; align-items: center; gap: 8px; }
+.task-card-header .task-icon { font-size: 18px; color: var(--accent); }
+.task-card-header .task-name { font-size: 14px; font-weight: 600; color: var(--text-bright); flex: 1; }
+.task-mode-toggle {
+  display: flex; align-items: center; gap: 6px; padding: 3px 10px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px;
+  cursor: pointer; transition: all 0.15s;
+}
+.task-mode-toggle:hover { border-color: var(--text-muted); }
+.task-mode-toggle .mode-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-ghost); transition: background 0.2s; }
+.task-mode-toggle.auto .mode-dot { background: var(--accent); }
+.task-mode-toggle .mode-text { font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: 500; color: var(--text-muted); transition: color 0.2s; }
+.task-mode-toggle.auto .mode-text { color: var(--accent); }
+.task-steps-bar { display: flex; align-items: center; gap: 0; margin-top: 12px; }
+.task-step-item { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; padding: 4px 0; }
+.task-step-item .step-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: all 0.3s; }
+.task-step-item .step-label { transition: color 0.3s; }
+.task-step-item.done .step-dot { background: var(--success); }
+.task-step-item.current .step-dot { background: var(--accent); animation: pulse 1.5s infinite; }
+.task-step-item.pending .step-dot { background: var(--text-ghost); }
+.task-step-item.done .step-label { color: var(--success); }
+.task-step-item.current .step-label { color: var(--accent); }
+.task-step-item.pending .step-label { color: var(--text-ghost); }
+.task-step-connector { width: 24px; height: 1px; margin: 0 4px; transition: background 0.3s; }
+.task-step-connector.done { background: var(--success); }
+.task-step-connector.active { background: var(--accent); }
+.task-step-connector.pending { background: var(--text-ghost); opacity: 0.3; }
+
+/* Completion */
+.subtask-completion {
+  padding: 14px 16px; background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--success); border-radius: var(--radius-md);
+  margin: 10px 0; animation: fadeIn 0.35s var(--ease-out) both;
+}
+.subtask-completion .completion-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.subtask-completion .completion-header .material-symbols-rounded { font-size: 18px; color: var(--success); }
+.subtask-completion .completion-header .name { font-size: 14px; font-weight: 600; color: var(--text-bright); }
+.subtask-completion .completion-header .badge { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: var(--success-dim); color: var(--success); font-weight: 500; }
+.subtask-completion .summary-text { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 12px; padding-left: 26px; }
+.subtask-actions { display: flex; gap: 10px; padding-left: 26px; }
+.action-btn {
+  padding: 8px 18px; border-radius: var(--radius-sm); font-size: 13px; font-family: inherit;
+  font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s;
+}
+.action-btn .material-symbols-rounded { font-size: 16px; }
+.action-btn.secondary { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary); }
+.action-btn.secondary:hover { background: var(--bg-hover); border-color: var(--text-muted); }
+.action-btn.primary { background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent); }
+.action-btn.primary:hover { background: rgba(56,189,204,0.2); }
+.action-btn:disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+
+/* Chat Input */
+.chat-input-area { padding: 14px 24px 20px; border-top: 1px solid var(--border-subtle); }
+.chat-input-wrapper {
+  max-width: 820px; margin: 0 auto; display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); transition: border-color 0.15s;
+}
+.chat-input-wrapper:focus-within { border-color: var(--accent); }
+.chat-input { flex: 1; border: none; background: transparent; color: var(--text-bright); font-size: 14px; font-family: inherit; outline: none; }
+.chat-input::placeholder { color: var(--text-ghost); }
+.send-btn {
+  width: 32px; height: 32px; border-radius: 50%; background: var(--accent-dim);
+  border: 1px solid var(--accent); color: var(--accent); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+}
+
+/* ═══ Right Panel ═══ */
+.right-panel {
+  width: var(--right-panel-width); flex-shrink: 0; background: var(--bg-deep);
+  border-left: 1px solid var(--border-subtle); display: flex; flex-direction: column;
+  z-index: 2; animation: slideInRight 0.3s var(--ease-out) both;
+}
+.panel-header {
+  padding: 14px 18px; border-bottom: 1px solid var(--border-subtle);
+  display: flex; align-items: center; gap: 10px;
+}
+.panel-header .panel-title { flex: 1; font-size: 14px; font-weight: 600; color: var(--text-bright); }
+.close-btn {
+  width: 28px; height: 28px; border-radius: var(--radius-sm); background: transparent;
+  border: none; color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+}
+.close-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
+
+/* Step Nav in panel */
+.step-navigator { padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); }
+.step-nav-label { font-size: 11px; color: var(--text-ghost); margin-bottom: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+.step-nav-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.step-nav-pill {
+  display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+  border-radius: var(--radius-sm); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s; border: 1px solid transparent;
+}
+.step-nav-pill .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.step-nav-pill.done .dot { background: var(--success); }
+.step-nav-pill.active .dot { background: var(--accent); }
+.step-nav-pill.upcoming .dot { background: var(--text-ghost); }
+.step-nav-pill.done { background: var(--success-dim); color: var(--success); }
+.step-nav-pill.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+.step-nav-pill.upcoming { background: var(--bg-surface); color: var(--text-ghost); }
+
+.panel-content { flex: 1; overflow-y: auto; padding: 18px; }
+
+/* StepDetail in panel */
+.step-detail { animation: fadeIn 0.2s var(--ease-out) both; }
+.status-row { display: flex; justify-content: flex-start; margin-bottom: 14px; }
+.status-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px;
+  border-radius: 20px; font-size: 12px; font-weight: 600;
+}
+.status-badge .badge-icon { font-size: 14px; }
+.status-badge.completed { background: var(--success-dim); color: var(--success); }
+.status-badge.running { background: var(--accent-dim); color: var(--accent); animation: pulse 1.5s infinite; }
+.meta-grid {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--border-subtle);
+}
+.meta-item { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.meta-icon { font-size: 14px; color: var(--text-ghost); }
+.meta-label { color: var(--text-muted); }
+.meta-value { color: var(--text-primary); font-family: 'JetBrains Mono', monospace; }
+.viewer-header { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
+.viewer-icon { font-size: 13px; color: var(--text-ghost); }
+.viewer-header h4 { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.json-pre {
+  background: var(--bg-deep); border: 1px solid var(--border-subtle); padding: 12px 14px;
+  border-radius: var(--radius-sm); font-size: 11px; font-family: 'JetBrains Mono', monospace;
+  overflow-x: auto; color: var(--text-secondary); white-space: pre-wrap; word-break: break-all;
+  line-height: 1.6; max-height: 240px; overflow-y: auto; margin-bottom: 12px;
+}
+.output-content {
+  background: var(--bg-deep); border: 1px solid var(--border-subtle); padding: 12px 14px;
+  border-radius: var(--radius-sm); font-size: 13px; line-height: 1.6; color: var(--text-primary);
+  margin-bottom: 12px; max-height: none; overflow-y: auto;
+}
+.output-content code { font-family: 'JetBrains Mono', monospace; font-size: 0.88em; background: var(--bg-elevated); padding: 1px 5px; border-radius: 3px; color: var(--accent); }
+.absorbed { margin-top: 16px; }
+.absorbed .section-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.absorbed .section-header .section-icon { font-size: 14px; color: var(--text-ghost); }
+.absorbed .section-header h4 { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.absorbed-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm); margin-bottom: 4px; font-size: 12px; transition: background 0.15s;
+}
+.absorbed-item:hover { background: var(--bg-elevated); }
+.call-icon { font-size: 13px; color: var(--text-ghost); }
+.tool-name { flex: 1; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.call-duration { color: var(--text-ghost); font-family: 'JetBrains Mono', monospace; }
+
+/* Editable JSON output */
+.output-section { margin-bottom: 16px; }
+.output-section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-ghost); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.output-section-label .material-symbols-rounded { font-size: 14px; }
+.json-editor { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; }
+.json-field { padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: flex-start; gap: 10px; }
+.json-field:last-child { border-bottom: none; }
+.json-field .field-key { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); min-width: 80px; padding-top: 4px; flex-shrink: 0; }
+.json-field .field-value { flex: 1; }
+.field-input { width: 100%; padding: 6px 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-bright); font-size: 13px; font-family: inherit; outline: none; transition: border-color 0.15s; }
+.field-input:focus { border-color: var(--accent); }
+textarea.field-input { resize: vertical; min-height: 60px; line-height: 1.5; }
+.array-item { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.array-item .field-input { flex: 1; }
+.array-item .remove-btn { width: 24px; height: 24px; border-radius: 4px; background: var(--error-dim); border: none; color: var(--error); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.array-actions { display: flex; gap: 6px; margin-top: 4px; }
+.add-btn { padding: 4px 10px; background: var(--accent-dim); border: 1px solid rgba(56,189,204,0.15); border-radius: var(--radius-sm); color: var(--accent); font-size: 12px; font-family: inherit; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.15s; }
+.confirm-update-bar { padding: 12px 18px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; }
+.confirm-btn { padding: 8px 20px; background: var(--accent); border: none; border-radius: var(--radius-sm); color: var(--bg-abyss); font-size: 13px; font-family: inherit; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.confirm-btn:hover { background: var(--accent-bright); }
+
+/* Empty state */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 40px 20px; color: var(--text-ghost); text-align: center;
+}
+.empty-state .material-symbols-rounded { font-size: 36px; margin-bottom: 10px; opacity: 0.5; }
+.empty-state p { font-size: 13px; line-height: 1.5; }
+
+.divider { height: 1px; background: var(--border-subtle); margin: 14px 0; }
+.hidden { display: none !important; }
+.demo-indicator {
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+  padding: 6px 16px; background: var(--warning-dim); border: 1px solid rgba(229,185,78,0.2);
+  border-radius: 20px; font-size: 11px; color: var(--warning); font-weight: 500; z-index: 100; pointer-events: none;
+}
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: var(--text-ghost); border-radius: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <div class="bg-mesh"></div>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo"><span class="material-symbols-rounded" style="font-size:16px">smart_toy</span></div>
+      <span class="brand">SeeAgent</span>
+    </div>
+    <button class="new-chat-btn"><span class="material-symbols-rounded" style="font-size:16px">add</span> New Chat</button>
+    <div class="sidebar-label">RECENT</div>
+    <div class="session-list">
+      <div class="session-item active"><div class="title">Token 超级工厂商业模式调研</div><div class="meta">3 步骤 · 刚刚</div></div>
+      <div class="session-item"><div class="title">AI 编程大佬观点调研</div><div class="meta">8 步骤 · 5 分钟前</div></div>
+      <div class="session-item"><div class="title">竞品分析报告生成</div><div class="meta">5 步骤 · 12 分钟前</div></div>
+    </div>
+  </div>
+
+  <div class="main-chat">
+    <div class="chat-header">
+      <span class="material-symbols-rounded" style="font-size:18px;color:var(--text-ghost)">chat_bubble</span>
+      <span class="chat-title">Token 超级工厂商业模式调研</span>
+    </div>
+    <div class="messages-area" id="messagesArea">
+      <div class="messages-inner" id="messagesInner">
+        <div class="user-msg"><div class="user-bubble">帮我调研一下 Token 超级工厂的商业模式，重点关注技术架构、盈利模式和竞争壁垒</div><div class="user-avatar">U</div></div>
+        <div class="bot-reply">
+          <div class="reply-header">
+            <div class="avatar"><span class="material-symbols-rounded avatar-icon">smart_toy</span></div>
+            <span class="agent-name">SeeAgent</span>
+          </div>
+          <div class="bp-trigger" id="triggerBlock">
+            <div class="trigger-msg">
+              <span class="material-symbols-rounded">lightbulb</span>
+              <p>检测到您的需求匹配最佳实践「商业模式调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？</p>
+            </div>
+            <div class="trigger-actions">
+              <button class="trigger-btn" id="btnFree" onclick="chooseFreeMode()">自由模式</button>
+              <button class="trigger-btn primary" id="btnBP" onclick="chooseBestPractice()">最佳实践模式</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <div class="chat-input-wrapper">
+        <input class="chat-input" placeholder="输入消息..." />
+        <button class="send-btn"><span class="material-symbols-rounded" style="font-size:18px">arrow_upward</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel hidden" id="rightPanel">
+    <div class="panel-header">
+      <span class="material-symbols-rounded" style="color:var(--accent);font-size:18px" id="panelIcon">assignment</span>
+      <span class="panel-title" id="panelTitle">商业模式调研报告</span>
+      <button class="close-btn" onclick="closePanel()"><span class="material-symbols-rounded" style="font-size:18px">close</span></button>
+    </div>
+    <!-- Step Navigator (shown in subtask-output mode) -->
+    <div class="step-navigator" id="stepNavigator">
+      <div class="step-nav-label">子任务进度</div>
+      <div class="step-nav-pills">
+        <div class="step-nav-pill upcoming" id="nav1" onclick="switchSubtaskOutput(1)"><span class="dot"></span><span>市场调研</span></div>
+        <div class="step-nav-pill upcoming" id="nav2" onclick="switchSubtaskOutput(2)"><span class="dot"></span><span>数据分析</span></div>
+        <div class="step-nav-pill upcoming" id="nav3" onclick="switchSubtaskOutput(3)"><span class="dot"></span><span>报告生成</span></div>
+      </div>
+    </div>
+    <div class="panel-content" id="panelContent"></div>
+    <div class="confirm-update-bar" id="confirmBar" class="hidden">
+      <button class="confirm-btn" onclick="confirmUpdate()">确认更新</button>
+    </div>
+  </div>
+</div>
+<div class="demo-indicator">交互模拟 — 点击按钮逐步体验流程</div>
+
+<script>
+// ═══ State ═══
+const container = document.getElementById('messagesInner');
+const area = document.getElementById('messagesArea');
+let completedSubtasks = new Set(); // which subtask IDs have completed
+let currentSubtask = 0; // 0 = not started, 1/2/3 = running or done
+let runMode = 'manual'; // 'manual' | 'auto'
+let stepDataStore = {}; // stepCardId → {title, status, icon, duration, input, output, absorbed}
+let panelMode = 'none'; // 'step-detail' | 'subtask-output' | 'none'
+let selectedStepCardId = null;
+let timerEl = null;
+let timerStart = 0;
+
+function scrollBottom() { setTimeout(() => area.scrollTop = area.scrollHeight, 80); }
+function append(html) {
+  const w = document.createElement('div'); w.innerHTML = html;
+  while (w.firstChild) container.appendChild(w.firstChild);
+  scrollBottom();
+}
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+function sendUserMsg(text) {
+  append(`<div class="user-msg"><div class="user-bubble">${text}</div><div class="user-avatar">U</div></div>`);
+  scrollBottom();
+}
+function startTimer() {
+  timerStart = performance.now();
+  if (timerEl) {
+    timerEl.classList.add('running');
+    const tick = () => { if (!timerEl) return; timerEl.textContent = ((performance.now()-timerStart)/1000).toFixed(1)+'s'; if (timerEl.classList.contains('running')) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+}
+function stopTimer() { if (timerEl) { timerEl.classList.remove('running'); timerEl.textContent = ((performance.now()-timerStart)/1000).toFixed(1)+'s'; } }
+
+// ═══ Task Card Progress ═══
+function updateProgress(step, status) {
+  for (let i = 1; i <= 3; i++) {
+    const item = document.getElementById('stepItem'+i);
+    const conn = document.getElementById('conn'+(i-1));
+    if (!item) continue;
+    if (i < step || (i === step && status === 'done')) { item.className='task-step-item done'; if(conn) conn.className='task-step-connector done'; }
+    else if (i === step) { item.className='task-step-item current'; if(conn) conn.className='task-step-connector active'; }
+    else { item.className='task-step-item pending'; if(conn) conn.className='task-step-connector pending'; }
+  }
+}
+
+function buildTaskCardHTML() {
+  const items = [1,2,3].map(i => {
+    let cls = 'pending';
+    if (completedSubtasks.has(i)) cls = 'done';
+    else if (i === currentSubtask) cls = 'current';
+    return `<div class="task-step-item ${cls}" id="stepItem${i}"><span class="step-dot"></span><span class="step-label">${i}. ${['市场调研','数据分析','报告生成'][i-1]}</span></div>`;
+  });
+  const conns = [1,2].map(i => {
+    let cls = 'pending';
+    if (completedSubtasks.has(i) && (completedSubtasks.has(i+1) || i+1 === currentSubtask)) cls = i+1===currentSubtask?'active':'done';
+    else if (completedSubtasks.has(i)) cls = 'done';
+    return `<div class="task-step-connector ${cls}" id="conn${i}"></div>`;
+  });
+  return `<div class="task-card" onclick="clickTaskCard(event)" style="cursor:pointer">
+    <div class="task-card-header">
+      <span class="material-symbols-rounded task-icon">assignment</span>
+      <span class="task-name">商业模式调研报告</span>
+      <div class="task-mode-toggle${runMode === 'auto' ? ' auto' : ''}" onclick="event.stopPropagation();toggleRunMode()">
+        <span class="mode-dot"></span><span class="mode-text">${runMode === 'auto' ? '自动' : '手动'}</span>
+      </div>
+    </div>
+    <div class="task-steps-bar">${items[0]}${conns[0]}${items[1]}${conns[1]}${items[2]}</div>
+  </div>`;
+}
+
+// ═══ Right Panel ═══
+function openPanelStepDetail(cardId) {
+  const data = stepDataStore[cardId];
+  if (!data) return;
+  selectedStepCardId = cardId;
+  panelMode = 'step-detail';
+  document.getElementById('stepNavigator').classList.add('hidden');
+  document.getElementById('confirmBar')?.classList.add('hidden');
+  document.getElementById('panelIcon').textContent = data.icon;
+  document.getElementById('panelTitle').textContent = data.title;
+  const statusCls = data.status; const statusText = data.status === 'completed' ? '完成' : '进行中';
+  const statusIcon = data.status === 'completed' ? 'check_circle' : 'pending';
+  let html = `<div class="step-detail">
+    <div class="status-row"><span class="status-badge ${statusCls}"><span class="material-symbols-rounded badge-icon">${statusIcon}</span>${statusText}</span></div>
+    <div class="meta-grid">
+      ${data.duration ? `<div class="meta-item"><span class="material-symbols-rounded meta-icon">timer</span><span class="meta-label">耗时</span><span class="meta-value">${data.duration}</span></div>` : ''}
+      ${data.input ? `<div class="meta-item"><span class="material-symbols-rounded meta-icon">input</span><span class="meta-label">输入 Tokens</span><span class="meta-value">~${Math.round(JSON.stringify(data.input).length/3.5)}</span></div>` : ''}
+      ${data.output ? `<div class="meta-item"><span class="material-symbols-rounded meta-icon">output</span><span class="meta-label">输出 Tokens</span><span class="meta-value">~${Math.round(data.output.length/3.5)}</span></div>` : ''}
+    </div>`;
+  if (data.input) {
+    html += `<div class="viewer-header"><span class="material-symbols-rounded viewer-icon">input</span><h4>输入</h4></div>
+      <pre class="json-pre">${JSON.stringify(data.input, null, 2)}</pre>`;
+  }
+  if (data.output) {
+    html += `<div class="viewer-header"><span class="material-symbols-rounded viewer-icon">output</span><h4>输出</h4></div>
+      <div class="output-content">${data.output}</div>`;
+  }
+  if (data.absorbed && data.absorbed.length) {
+    html += `<div class="absorbed"><div class="section-header"><span class="material-symbols-rounded section-icon">account_tree</span><h4>子调用 (${data.absorbed.length})</h4></div>`;
+    data.absorbed.forEach(c => { html += `<div class="absorbed-item"><span class="material-symbols-rounded call-icon">terminal</span><span class="tool-name">${c.tool}</span><span class="call-duration">${c.dur}</span></div>`; });
+    html += '</div>';
+  }
+  html += '</div>';
+  document.getElementById('panelContent').innerHTML = html;
+  document.getElementById('rightPanel').classList.remove('hidden');
+  // Highlight in chat
+  document.querySelectorAll('.step-card.selected').forEach(el => el.classList.remove('selected'));
+  const chatCard = document.getElementById(cardId);
+  if (chatCard) chatCard.classList.add('selected');
+}
+
+function openPanelSubtaskOutput(subtaskId) {
+  panelMode = 'subtask-output';
+  document.getElementById('stepNavigator').classList.remove('hidden');
+  document.getElementById('panelIcon').textContent = 'assignment';
+  document.getElementById('panelTitle').textContent = '商业模式调研报告';
+  document.querySelectorAll('.step-card.selected').forEach(el => el.classList.remove('selected'));
+  switchSubtaskOutput(subtaskId);
+  document.getElementById('rightPanel').classList.remove('hidden');
+}
+
+function switchSubtaskOutput(id) {
+  // Update nav pills
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('nav'+i);
+    el.className = 'step-nav-pill';
+    if (i === id) el.classList.add('active');
+    else if (completedSubtasks.has(i)) el.classList.add('done');
+    else el.classList.add('upcoming');
+  }
+  const pc = document.getElementById('panelContent');
+  const cb = document.getElementById('confirmBar');
+  if (!completedSubtasks.has(id)) {
+    pc.innerHTML = `<div class="empty-state"><span class="material-symbols-rounded">hourglass_empty</span><p>子任务「${['市场调研','数据分析','报告生成'][id-1]}」尚未执行完成<br>完成后将在此处展示可编辑的输出数据</p></div>`;
+    cb.classList.add('hidden');
+  } else {
+    pc.innerHTML = subtaskOutputHTML[id] || '';
+    cb.classList.remove('hidden');
+  }
+}
+
+function closePanel() {
+  document.getElementById('rightPanel').classList.add('hidden');
+  document.querySelectorAll('.step-card.selected').forEach(el => el.classList.remove('selected'));
+  panelMode = 'none';
+}
+
+function confirmUpdate() {
+  const btn = document.querySelector('.confirm-btn');
+  btn.textContent = '✓ 已更新'; btn.style.background = 'var(--success)';
+  setTimeout(() => { btn.textContent = '确认更新'; btn.style.background = ''; }, 1500);
+}
+
+// ═══ Subtask editable output HTML ═══
+const subtaskOutputHTML = {
+  1: `<div class="output-section"><div class="output-section-label"><span class="material-symbols-rounded">edit_note</span>输出数据（可编辑）</div><div class="json-editor">
+    <div class="json-field"><div class="field-key">topic</div><div class="field-value"><input class="field-input" value="Token 超级工厂商业模式" /></div></div>
+    <div class="json-field"><div class="field-key">summary</div><div class="field-value"><textarea class="field-input">Token 超级工厂是一个自动化 Token 生成与管理平台，核心技术基于自研的 TokenML 引擎，支持多链部署。2024 年完成 A 轮 $15M 融资，估值 $80M。</textarea></div></div>
+    <div class="json-field"><div class="field-key">findings</div><div class="field-value"><div class="array-field">
+      <div class="array-item"><input class="field-input" value="技术架构：基于 TokenML 自研引擎，支持 EVM/Solana/Cosmos 多链" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="盈利模式：SaaS 订阅($299-$2999/月) + 交易抽成(0.1%-0.5%) + 企业定制" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="竞争壁垒：自动化管线专利 x3，合规牌照(MiCA)，2000+ 企业客户" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="主要竞品：TokenSoft, Securitize, Polymath, Fireblocks" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="市场规模：RWA Token 化市场预计 2026 年达 $16T (BCG)" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-actions"><button class="add-btn"><span class="material-symbols-rounded">add</span>新增</button></div>
+    </div></div></div></div></div>`,
+  2: `<div class="output-section"><div class="output-section-label"><span class="material-symbols-rounded">edit_note</span>输出数据（可编辑）</div><div class="json-editor">
+    <div class="json-field"><div class="field-key">insights</div><div class="field-value"><div class="array-field">
+      <div class="array-item"><input class="field-input" value="SWOT-优势：自动化程度最高，处理速度是竞品 3x" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="SWOT-劣势：品牌知名度不及 Securitize，北美市场渗透率低" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="盈利评估：复合盈利模式 LTV/CAC = 4.2，单位经济模型健康" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-actions"><button class="add-btn"><span class="material-symbols-rounded">add</span>新增</button></div>
+    </div></div></div>
+    <div class="json-field"><div class="field-key">risk_level</div><div class="field-value"><input class="field-input" value="中等 — 技术优势明确但市场竞争加剧" /></div></div>
+    <div class="json-field"><div class="field-key">charts</div><div class="field-value"><div class="array-field">
+      <div class="array-item"><input class="field-input" value="竞品功能对比矩阵 (radar chart)" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="盈利模式收入占比 (pie chart)" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-actions"><button class="add-btn"><span class="material-symbols-rounded">add</span>新增</button></div>
+    </div></div></div></div></div>`,
+  3: `<div class="output-section"><div class="output-section-label"><span class="material-symbols-rounded">edit_note</span>输出数据（可编辑）</div><div class="json-editor">
+    <div class="json-field"><div class="field-key">report_url</div><div class="field-value"><input class="field-input" value="/output/token-factory-report.pdf" /></div></div>
+    <div class="json-field"><div class="field-key">pages</div><div class="field-value"><input class="field-input" value="12" /></div></div>
+    <div class="json-field"><div class="field-key">sections</div><div class="field-value"><div class="array-field">
+      <div class="array-item"><input class="field-input" value="1. 执行摘要" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="2. 技术架构深度解析" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="3. 盈利模式与单位经济分析" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="4. 竞品 SWOT 矩阵" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-item"><input class="field-input" value="5. 风险评估与建议" /><button class="remove-btn"><span class="material-symbols-rounded" style="font-size:14px">close</span></button></div>
+      <div class="array-actions"><button class="add-btn"><span class="material-symbols-rounded">add</span>新增</button></div>
+    </div></div></div></div></div>`,
+};
+
+// ═══ Subtask definitions with step detail data ═══
+const subtasks = [
+  { id:1, name:'市场调研', agent:'research-agent', delegateTitle:'委派 research-agent: 市场调研子任务，需要搜索最新专家观点...',
+    thinkingText:'分析用户需求...匹配到最佳实践「商业模式调研报告」。\n该任务包含 3 个子任务：\n1. 市场调研 - web-search, data-collection\n2. 数据分析 - data-analysis\n3. 报告生成 - document-generation\n开始执行子任务 1：市场调研...',
+    delegateDur:'285.3s',
+    delegateInput: { task:"市场调研", topic:"Token 超级工厂商业模式", focus:["技术架构","盈利模式","竞争壁垒"] },
+    delegateOutput: '子任务「市场调研」已完成。共执行 5 个搜索和浏览步骤，收集了技术架构、盈利模式、融资信息和竞品数据。',
+    steps: [
+      { icon:'search', title:'搜索 "Token 超级工厂 商业模式 2025 2026"', dur:'3.8s',
+        input:{query:"Token 超级工厂 商业模式 2025 2026",engine:"google"},
+        output:'找到 12 条相关结果，包括 3 篇深度分析文章、2 个行业报告和 TokenFactory 官方博客。\n\n重点来源：\n- 36氪《Token Factory 完成 A 轮融资》\n- TechCrunch "Token Factory raises $15M"\n- BCG RWA Token 化市场报告',
+        absorbed:[{tool:'web_search',dur:'2.1s'},{tool:'result_parser',dur:'1.2s'},{tool:'relevance_filter',dur:'0.5s'}]},
+      { icon:'language', title:'浏览 Token Factory 官方技术白皮书', dur:'12.4s',
+        input:{url:"https://tokenfactory.io/whitepaper",mode:"full_page"},
+        output:'**TokenML 引擎核心架构：**\n\n- 三层架构：协议层 → 智能合约层 → 应用层\n- 支持 EVM / Solana / Cosmos 三大生态\n- 自动化管线：Token 定义 → 合规检查 → 部署 → 监控\n- 处理速度：每秒 1200+ Token 操作（竞品平均 400）\n- 专利技术：AutoDeploy™, ComplianceGuard™, MultiChainBridge™',
+        absorbed:[{tool:'browser_navigate',dur:'3.2s'},{tool:'page_extract',dur:'6.8s'},{tool:'content_summarize',dur:'2.4s'}]},
+      { icon:'search', title:'搜索 "Token Factory 盈利模式 融资 竞品"', dur:'2.1s',
+        input:{query:"Token Factory revenue model funding competitors 2025"},
+        output:'找到融资和盈利相关信息 8 条。A 轮 $15M，估值 $80M，由 a16z crypto 领投。\n三种盈利模式：SaaS 订阅、交易抽成、企业定制。',
+        absorbed:[{tool:'web_search',dur:'1.6s'},{tool:'result_parser',dur:'0.5s'}]},
+      { icon:'language', title:'浏览 CrunchBase Token Factory 融资信息', dur:'8.7s',
+        input:{url:"https://crunchbase.com/organization/token-factory",mode:"structured"},
+        output:'**融资历程：**\n- Seed: $3M (2023.03) - Paradigm\n- A轮: $15M (2024.09) - a16z crypto 领投\n- 总融资: $18M\n- 估值: $80M (post-money)\n- 员工: 45人 (LinkedIn)\n- 总部: Singapore + SF office',
+        absorbed:[{tool:'browser_navigate',dur:'2.8s'},{tool:'structured_extract',dur:'4.1s'},{tool:'data_normalize',dur:'1.8s'}]},
+      { icon:'analytics', title:'分析竞品对比数据', dur:'5.2s',
+        input:{competitors:["TokenSoft","Securitize","Polymath","Fireblocks"],metrics:["pricing","features","market_share"]},
+        output:'**竞品矩阵（关键指标）：**\n\n| 公司 | 定价 | 多链支持 | 合规 | 自动化 |\n|------|------|---------|------|--------|\n| Token Factory | $299-2999/月 | 3链 | MiCA | 全自动 |\n| Securitize | $500+/月 | 2链 | SEC | 半自动 |\n| Polymath | 定制报价 | 1链 | 有限 | 手动 |\n| Fireblocks | $1000+/月 | 5链+ | 多国 | 半自动 |\n\nToken Factory 在自动化程度和性价比上有明显优势。',
+        absorbed:[{tool:'data_collector',dur:'2.3s'},{tool:'comparison_engine',dur:'1.9s'},{tool:'table_generator',dur:'1.0s'}]},
+    ],
+    summary:'已完成 Token 超级工厂的全面调研：收集了技术架构文档、3 种盈利模式分析、A 轮 $15M 融资信息，以及 5 个主要竞品的对比数据。',
+  },
+  { id:2, name:'数据分析', agent:'analysis-agent', delegateTitle:'委派 analysis-agent: 数据分析子任务，处理调研数据...',
+    thinkingText:'接收到子任务 1 的输出 JSON，包含 5 条调研发现。\n开始加载数据分析技能和工具...\n需要对调研数据进行 SWOT 分析和盈利可行性评估。',
+    delegateDur:'48.6s',
+    delegateInput: { findings:["技术架构：TokenML引擎","盈利模式：SaaS+抽成","竞争壁垒：3项专利","竞品：4家","市场：$16T"], source_subtask:"市场调研" },
+    delegateOutput: '子任务「数据分析」已完成。输出 SWOT 矩阵、盈利可行性评分和 2 张图表数据。',
+    steps: [
+      { icon:'code', title:'解析调研数据结构', dur:'1.3s',
+        input:{data_format:"json",fields:5},
+        output:'数据结构解析完成：\n- 5 条调研发现（findings[]）\n- 3 个维度：技术、商业、市场\n- 数据质量评分：87/100\n- 缺失字段：客户留存率、月活数据',
+        absorbed:[{tool:'json_parser',dur:'0.4s'},{tool:'schema_validator',dur:'0.5s'},{tool:'quality_scorer',dur:'0.4s'}]},
+      { icon:'analytics', title:'竞品 SWOT 矩阵分析', dur:'4.5s',
+        input:{method:"SWOT",target:"Token Factory",competitors:4},
+        output:'**SWOT 分析结果：**\n\n**Strengths:** 自动化程度行业最高（3x竞品），专利壁垒，MiCA 合规先发优势\n**Weaknesses:** 品牌知名度低于 Securitize，北美市场渗透率仅 8%\n**Opportunities:** RWA 市场 2026 预计 $16T，监管趋向明确\n**Threats:** Fireblocks 多链支持更广，大厂可能入场',
+        absorbed:[{tool:'swot_engine',dur:'2.8s'},{tool:'competitor_scorer',dur:'1.7s'}]},
+      { icon:'analytics', title:'盈利模式可行性评估', dur:'6.2s',
+        input:{models:["SaaS订阅","交易抽成","企业定制"],metrics:["LTV","CAC","unit_economics"]},
+        output:'**盈利模式评估：**\n\n- SaaS 订阅：ARR 估算 $7.2M，毛利率 82%\n- 交易抽成：月均交易额 $120M，抽成率 0.1%-0.5%\n- 企业定制：平均合同 $50K，年均 20 单\n\n**单位经济：**\n- LTV: $42,000\n- CAC: $10,000\n- LTV/CAC: 4.2 ✓ (健康阈值 >3)\n- 回收期: 8.5 个月',
+        absorbed:[{tool:'financial_model',dur:'3.5s'},{tool:'ltv_calculator',dur:'1.4s'},{tool:'benchmark_compare',dur:'1.3s'}]},
+      { icon:'code', title:'生成竞品对比图表数据', dur:'3.1s',
+        input:{chart_types:["radar","pie"],format:"echarts_option"},
+        output:'已生成 2 张图表数据：\n\n1. **竞品功能雷达图** - 6 维度：自动化/多链/合规/定价/生态/客户量\n2. **盈利模式饼图** - SaaS 60% / 抽成 28% / 定制 12%\n\n图表数据已格式化为 ECharts option JSON。',
+        absorbed:[{tool:'chart_generator',dur:'1.8s'},{tool:'data_formatter',dur:'1.3s'}]},
+    ],
+    summary:'完成 SWOT 矩阵分析和盈利模式可行性评估。核心发现：Token Factory 的自动化管线是主要竞争壁垒，订阅制+交易抽成的复合盈利模式可持续性强，LTV/CAC = 4.2。',
+  },
+  { id:3, name:'报告生成', agent:'report-agent', delegateTitle:'委派 report-agent: 报告生成子任务，整合分析数据生成报告...',
+    thinkingText:'接收到子任务 2 的输出 JSON，包含 3 条分析洞察和风险评级。\n开始加载报告生成技能...\n将整合所有数据生成完整的商业模式调研报告。',
+    delegateDur:'62.1s',
+    delegateInput: { insights:["SWOT分析","盈利评估","图表数据"], risk_level:"中等", charts:2 },
+    delegateOutput: '子任务「报告生成」已完成。输出 PDF 报告 12 页，包含 5 个章节。',
+    steps: [
+      { icon:'description', title:'生成报告大纲', dur:'2.1s',
+        input:{template:"business_model_report",sections_count:5},
+        output:'**报告大纲：**\n\n1. 执行摘要（1页）\n2. 技术架构深度解析（3页）\n3. 盈利模式与单位经济分析（3页）\n4. 竞品 SWOT 矩阵（2页）\n5. 风险评估与投资建议（3页）\n\n预计总页数：12页',
+        absorbed:[{tool:'template_engine',dur:'0.8s'},{tool:'outline_generator',dur:'1.3s'}]},
+      { icon:'description', title:'撰写技术架构章节', dur:'8.3s',
+        input:{chapter:2,source_data:"whitepaper_extract",word_count:2000},
+        output:'已完成「技术架构深度解析」章节撰写：\n\n- TokenML 引擎三层架构详解\n- 多链部署策略与性能对比\n- AutoDeploy™ 自动化管线技术细节\n- 与竞品技术栈差异分析\n\n字数：2,150 词，含 2 张架构图描述。',
+        absorbed:[{tool:'llm_writer',dur:'5.2s'},{tool:'fact_checker',dur:'1.8s'},{tool:'format_styler',dur:'1.3s'}]},
+      { icon:'description', title:'撰写盈利模式与竞争分析章节', dur:'6.7s',
+        input:{chapters:[3,4],source_data:"analysis_output",include_charts:true},
+        output:'已完成两个章节：\n\n**盈利模式与单位经济分析：**\n- 三种盈利模式详细拆解\n- 单位经济模型图表\n- 与 SaaS 行业基准对比\n\n**竞品 SWOT 矩阵：**\n- 4 家竞品详细分析\n- 功能雷达图\n- 市场定位矩阵\n\n合计 3,800 词。',
+        absorbed:[{tool:'llm_writer',dur:'4.1s'},{tool:'chart_embedder',dur:'1.2s'},{tool:'cross_reference',dur:'1.4s'}]},
+      { icon:'build', title:'导出 PDF 报告', dur:'3.4s',
+        input:{format:"pdf",output_path:"/output/token-factory-report.pdf",styling:"professional"},
+        output:'PDF 报告生成完成：\n\n- 文件：<code>/output/token-factory-report.pdf</code>\n- 页数：12 页\n- 大小：2.4 MB\n- 含图表：4 张（架构图、雷达图、饼图、定位矩阵）\n- 目录和页码已自动生成',
+        absorbed:[{tool:'pdf_renderer',dur:'2.1s'},{tool:'chart_renderer',dur:'0.8s'},{tool:'toc_generator',dur:'0.5s'}]},
+    ],
+    summary: null,
+  },
+];
+
+// ═══ Play subtask ═══
+async function playSubtask(idx) {
+  const t = subtasks[idx];
+  currentSubtask = t.id;
+  if (idx > 0) append('<div class="divider"></div>');
+
+  // Task card (repeated before each subtask)
+  append(buildTaskCardHTML());
+  updateProgress(t.id, 'current');
+  syncAllTaskCardProgress();
+  await delay(300);
+
+  // Reply header
+  append(`<div class="reply-header"><div class="avatar"><span class="material-symbols-rounded avatar-icon">smart_toy</span></div><span class="agent-name">SeeAgent</span>
+    <div class="timers">TTFT <span class="timer-value">2.1s</span> <span style="color:var(--text-ghost)">|</span> Total <span class="timer-value running" id="totalTimer${t.id}">0.0s</span></div></div>`);
+  timerEl = document.getElementById('totalTimer'+t.id);
+  startTimer();
+
+  // Thinking (spinning)
+  append(`<div class="thinking-block" id="think${t.id}" onclick="this.classList.toggle('expanded')">
+    <button class="thinking-toggle"><span class="material-symbols-rounded toggle-icon spin" id="thinkIcon${t.id}">progress_activity</span><span class="label" id="thinkLabel${t.id}">思考中...</span><span class="material-symbols-rounded chevron">expand_more</span></button>
+    <div class="thinking-content">${t.thinkingText}</div></div>`);
+  await delay(800);
+  document.getElementById('thinkIcon'+t.id).className='material-symbols-rounded toggle-icon';
+  document.getElementById('thinkIcon'+t.id).textContent='psychology';
+  document.getElementById('thinkLabel'+t.id).textContent='思考完成';
+  await delay(300);
+
+  // Step card list
+  append('<div class="step-card-list" id="cardList'+t.id+'"></div>');
+  const list = document.getElementById('cardList'+t.id);
+
+  // Delegate card
+  const delId = `delegate_${t.id}`;
+  list.innerHTML = `<div class="step-card running" id="${delId}" onclick="openPanelStepDetail('${delId}')">
+    <span class="material-symbols-rounded status-icon">pending</span>
+    <span class="material-symbols-rounded card-type-icon">smart_toy</span>
+    <span class="title">${t.delegateTitle}</span>
+    <span class="duration" id="delDur${t.id}" style="color:var(--accent)">0.0s</span>
+    <span class="material-symbols-rounded arrow">chevron_right</span></div>`;
+  // Store delegate data (running)
+  stepDataStore[delId] = { title:t.delegateTitle, status:'running', icon:'smart_toy', duration:null, input:t.delegateInput, output:null, absorbed:[] };
+
+  const durEl = document.getElementById('delDur'+t.id);
+  const dStart = performance.now();
+  let dRaf = requestAnimationFrame(function tick(){ durEl.textContent=((performance.now()-dStart)/1000).toFixed(1)+'s'; dRaf=requestAnimationFrame(tick); });
+  await delay(400);
+
+  // Sub-agent steps
+  for (let i = 0; i < t.steps.length; i++) {
+    const s = t.steps[i];
+    const cId = `card_${t.id}_${i}`;
+    list.insertAdjacentHTML('beforeend', `<div class="step-card running is-sub-agent" id="${cId}" onclick="openPanelStepDetail('${cId}')">
+      <span class="material-symbols-rounded status-icon">pending</span>
+      <span class="material-symbols-rounded card-type-icon">${s.icon}</span>
+      <span class="title">${s.title}</span>
+      <span class="duration" style="color:var(--accent)">...</span>
+      <span class="material-symbols-rounded arrow">chevron_right</span></div>`);
+    stepDataStore[cId] = { title:s.title, status:'running', icon:s.icon, duration:null, input:s.input, output:null, absorbed:s.absorbed };
+    scrollBottom();
+    // If panel is showing this card, update
+    if (panelMode === 'step-detail' && selectedStepCardId === cId) openPanelStepDetail(cId);
+    await delay(350 + Math.random()*400);
+
+    // Complete
+    const card = document.getElementById(cId);
+    card.className = 'step-card completed is-sub-agent' + (selectedStepCardId===cId?' selected':'');
+    card.querySelector('.status-icon').textContent = 'check_circle';
+    card.querySelector('.duration').textContent = s.dur;
+    card.querySelector('.duration').style.color = '';
+    stepDataStore[cId].status = 'completed';
+    stepDataStore[cId].duration = s.dur;
+    stepDataStore[cId].output = s.output;
+    if (panelMode === 'step-detail' && selectedStepCardId === cId) openPanelStepDetail(cId);
+    scrollBottom();
+    if (i < t.steps.length-1) await delay(150 + Math.random()*200);
+  }
+
+  // Complete delegate
+  cancelAnimationFrame(dRaf);
+  const delCard = document.getElementById(delId);
+  delCard.className = 'step-card completed' + (selectedStepCardId===delId?' selected':'');
+  delCard.querySelector('.status-icon').textContent = 'check_circle';
+  durEl.textContent = t.delegateDur; durEl.style.color = '';
+  stepDataStore[delId].status = 'completed'; stepDataStore[delId].duration = t.delegateDur; stepDataStore[delId].output = t.delegateOutput;
+  if (panelMode === 'step-detail' && selectedStepCardId === delId) openPanelStepDetail(delId);
+
+  await delay(300);
+  stopTimer();
+  completedSubtasks.add(t.id);
+  updateProgress(t.id, 'done');
+  syncAllTaskCardProgress();
+
+  // If panel is in subtask-output mode showing this subtask, refresh
+  if (panelMode === 'subtask-output') switchSubtaskOutput(t.id);
+
+  // Completion block
+  if (t.id < 3) {
+    append(`<div class="subtask-completion">
+      <div class="completion-header"><span class="material-symbols-rounded">task_alt</span><span class="name">子任务 ${t.id}「${t.name}」</span><span class="badge">已完成</span></div>
+      <div class="summary-text">${t.summary}</div>
+      <div class="subtask-actions">
+        <button class="action-btn secondary" id="viewBtn${t.id}" onclick="clickViewResults(${t.id})"><span class="material-symbols-rounded">visibility</span>查看结果</button>
+        <button class="action-btn primary" id="nextBtn${t.id}" onclick="clickNextStep(${t.id})"><span class="material-symbols-rounded">arrow_forward</span>进入下一步</button>
+      </div></div>`);
+  } else {
+    append(`<div class="subtask-completion" style="border-left-color:var(--accent)">
+      <div class="completion-header"><span class="material-symbols-rounded" style="color:var(--accent)">emoji_events</span><span class="name">最佳实践「商业模式调研报告」</span><span class="badge" style="background:var(--accent-dim);color:var(--accent)">全部完成</span></div>
+      <div class="summary-text">3 个子任务全部执行完毕。报告已生成并保存至 <span style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:12px">/output/token-factory-report.pdf</span></div>
+      <div class="subtask-actions">
+        <button class="action-btn secondary" id="viewBtn3" onclick="clickViewResults(3)"><span class="material-symbols-rounded">visibility</span>查看最终报告</button>
+      </div></div>`);
+  }
+  scrollBottom();
+}
+
+// ═══ Button click handlers (send user msg first) ═══
+function chooseFreeMode() {
+  document.getElementById('btnFree').disabled = true;
+  document.getElementById('btnBP').disabled = true;
+  sendUserMsg('自由模式');
+  setTimeout(() => {
+    append(`<div class="bot-reply"><div class="reply-header"><div class="avatar"><span class="material-symbols-rounded avatar-icon">smart_toy</span></div><span class="agent-name">SeeAgent</span></div>
+      <div style="font-size:14px;color:var(--text-primary);line-height:1.7">好的，我将以自由对话模式为您调研 Token 超级工厂的商业模式。5 轮对话内不再推荐最佳实践。<br><br>让我先搜索一下相关信息...</div></div>`);
+    scrollBottom();
+  }, 300);
+}
+
+async function chooseBestPractice() {
+  document.getElementById('btnFree').disabled = true;
+  document.getElementById('btnBP').disabled = true;
+  sendUserMsg('最佳实践模式');
+  await delay(500);
+  await playSubtask(0);
+}
+
+function clickViewResults(id) {
+  openPanelSubtaskOutput(id);
+}
+
+function clickTaskCard(e) {
+  // Open the subtask output panel at the current step
+  openPanelSubtaskOutput(currentSubtask || 1);
+}
+
+function toggleRunMode() {
+  runMode = runMode === 'manual' ? 'auto' : 'manual';
+  // Sync ALL task card toggle instances in the chat
+  document.querySelectorAll('.task-mode-toggle').forEach(el => {
+    if (runMode === 'auto') {
+      el.classList.add('auto');
+      el.querySelector('.mode-text').textContent = '自动';
+    } else {
+      el.classList.remove('auto');
+      el.querySelector('.mode-text').textContent = '手动';
+    }
+  });
+}
+
+function syncAllTaskCardProgress() {
+  // Update progress dots/connectors on ALL rendered task cards
+  document.querySelectorAll('.task-card').forEach(card => {
+    for (let i = 1; i <= 3; i++) {
+      const dot = card.querySelector('#dot' + i);
+      const conn = card.querySelector('#conn' + (i - 1));
+      if (dot) {
+        dot.className = 'task-step-dot ' + (completedSubtasks.has(i) ? 'done' : i === currentSubtask ? 'active' : 'pending');
+        const lbl = dot.querySelector('.task-step-label');
+        if (lbl) lbl.textContent = completedSubtasks.has(i) ? '(已完成)' : i === currentSubtask ? '(当前)' : '(待执行)';
+      }
+      if (conn) {
+        conn.className = 'task-step-connector ' + (completedSubtasks.has(i - 1 + 1) && (completedSubtasks.has(i + 1) || i + 1 === currentSubtask) ? (i + 1 === currentSubtask ? 'active' : 'done') : completedSubtasks.has(i) ? 'done' : 'pending');
+      }
+    }
+  });
+}
+
+async function clickNextStep(fromId) {
+  const btn = document.getElementById('nextBtn'+fromId);
+  if (btn) { btn.disabled = true; }
+  sendUserMsg('进入下一步');
+  await delay(500);
+  await playSubtask(fromId); // fromId=1 → plays subtasks[1] (subtask 2)
+}
+</script>
+</body>
+</html>
