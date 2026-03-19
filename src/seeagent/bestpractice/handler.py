@@ -146,6 +146,14 @@ class BPToolHandler:
 
         result = self.engine.handle_edit_output(instance_id, subtask_id, changes, bp_config)
 
+        if result.get("success") and result.get("stale_subtasks"):
+            await self.engine._emit_stale(
+                instance_id,
+                result["stale_subtasks"],
+                f"子任务 {subtask_id} 输出被编辑",
+                session,
+            )
+
         if not result.get("success"):
             return f"❌ {result.get('error', 'Unknown error')}"
 
