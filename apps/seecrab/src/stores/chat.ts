@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useSessionStore } from './session'
 import { httpClient } from '@/api/http-client'
+import { useBestPracticeStore } from './bestpractice'
 import type { Message, ReplyState, StepCard, PlanStep, SSEEvent } from '@/types'
 
 export const useChatStore = defineStore('chat', () => {
@@ -26,6 +27,8 @@ export const useChatStore = defineStore('chat', () => {
         total: { state: 'idle', value: null },
       },
       askUser: null,
+      bpProgress: null,
+      bpSubtaskOutput: null,
       isDone: false,
     }
     isStreaming.value = true
@@ -89,6 +92,32 @@ export const useChatStore = defineStore('chat', () => {
           answered: false,
         }
         break
+
+      case 'bp_progress': {
+        const bpStore = useBestPracticeStore()
+        bpStore.updateFromProgress(event as any)
+        if (reply) {
+          reply.bpProgress = bpStore.activeInstance
+        }
+        break
+      }
+
+      case 'bp_subtask_output': {
+        const bpStore = useBestPracticeStore()
+        const e = event as any
+        bpStore.updateSubtaskOutput(e.instance_id, e.subtask_id, e.output)
+        if (reply) {
+          reply.bpSubtaskOutput = { subtaskId: e.subtask_id, output: e.output }
+        }
+        break
+      }
+
+      case 'bp_stale': {
+        const bpStore = useBestPracticeStore()
+        const e = event as any
+        bpStore.markStale(e.instance_id, e.stale_subtask_ids)
+        break
+      }
 
       case 'agent_header':
         reply.agentId = (event as any).agent_id ?? 'main'
