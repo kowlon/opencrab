@@ -34,4 +34,31 @@ export const httpClient = {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     return resp.json()
   },
+  getBPStatus: async (sessionId: string) => {
+    const resp = await fetch(`/api/bp/status?session_id=${sessionId}`)
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return resp.json()
+  },
+  setBPRunMode: async (instanceId: string, runMode: 'manual' | 'auto') => {
+    const resp = await fetch('/api/bp/run-mode', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instance_id: instanceId, run_mode: runMode }),
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return resp.json()
+  },
+  editBPOutput: async (
+    instanceId: string,
+    subtaskId: string,
+    changes: Record<string, unknown>,
+  ) => {
+    const resp = await fetch('/api/bp/edit-output', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instance_id: instanceId, subtask_id: subtaskId, changes }),
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return resp.json()
+  },
 }
