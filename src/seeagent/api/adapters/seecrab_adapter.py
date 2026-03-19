@@ -142,6 +142,10 @@ class SeeCrabAdapter:
         if etype == "ask_user":
             return [self._map_ask_user(event)]
 
+        # BP events — passthrough to frontend
+        if etype in ("bp_progress", "bp_subtask_output", "bp_stale"):
+            return [event]
+
         if etype == "heartbeat":
             return [{"type": "heartbeat"}]
 
