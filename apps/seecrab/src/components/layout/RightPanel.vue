@@ -10,7 +10,8 @@
         <span class="material-symbols-rounded">close</span>
       </button>
     </div>
-    <StepDetail v-if="uiStore.selectedStepId" :step-id="uiStore.selectedStepId" />
+    <StepDetail v-if="uiStore.rightPanelMode === 'step-detail' && uiStore.selectedStepId" :step-id="uiStore.selectedStepId" />
+    <SubtaskOutputPanel v-else-if="uiStore.rightPanelMode === 'subtask-output'" />
   </aside>
 </template>
 
@@ -19,6 +20,7 @@ import { computed } from 'vue'
 import { useUIStore } from '@/stores/ui'
 import { useChatStore } from '@/stores/chat'
 import StepDetail from '@/components/detail/StepDetail.vue'
+import SubtaskOutputPanel from '@/components/panel/SubtaskOutputPanel.vue'
 
 const uiStore = useUIStore()
 const chatStore = useChatStore()
