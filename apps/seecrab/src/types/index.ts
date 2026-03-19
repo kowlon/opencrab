@@ -5,6 +5,7 @@ export type SSEEventType =
   | 'ask_user' | 'agent_header'
   | 'timer_update' | 'heartbeat' | 'done' | 'error'
   | 'session_title'
+  | 'bp_progress' | 'bp_subtask_output' | 'bp_stale'
 
 export interface SSEEvent {
   type: SSEEventType
@@ -32,6 +33,8 @@ export interface ReplyState {
   timer: TimerState
   askUser: AskUserState | null
   isDone: boolean
+  bpProgress: BPInstanceState | null
+  bpSubtaskOutput: { subtaskId: string; output: Record<string, unknown> } | null
 }
 
 export interface StepCard {
@@ -89,4 +92,49 @@ export interface Session {
   lastMessage: string
   updatedAt: number
   messageCount: number
+}
+
+export type BPSubtaskStatus = 'pending' | 'current' | 'done' | 'failed' | 'stale'
+export type BPRunMode = 'manual' | 'auto'
+export type BPInstanceStatus = 'running' | 'paused' | 'completed' | 'cancelled' | 'suspended'
+
+export interface BPSubtaskInfo {
+  id: string
+  name: string
+  status: BPSubtaskStatus
+  output?: Record<string, unknown>
+}
+
+export interface BPInstanceState {
+  instanceId: string
+  bpId: string
+  bpName: string
+  status: BPInstanceStatus
+  runMode: BPRunMode
+  subtasks: BPSubtaskInfo[]
+  currentSubtaskIndex: number
+}
+
+export interface BPProgressEvent {
+  type: 'bp_progress'
+  instance_id: string
+  bp_name: string
+  statuses: Record<string, string>
+  current_subtask_index: number
+  run_mode: string
+  status: string
+}
+
+export interface BPSubtaskOutputEvent {
+  type: 'bp_subtask_output'
+  instance_id: string
+  subtask_id: string
+  output: Record<string, unknown>
+}
+
+export interface BPStaleEvent {
+  type: 'bp_stale'
+  instance_id: string
+  stale_subtask_ids: string[]
+  reason: string
 }
