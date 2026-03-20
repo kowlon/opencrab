@@ -236,6 +236,11 @@ def build_system_prompt(
     if catalogs_section:
         tool_parts.append(catalogs_section)
 
+    # 4.5 构建 Best Practice 层（静态能力描述 + 动态状态）
+    bp_section = _build_bp_section()
+    if bp_section:
+        developer_parts.append(bp_section)
+
     # 5. 构建 Memory 层（支持预计算的异步结果，避免阻塞事件循环）
     if precomputed_memory is not None:
         memory_section = precomputed_memory
@@ -805,6 +810,18 @@ _MEMORY_SYSTEM_GUIDE = """## 你的记忆系统
 
 ### 当前注入的信息
 下方是用户核心档案、当前任务状态和高权重历史经验，仅供快速参考。更多记忆请按需搜索。"""
+
+
+def _build_bp_section() -> str:
+    """构建 Best Practice 系统提示词段（静态能力描述 + 动态状态）。"""
+    try:
+        from ..bestpractice.facade import get_static_prompt_section
+        static = get_static_prompt_section()
+        if not static:
+            return ""
+        return static
+    except Exception:
+        return ""
 
 
 def _build_memory_section(
