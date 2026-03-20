@@ -1,23 +1,23 @@
 <template>
   <div class="bot-reply">
-    <ReplyHeader :reply="reply" />
-    <ThinkingBlock v-if="reply.thinking" :content="reply.thinking" :done="reply.thinkingDone" />
-    <PlanChecklist v-if="reply.planChecklist" :steps="reply.planChecklist" />
-    <StepCardList v-if="reply.stepCards.length" :cards="reply.stepCards" :agent-summaries="reply.agentSummaries" />
-    <SummaryOutput v-if="reply.summaryText" :content="reply.summaryText" />
     <TaskProgressCard
       v-if="reply.bpProgress"
       :bp="reply.bpProgress"
       @toggle-mode="handleToggleMode"
       @view-output="handleViewOutput"
     />
+    <ReplyHeader :reply="reply" />
+    <ThinkingBlock v-if="reply.thinking" :content="reply.thinking" :done="reply.thinkingDone" />
+    <PlanChecklist v-if="reply.planChecklist" :steps="reply.planChecklist" />
+    <StepCardList v-if="reply.stepCards.length" :cards="reply.stepCards" :agent-summaries="reply.agentSummaries" />
+    <SummaryOutput v-if="reply.summaryText && !reply.bpSubtaskOutput" :content="reply.summaryText" />
     <SubtaskCompleteBlock
       v-if="reply.bpSubtaskOutput && reply.bpProgress?.runMode === 'manual'"
       :subtask-name="reply.bpProgress?.subtasks.find(s => s.id === reply.bpSubtaskOutput?.subtaskId)?.name ?? ''"
       :subtask-id="reply.bpSubtaskOutput.subtaskId"
       :instance-id="reply.bpProgress?.instanceId ?? ''"
       :is-last-subtask="(reply.bpProgress?.currentSubtaskIndex ?? 0) >= (reply.bpProgress?.subtasks.length ?? 1) - 1"
-      :subtask-index="reply.bpProgress?.subtasks.findIndex(s => s.id === reply.bpSubtaskOutput?.subtaskId) ?? 0"
+      :subtask-index="Math.max(0, reply.bpProgress?.subtasks.findIndex(s => s.id === reply.bpSubtaskOutput?.subtaskId) ?? 0)"
       :summary="reply.bpSubtaskOutput.summary"
       @view-output="handleViewOutput"
       @continue="handleContinue"
