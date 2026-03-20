@@ -96,7 +96,7 @@ export interface Session {
 
 export type BPSubtaskStatus = 'pending' | 'current' | 'done' | 'failed' | 'stale'
 export type BPRunMode = 'manual' | 'auto'
-export type BPInstanceStatus = 'running' | 'paused' | 'completed' | 'cancelled' | 'suspended'
+export type BPInstanceStatus = 'active' | 'suspended' | 'completed' | 'cancelled'
 
 export interface BPSubtaskInfo {
   id: string
