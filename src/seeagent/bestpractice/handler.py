@@ -87,39 +87,67 @@ class BPToolHandler:
         run_mode_str = params.get("run_mode", bp_config.default_run_mode.value)
         run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
 
+        logger.info(f"[BP-DEBUG] bp_start: bp_id={bp_id}, session_id={session.id}, "
+                     f"run_mode={run_mode.value}")
         inst_id = self.state_manager.create_instance(
             bp_config, session.id, initial_input=input_data, run_mode=run_mode,
         )
+        logger.info(f"[BP-DEBUG] bp_start: created instance {inst_id}")
 
         orchestrator = self._get_orchestrator(agent)
         if not orchestrator:
             return "❌ Orchestrator not available"
 
-        return await self.engine.execute_subtask(inst_id, bp_config, orchestrator, session)
+        result = await self.engine.execute_subtask(inst_id, bp_config, orchestrator, session)
+        # 验证 advance 后的状态
+        snap_after = self.state_manager.get(inst_id)
+        if snap_after:
+            logger.info(f"[BP-DEBUG] bp_start DONE: instance={inst_id}, "
+                         f"idx_after={snap_after.current_subtask_index}, "
+                         f"status={snap_after.status.value}")
+        return result
 
     # ── bp_continue ────────────────────────────────────────────
 
     async def _handle_continue(self, params: dict, agent: Any, session: Any) -> str:
         instance_id = self._resolve_instance_id(params, session)
+        logger.info(f"[BP-DEBUG] bp_continue called, instance_id={instance_id}, params={params}, "
+                     f"session_id={getattr(session, 'id', '?')}")
         if not instance_id:
+            # 诊断: 列出所有实例
+            all_instances = list(self.state_manager._instances.keys())
+            logger.warning(f"[BP-DEBUG] bp_continue: NO active instance found! "
+                           f"All instances in memory: {all_instances}")
+            for iid, snap in self.state_manager._instances.items():
+                logger.warning(f"[BP-DEBUG]   {iid}: session_id={snap.session_id}, "
+                               f"status={snap.status.value}, idx={snap.current_subtask_index}")
             return "❌ 没有活跃的 BP 实例，请指定 instance_id"
 
         snap = self.state_manager.get(instance_id)
         if not snap:
+            logger.warning(f"[BP-DEBUG] bp_continue: instance {instance_id} not found")
             return f"❌ BP instance {instance_id} 不存在"
 
         bp_config = self._get_config_for_instance(snap)
         if not bp_config:
+            logger.warning(f"[BP-DEBUG] bp_continue: config {snap.bp_id} not found")
             return f"❌ BP config {snap.bp_id} 不存在"
+
+        logger.info(f"[BP-DEBUG] bp_continue: executing subtask idx={snap.current_subtask_index}, "
+                     f"total={len(bp_config.subtasks)}, status={snap.status.value}, "
+                     f"subtask_statuses={snap.subtask_statuses}")
 
         # 重置 stale 子任务
         self.engine.reset_stale_if_needed(instance_id, bp_config)
 
         orchestrator = self._get_orchestrator(agent)
         if not orchestrator:
+            logger.warning("[BP-DEBUG] bp_continue: orchestrator not available")
             return "❌ Orchestrator not available"
 
-        return await self.engine.execute_subtask(instance_id, bp_config, orchestrator, session)
+        result = await self.engine.execute_subtask(instance_id, bp_config, orchestrator, session)
+        logger.info(f"[BP-DEBUG] bp_continue: execute_subtask returned, result length={len(result)}")
+        return result
 
     # ── bp_edit_output ─────────────────────────────────────────
 

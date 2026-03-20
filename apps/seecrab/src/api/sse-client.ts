@@ -9,22 +9,26 @@ export class SSEClient {
     conversationId?: string,
     options?: { thinking_mode?: string; thinking_depth?: string },
   ): Promise<void> {
+    console.log('[BP-DEBUG][SSE] sendMessage called, msg:', message, 'convId:', conversationId)
     this.abort()
     this.abortController = new AbortController()
     const store = useChatStore()
 
     try {
+      const body = JSON.stringify({
+        message,
+        conversation_id: conversationId,
+        ...options,
+      })
+      console.log('[BP-DEBUG][SSE] POST /api/seecrab/chat body:', body)
       const resp = await fetch('/api/seecrab/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message,
-          conversation_id: conversationId,
-          ...options,
-        }),
+        body,
         signal: this.abortController.signal,
       })
 
+      console.log('[BP-DEBUG][SSE] Response status:', resp.status, resp.statusText)
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
       }
@@ -35,7 +39,10 @@ export class SSEClient {
 
       while (true) {
         const { done, value } = await reader.read()
-        if (done) break
+        if (done) {
+          console.log('[BP-DEBUG][SSE] Stream ended (done)')
+          break
+        }
 
         buffer += decoder.decode(value, { stream: true })
         const parts = buffer.split('\n\n')
@@ -48,6 +55,7 @@ export class SSEClient {
             if (!json_str) continue
             try {
               const event = JSON.parse(json_str)
+              console.log('[BP-DEBUG][SSE] Event received:', event.type, event)
               store.dispatchEvent(event)
             } catch (e) {
               console.warn('[SSE] Parse error:', e)
@@ -57,7 +65,7 @@ export class SSEClient {
       }
     } catch (err: any) {
       if (err.name === 'AbortError') return
-      console.error('[SSE] Connection error:', err)
+      console.error('[BP-DEBUG][SSE] Connection error:', err)
       store.dispatchEvent({ type: 'error', message: err.message, code: 'connection' })
     }
   }

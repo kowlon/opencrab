@@ -148,6 +148,9 @@ export const useChatStore = defineStore('chat', () => {
         break
 
       case 'done':
+        console.log('[BP-DEBUG][Chat] DONE event — pushing reply to messages. replyId:', reply.replyId,
+          'stepCards:', reply.stepCards.length, 'bpProgress:', !!reply.bpProgress,
+          'bpSubtaskOutput:', !!reply.bpSubtaskOutput, 'summaryText:', reply.summaryText?.slice(0, 100))
         reply.isDone = true
         reply.thinkingDone = true
         isStreaming.value = false
@@ -183,7 +186,7 @@ export const useChatStore = defineStore('chat', () => {
         break
 
       case 'error':
-        console.error('[Chat] Error event:', event)
+        console.error('[BP-DEBUG][Chat] ERROR event:', event)
         reply.isDone = true
         isStreaming.value = false
         messages.value.push({
@@ -299,6 +302,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function addUserMessage(content: string) {
+    console.log('[BP-DEBUG][Chat] addUserMessage:', content, 'existing msgs:', messages.value.length, 'isStreaming:', isStreaming.value)
     // On first user message, set session title from message content
     const sessionStore = useSessionStore()
     const isFirstMessage = messages.value.length === 0

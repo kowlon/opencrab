@@ -68,6 +68,10 @@ function updateField(key: string, value: unknown) {
   editedData.value[key] = value
 }
 
+function tryParseJsonField(key: string, raw: string) {
+  try { updateField(key, JSON.parse(raw)) } catch {}
+}
+
 function updateArrayItem(key: string, index: number, value: string) {
   const arr = editedData.value[key] as unknown[]
   arr[index] = value
@@ -173,7 +177,7 @@ function resetData() {
                   v-else-if="fieldType(String(key), value) === 'object'"
                   class="field-input"
                   :value="JSON.stringify(value, null, 2)"
-                  @input="try { updateField(String(key), JSON.parse(($event.target as HTMLTextAreaElement).value)) } catch {}"
+                  @input="tryParseJsonField(String(key), ($event.target as HTMLTextAreaElement).value)"
                 ></textarea>
                 <!-- Number -->
                 <input

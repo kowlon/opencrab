@@ -95,7 +95,11 @@ class BPStateManager:
     def advance_subtask(self, instance_id: str) -> None:
         snap = self._instances.get(instance_id)
         if snap:
+            old_idx = snap.current_subtask_index
             snap.current_subtask_index += 1
+            logger.info(
+                f"[BP-DEBUG] advance_subtask: {instance_id} idx {old_idx} → {snap.current_subtask_index}"
+            )
 
     def update_subtask_status(self, instance_id: str, subtask_id: str, status: SubtaskStatus) -> None:
         snap = self._instances.get(instance_id)
@@ -220,6 +224,9 @@ class BPStateManager:
         for inst_data in data.get("instances", []):
             snap = BPInstanceSnapshot.deserialize(inst_data)
             snap.bp_config = config_map.get(snap.bp_id)
+            logger.info(
+                f"[BP-DEBUG] restore_from_dict: {snap.instance_id} idx={snap.current_subtask_index}"
+            )
             self._instances[snap.instance_id] = snap
             count += 1
         if "cooldown" in data:

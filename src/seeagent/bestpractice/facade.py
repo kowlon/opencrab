@@ -213,9 +213,20 @@ def get_static_prompt_section() -> str:
                 triggers_desc += f" (关键词: {', '.join(t.conditions)})"
 
         subtask_names = " → ".join(s.name for s in config.subtasks)
+        
+        # 提取第一个子任务的必要输入参数
+        required_inputs = ""
+        if config.subtasks and config.subtasks[0].input_schema:
+            schema = config.subtasks[0].input_schema
+            reqs = schema.get("required", [])
+            props = schema.get("properties", {})
+            if reqs:
+                hints = [f"{req}({props.get(req, {}).get('description', '')})" for req in reqs]
+                required_inputs = f"\n  必需参数: {', '.join(hints)} (调用 bp_start 时放入 input_data)"
+                
         bp_list_lines.append(
             f"- **{config.name}** (`{bp_id}`){triggers_desc}: {config.description}\n"
-            f"  流程: {subtask_names}"
+            f"  流程: {subtask_names}{required_inputs}"
         )
 
     bp_list = "\n".join(bp_list_lines)
@@ -228,6 +239,16 @@ def get_dynamic_prompt_section(session_id: str) -> str:
         init_bp_system()
     if not _bp_state_manager or not _bp_prompt_loader:
         return ""
+
+    # DEBUG: 检查内存中的实例状态
+    all_instances = list(_bp_state_manager._instances.keys())
+    if all_instances:
+        for iid, snap in _bp_state_manager._instances.items():
+            logger.info(f"[BP-DEBUG] dynamic_prompt: instance={iid}, "
+                         f"session_id={snap.session_id}, idx={snap.current_subtask_index}, "
+                         f"status={snap.status.value}")
+    logger.info(f"[BP-DEBUG] dynamic_prompt: querying session_id={session_id}, "
+                 f"total_instances={len(all_instances)}")
 
     status_table = _bp_state_manager.get_status_table(session_id)
     if not status_table:
@@ -248,17 +269,20 @@ def get_dynamic_prompt_section(session_id: str) -> str:
         )
 
         # 暂停点意图路由
-        if active.bp_config and idx > 0:
-            prev_status = list(active.subtask_statuses.values())[idx - 1] if idx <= total else ""
+        if active.bp_config:
+            prev_status = list(active.subtask_statuses.values())[idx - 1] if idx > 0 and idx <= total else ""
+            
+            intent_routing = "用户可能想要:\n"
             if prev_status == "done":
-                intent_routing = (
-                    "用户可能想要:\n"
-                    "A) 修改上一步结果 (bp_edit_output)\n"
-                    "B) 继续下一步 (bp_continue)\n"
-                    "C) 切换到其他任务 (bp_switch_task)\n"
-                    "D) 询问相关问题\n"
-                    "E) 开始新话题"
-                )
+                intent_routing += "A) 修改上一步结果 (bp_edit_output)\n"
+            
+            intent_routing += (
+                "B) 继续下一步 (bp_continue)\n"
+                "C) 补充当前子任务缺失的输入数据 (bp_supplement_input + bp_continue)\n"
+                "D) 切换到其他任务 (bp_switch_task)\n"
+                "E) 询问相关问题\n"
+                "F) 开始新话题"
+            )
 
     # 冷却
     cooldown = _bp_state_manager.get_cooldown(session_id)

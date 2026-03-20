@@ -42,7 +42,9 @@ import SubtaskCompleteBlock from './SubtaskCompleteBlock.vue'
 import { useBestPracticeStore } from '@/stores/bestpractice'
 import { useUIStore } from '@/stores/ui'
 import { useChatStore } from '@/stores/chat'
+import { useSessionStore } from '@/stores/session'
 import { httpClient } from '@/api/http-client'
+import { sseClient } from '@/api/sse-client'
 
 defineProps<{ reply: ReplyState }>()
 
@@ -61,9 +63,27 @@ function handleViewOutput(subtaskId: string) {
   uiStore.openSubtaskOutput(inst.instanceId, subtaskId)
 }
 
-function handleContinue() {
+async function handleContinue() {
   const chatStore = useChatStore()
-  chatStore.addUserMessage('进入下一步')
+  const sessionStore = useSessionStore()
+  const msg = '进入下一步'
+  const convId = sessionStore.activeSessionId
+  console.log('[BP-DEBUG] handleContinue clicked, convId:', convId, 'isStreaming:', chatStore.isStreaming)
+  chatStore.addUserMessage(msg)
+  console.log('[BP-DEBUG] addUserMessage done, messages count:', chatStore.messages.length)
+  if (convId) {
+    try {
+      console.log('[BP-DEBUG] sending message to backend...')
+      await sseClient.sendMessage(msg, convId, { thinking_mode: 'auto' })
+      console.log('[BP-DEBUG] sendMessage completed')
+    } catch (e) {
+      console.error('[BP-DEBUG] sendMessage FAILED:', e)
+      alert('发送失败，请检查网络连接或重试')
+      chatStore.cancelCurrentReply() // 回退状态
+    }
+  } else {
+    console.warn('[BP-DEBUG] No convId! Cannot send message to backend')
+  }
 }
 
 function handleEdit(subtaskId: string) {

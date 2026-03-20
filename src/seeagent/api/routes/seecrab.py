@@ -80,6 +80,7 @@ async def _get_agent(request: Request, conversation_id: str | None, profile_id: 
 @router.post("/chat")
 async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
     """SSE streaming chat via SeeCrabAdapter."""
+    logger.info(f"[BP-DEBUG] /chat received: msg={body.message!r}, conv_id={body.conversation_id}")
     # Get agent from pool (per-session isolation) or fallback to global
     agent = await _get_agent(request, body.conversation_id, body.agent_profile_id)
     if agent is None:
@@ -91,6 +92,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
     # Busy-lock check
     if not await _mark_busy(conversation_id, client_id):
+        logger.warning(f"[BP-DEBUG] 409 BUSY LOCK for conv_id={conversation_id}, client_id={client_id}")
         return JSONResponse(
             {"error": "Another request is already processing this conversation"},
             status_code=409,
@@ -163,6 +165,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 thinking_depth=body.thinking_depth,
                 attachments=body.attachments,
             )
+            logger.info(f"[BP-DEBUG] agent.chat_with_session_stream started for msg={body.message!r}")
 
             # Dual-loop bridge if needed
             try:

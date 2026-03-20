@@ -55,7 +55,10 @@ class BPEngine:
             return f"❌ BP instance {instance_id} 不存在"
 
         idx = snap.current_subtask_index
+        logger.info(f"[BP-DEBUG] execute_subtask: instance={instance_id}, idx={idx}, "
+                     f"total_subtasks={len(bp_config.subtasks)}")
         if idx >= len(bp_config.subtasks):
+            logger.info("[BP-DEBUG] execute_subtask: all subtasks already completed")
             return "❌ 所有子任务已完成"
 
         subtask = bp_config.subtasks[idx]
@@ -137,24 +140,38 @@ class BPEngine:
 
         # 8. 解析输出 & 存储
         output = self._parse_output(result)
+        summary = self._extract_summary_from_result(result, output)
         self.state_manager.update_subtask_output(instance_id, subtask.id, output)
         self.state_manager.update_subtask_status(instance_id, subtask.id, SubtaskStatus.DONE)
+        logger.info(f"[BP-DEBUG] step8: output parsed, subtask={subtask.id} marked DONE")
 
         # 9. 发射子任务完成事件
-        await self._emit_subtask_output(instance_id, subtask.id, output, session, bp_config=bp_config)
+        await self._emit_subtask_output(
+            instance_id, subtask.id, output, session,
+            bp_config=bp_config, summary=summary,
+        )
+        logger.info(f"[BP-DEBUG] step9: emitted bp_subtask_output event")
 
-        # 10. 持久化到 Session.metadata
-        self._persist(instance_id, session)
-
-        # 11. 判断是否为最后一个子任务
+        # 10. 判断是否为最后一个子任务
         if idx >= len(bp_config.subtasks) - 1:
+            logger.info(f"[BP-DEBUG] step10: LAST subtask (idx={idx}), completing instance")
             self.state_manager.complete(instance_id)
+            self._persist(instance_id, session)
             return self._format_completion_result(snap, bp_config)
 
-        # 12. 推进到下一个子任务
+        # 11. 推进到下一个子任务 (必须在 persist 之前)
+        logger.info(f"[BP-DEBUG] step11: BEFORE advance_subtask, idx={snap.current_subtask_index}")
         self.state_manager.advance_subtask(instance_id)
+        logger.info(f"[BP-DEBUG] step11: AFTER advance_subtask, idx={snap.current_subtask_index}")
 
-        return self._format_subtask_complete_result(snap, bp_config, subtask, output, instance_id)
+        # 12. 持久化到 Session.metadata (advance 之后，确保 idx 正确)
+        self._persist(instance_id, session)
+        logger.info(f"[BP-DEBUG] step12: persisted, idx={snap.current_subtask_index}")
+
+        # NOTE: advance_subtask 已将 idx 推进，current_subtask_index 就是下一个要执行的子任务
+        result_msg = self._format_subtask_complete_result(snap, bp_config, subtask, output, instance_id)
+        logger.info(f"[BP-DEBUG] execute_subtask done, returning to MasterAgent: {result_msg[:200]}")
+        return result_msg
 
     def _build_delegation_message(
         self,
@@ -174,11 +191,14 @@ class BPEngine:
             f"{subtask.description or ''}\n\n"
             f"### 输入数据\n```json\n"
             f"{json.dumps(input_data, ensure_ascii=False, indent=2)}\n```\n\n"
-            f"### 输出格式要求\n```json\n{schema_hint}\n```\n\n"
-            f"请严格按照输出格式要求返回 JSON 结果。\n\n"
+            f"### 输出格式要求\n\n"
+            f"请严格按以下格式输出（先写总结再写 JSON）:\n\n"
+            f"**总结**: [用1-2句话简洁描述本子任务的执行结果和关键发现]\n\n"
+            f"```json\n{schema_hint}\n```\n\n"
             f"## 限制\n"
             f"- 禁止使用 ask_user 工具，所有信息已在输入数据中提供\n"
-            f"- 输出必须是纯 JSON 格式"
+            f"- JSON 必须严格符合输出格式要求\n"
+            f"- **总结**行必须在 JSON 代码块之前"
         )
 
     # ── Chat-to-Edit ───────────────────────────────────────────
@@ -327,10 +347,9 @@ class BPEngine:
         msg = (
             f"⚠️ 子任务「{subtask.name}」的输入数据不完整。\n"
             f"缺少以下必要字段:\n" + "\n".join(field_hints) + "\n\n"
-            f"请使用 ask_user 向用户收集以上信息。\n"
-            f"收集后调用 bp_supplement_input(instance_id=\"{snap.instance_id}\", "
-            f"subtask_id=\"{subtask.id}\", data={{...}}) 补充数据，\n"
-            f"然后调用 bp_continue 继续执行。"
+            f"【处理要求】\n"
+            f"1. 请首先检查用户的历史消息（包括当前轮次），如果用户其实已经提供了上述缺失的信息，请直接调用 bp_supplement_input(instance_id=\"{snap.instance_id}\", subtask_id=\"{subtask.id}\", data={{...}}) 补充数据，然后调用 bp_continue 继续。\n"
+            f"2. 只有当用户确实没有提供这些信息时，才使用 ask_user 向用户收集。\n"
         )
 
         if snap.run_mode == RunMode.AUTO:
@@ -343,7 +362,8 @@ class BPEngine:
         subtask: SubtaskConfig, output: dict, instance_id: str,
     ) -> str:
         output_preview = json.dumps(output, ensure_ascii=False)[:200]
-        next_idx = snap.current_subtask_index + 1
+        # advance_subtask 已被调用，current_subtask_index 就是下一个子任务的索引
+        next_idx = snap.current_subtask_index
         next_name = bp_config.subtasks[next_idx].name if next_idx < len(bp_config.subtasks) else "(无)"
 
         if snap.run_mode == RunMode.AUTO:
@@ -356,10 +376,10 @@ class BPEngine:
             f"子任务「{subtask.name}」已完成。\n"
             f"输出预览:\n{output_preview}\n\n"
             f"下一步是「{next_name}」。\n"
-            f"请使用 ask_user 向用户展示以下选项:\n"
-            f"- 查看结果: 打开右侧面板查看完整输出\n"
-            f"- 进入下一步: 继续执行下一个子任务\n"
-            f"- 修改结果: 对当前输出进行修改"
+            f"界面已展示操作按钮，等待用户操作。\n"
+            f"禁止使用 ask_user，用户将通过界面按钮操作。\n"
+            f"当用户发送「进入下一步」时，请立即调用 bp_continue("
+            f"instance_id=\"{instance_id}\") 执行下一个子任务「{next_name}」。"
         )
 
     def _format_completion_result(self, snap: Any, bp_config: BestPracticeConfig) -> str:
@@ -445,7 +465,7 @@ class BPEngine:
 
     async def _emit_subtask_output(
         self, instance_id: str, subtask_id: str, output: dict, session: Any,
-        *, bp_config: BestPracticeConfig | None = None,
+        *, bp_config: BestPracticeConfig | None = None, summary: str | None = None,
     ) -> None:
         bus = getattr(getattr(session, "context", None), "_sse_event_bus", None)
         if not bus:
@@ -471,11 +491,33 @@ class BPEngine:
                     "subtask_name": subtask_name,
                     "output": output,
                     "output_schema": output_schema,
-                    "summary": self._build_summary(output),
+                    "summary": summary or self._build_summary(output),
                 },
             })
         except Exception:
             pass
+
+    @staticmethod
+    def _extract_summary_from_result(raw_result: str, output: dict) -> str | None:
+        """从 SubAgent 返回文本中提取 **总结** 行作为摘要。"""
+        # 匹配 **总结**: ... 或 **总结**： ...
+        match = re.search(r"\*\*总结\*\*[：:]\s*(.+?)(?:\n|$)", raw_result)
+        if match:
+            summary = match.group(1).strip()
+            if summary:
+                return summary[:300]
+        # 尝试提取 JSON 代码块前的说明文本
+        json_match = re.search(r"```json", raw_result)
+        if json_match:
+            text_before = raw_result[:json_match.start()].strip()
+            if text_before:
+                lines = [
+                    line.strip() for line in text_before.split("\n")
+                    if line.strip() and not line.startswith("#")
+                ]
+                if lines:
+                    return " ".join(lines)[:300]
+        return None
 
     @staticmethod
     def _build_summary(output: dict) -> str:
