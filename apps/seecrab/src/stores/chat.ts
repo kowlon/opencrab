@@ -263,6 +263,9 @@ export const useChatStore = defineStore('chat', () => {
             total: { state: 'done' as const, value: rs?.timer?.total ?? null },
           },
           askUser: null,
+          bpProgress: null,
+          bpSubtaskOutput: null,
+          bpTrigger: null,
           isDone: true,
         }
       }
