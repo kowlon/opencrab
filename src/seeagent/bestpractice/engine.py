@@ -85,6 +85,9 @@ class BPEngine:
         await self._emit_progress(instance_id, session)
 
         # 7. 委派执行 (C-1: session_messages=[] 上下文隔离)
+        delegate_step_id = f"bp-delegate-{instance_id}-{subtask.id}"
+        await self._emit_delegate_card(delegate_step_id, subtask, session, status="running")
+        delegate_t0 = time.monotonic()
         try:
             timeout = subtask.timeout_seconds or DEFAULT_BP_SUBTASK_TIMEOUT
             result = await asyncio.wait_for(
@@ -98,7 +101,17 @@ class BPEngine:
                 ),
                 timeout=timeout,
             )
+            delegate_duration = time.monotonic() - delegate_t0
+            await self._emit_delegate_card(
+                delegate_step_id, subtask, session,
+                status="completed", duration=delegate_duration,
+            )
         except asyncio.TimeoutError:
+            delegate_duration = time.monotonic() - delegate_t0
+            await self._emit_delegate_card(
+                delegate_step_id, subtask, session,
+                status="failed", duration=delegate_duration,
+            )
             logger.error(f"SubTask timeout: {subtask.id} after {timeout}s")
             self.state_manager.update_subtask_status(
                 instance_id, subtask.id, SubtaskStatus.FAILED,
@@ -108,6 +121,11 @@ class BPEngine:
                 f"可通过 bp_continue 重试。"
             )
         except Exception as e:
+            delegate_duration = time.monotonic() - delegate_t0
+            await self._emit_delegate_card(
+                delegate_step_id, subtask, session,
+                status="failed", duration=delegate_duration,
+            )
             logger.error(f"SubTask delegation failed: {subtask.id} - {e}")
             self.state_manager.update_subtask_status(
                 instance_id, subtask.id, SubtaskStatus.PENDING,
@@ -467,6 +485,32 @@ class BPEngine:
         keys = list(output.keys())
         preview = json.dumps(output, ensure_ascii=False)[:200]
         return f"字段: {', '.join(keys)} | {preview}"
+
+    async def _emit_delegate_card(
+        self, step_id: str, subtask: SubtaskConfig, session: Any,
+        status: str = "running", duration: float | None = None,
+    ) -> None:
+        """Emit a step_card for the delegation action itself (parent-level card)."""
+        bus = getattr(getattr(session, "context", None), "_sse_event_bus", None)
+        if not bus:
+            return
+        try:
+            await bus.put({
+                "type": "step_card",
+                "step_id": step_id,
+                "title": f"委派 {subtask.agent_profile}: {subtask.name}子任务",
+                "status": status,
+                "source_type": "tool",
+                "card_type": "delegate",
+                "agent_id": "main",
+                "duration": duration,
+                "plan_step_index": None,
+                "input": None,
+                "output": None,
+                "absorbed_calls": [],
+            })
+        except Exception:
+            pass
 
     async def _emit_stale(
         self, instance_id: str, stale_ids: list[str], reason: str, session: Any,

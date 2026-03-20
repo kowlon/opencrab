@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 
 import pytest
 
@@ -485,3 +486,129 @@ class TestEmitSubtaskOutputFields:
         assert isinstance(data["summary"], str)
         assert "key1" in data["summary"]
         assert "key2" in data["summary"]
+
+
+# ── Delegate step_card emission ──────────────────────────────
+
+
+class TestDelegateStepCard:
+    """Verify that execute_subtask emits delegate step_card events on the SSE bus."""
+
+    @pytest.mark.asyncio
+    async def test_emits_running_and_completed_cards(self, engine, bp_config):
+        """Successful delegation should emit 'running' then 'completed' step_card events."""
+        orch = MockOrchestrator(responses={
+            "researcher": json.dumps({"findings": ["data1"]}),
+        })
+        bus = MockEventBus()
+        session = MockSession()
+        session.context._sse_event_bus = bus
+        inst_id = engine.state_manager.create_instance(bp_config, session.id, {"topic": "AI"})
+
+        await engine.execute_subtask(inst_id, bp_config, orch, session)
+
+        # Filter for step_card events only
+        step_cards = [e for e in bus.events if e.get("type") == "step_card"]
+        assert len(step_cards) == 2, f"Expected 2 step_card events, got {len(step_cards)}"
+
+        # First card: running
+        running_card = step_cards[0]
+        assert running_card["status"] == "running"
+        assert running_card["card_type"] == "delegate"
+        assert running_card["source_type"] == "tool"
+        assert running_card["agent_id"] == "main"
+        assert "researcher" in running_card["title"]
+        assert "调研" in running_card["title"]
+        assert running_card["duration"] is None
+
+        # Second card: completed
+        completed_card = step_cards[1]
+        assert completed_card["status"] == "completed"
+        assert completed_card["card_type"] == "delegate"
+        assert completed_card["step_id"] == running_card["step_id"]
+        assert isinstance(completed_card["duration"], float)
+        assert completed_card["duration"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_emits_failed_card_on_exception(self, engine, bp_config):
+        """When delegation raises an exception, a 'failed' step_card should be emitted."""
+
+        class FailOrchestrator:
+            async def delegate(self, **kw):
+                raise RuntimeError("delegation error")
+
+        bus = MockEventBus()
+        session = MockSession()
+        session.context._sse_event_bus = bus
+        inst_id = engine.state_manager.create_instance(bp_config, session.id, {"topic": "AI"})
+
+        await engine.execute_subtask(inst_id, bp_config, FailOrchestrator(), session)
+
+        step_cards = [e for e in bus.events if e.get("type") == "step_card"]
+        assert len(step_cards) == 2, f"Expected 2 step_card events, got {len(step_cards)}"
+
+        assert step_cards[0]["status"] == "running"
+        assert step_cards[1]["status"] == "failed"
+        assert isinstance(step_cards[1]["duration"], float)
+
+    @pytest.mark.asyncio
+    async def test_emits_failed_card_on_timeout(self, engine):
+        """When delegation times out, a 'failed' step_card should be emitted."""
+        config = BestPracticeConfig(
+            id="timeout-bp", name="Timeout BP",
+            subtasks=[SubtaskConfig(
+                id="s1", name="Slow Task", agent_profile="slow_agent",
+                timeout_seconds=0.01,  # very short timeout
+            )],
+        )
+
+        class SlowOrchestrator:
+            async def delegate(self, **kw):
+                await asyncio.sleep(5)
+                return '{"result": "ok"}'
+
+        bus = MockEventBus()
+        session = MockSession()
+        session.context._sse_event_bus = bus
+        inst_id = engine.state_manager.create_instance(config, session.id, {})
+
+        result = await engine.execute_subtask(inst_id, config, SlowOrchestrator(), session)
+        assert "超时" in result
+
+        step_cards = [e for e in bus.events if e.get("type") == "step_card"]
+        assert len(step_cards) == 2
+        assert step_cards[0]["status"] == "running"
+        assert step_cards[1]["status"] == "failed"
+
+    @pytest.mark.asyncio
+    async def test_no_bus_does_not_error(self, engine, bp_config):
+        """When no SSE bus is available, execution should still succeed without errors."""
+        orch = MockOrchestrator(responses={
+            "researcher": json.dumps({"findings": ["data1"]}),
+        })
+        session = MockSession()
+        # session.context._sse_event_bus is None by default
+        inst_id = engine.state_manager.create_instance(bp_config, session.id, {"topic": "AI"})
+
+        result = await engine.execute_subtask(inst_id, bp_config, orch, session)
+        # Should complete without errors
+        snap = engine.state_manager.get(inst_id)
+        assert snap.subtask_statuses["s1"] == SubtaskStatus.DONE.value
+
+    @pytest.mark.asyncio
+    async def test_delegate_step_id_contains_instance_and_subtask(self, engine, bp_config):
+        """The step_id should incorporate instance_id and subtask.id for uniqueness."""
+        orch = MockOrchestrator(responses={
+            "researcher": json.dumps({"findings": ["data1"]}),
+        })
+        bus = MockEventBus()
+        session = MockSession()
+        session.context._sse_event_bus = bus
+        inst_id = engine.state_manager.create_instance(bp_config, session.id, {"topic": "AI"})
+
+        await engine.execute_subtask(inst_id, bp_config, orch, session)
+
+        step_cards = [e for e in bus.events if e.get("type") == "step_card"]
+        step_id = step_cards[0]["step_id"]
+        assert inst_id in step_id
+        assert "s1" in step_id
