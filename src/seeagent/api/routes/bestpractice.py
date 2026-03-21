@@ -1,20 +1,30 @@
 """BP REST API: 状态查询、模式切换、前端启动。"""
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
+import time
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+
+from seeagent.bestpractice.facade import (
+    get_bp_config_loader,
+    get_bp_engine,
+    get_bp_state_manager,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/bp")
 
 
+# ── Existing endpoints (unchanged) ────────────────────────────
+
+
 @router.get("/status")
 async def get_bp_status(session_id: str, request: Request):
     """返回指定会话的所有 BP 实例状态。"""
-    from seeagent.bestpractice.facade import get_bp_state_manager
-
     sm = get_bp_state_manager()
     if not sm:
         return JSONResponse({"instances": [], "active_id": None})
@@ -45,7 +55,6 @@ async def get_bp_status(session_id: str, request: Request):
 @router.put("/run-mode")
 async def set_run_mode(request: Request):
     """切换 BP 实例的运行模式 (manual/auto)。"""
-    from seeagent.bestpractice.facade import get_bp_state_manager
     from seeagent.bestpractice.models import RunMode
 
     body = await request.json()
@@ -73,12 +82,6 @@ async def set_run_mode(request: Request):
 @router.put("/edit-output")
 async def edit_bp_output(request: Request):
     """前端编辑子任务输出 (Chat-to-Edit)。"""
-    from seeagent.bestpractice.facade import (
-        get_bp_config_loader,
-        get_bp_engine,
-        get_bp_state_manager,
-    )
-
     body = await request.json()
     instance_id = body.get("instance_id", "")
     subtask_id = body.get("subtask_id", "")
@@ -109,3 +112,305 @@ async def edit_bp_output(request: Request):
 
     result = engine.handle_edit_output(instance_id, subtask_id, changes, bp_config)
     return JSONResponse(result)
+
+
+# ── Busy-lock (R11, R16) ───────────────────────────────────────
+_bp_busy_locks: dict[str, tuple[str, float]] = {}  # session_id → (source, timestamp)
+_bp_busy_mutex = asyncio.Lock()
+_BP_LOCK_TTL = 600
+
+
+async def _bp_mark_busy(session_id: str, source: str) -> bool:
+    """Try to acquire busy-lock. Returns False if already locked."""
+    async with _bp_busy_mutex:
+        now = time.time()
+        expired = [k for k, (_, ts) in _bp_busy_locks.items() if now - ts > _BP_LOCK_TTL]
+        for k in expired:
+            del _bp_busy_locks[k]
+        if session_id in _bp_busy_locks:
+            return False
+        _bp_busy_locks[session_id] = (source, now)
+        return True
+
+
+def _bp_renew_busy(session_id: str) -> None:
+    """Renew busy-lock timestamp to prevent TTL expiry during long auto-mode runs."""
+    if session_id in _bp_busy_locks:
+        source, _ = _bp_busy_locks[session_id]
+        _bp_busy_locks[session_id] = (source, time.time())
+
+
+def _bp_clear_busy(session_id: str) -> None:
+    _bp_busy_locks.pop(session_id, None)
+
+
+# ── SSE Helpers ────────────────────────────────────────────────
+_SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+}
+
+
+def _sse(event: dict) -> str:
+    return f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+
+# ── Session resolution (R15) ──────────────────────────────────
+
+
+def _resolve_session(request: Request, session_id: str, *, create_if_missing: bool = False):
+    """Get session from session_manager.
+    /bp/start uses create_if_missing=True; /bp/next, /bp/answer use False.
+    """
+    sm = getattr(request.app.state, "session_manager", None)
+    if sm and session_id:
+        return sm.get_session(
+            channel="seecrab", chat_id=session_id,
+            user_id="seecrab_user", create_if_missing=create_if_missing,
+        )
+    return None
+
+
+# ── State persistence (R12, R18) ──────────────────────────────
+
+
+def _persist_bp_to_session(session, instance_id: str, sm) -> None:
+    """Persist BP state to session (R12, R18).
+    Two layers: metadata for recovery + add_message for history.
+    """
+    if not session or not sm:
+        return
+    snap = sm.get(instance_id)
+    if not snap:
+        return
+    try:
+        session.metadata["bp_state"] = sm.serialize_for_session(snap.session_id)
+    except Exception:
+        pass
+    try:
+        bp_config = snap.bp_config
+        bp_name = bp_config.name if bp_config else snap.bp_id
+        done_count = sum(1 for s in snap.subtask_statuses.values() if s == "done")
+        total = len(snap.subtask_statuses)
+        summary = f"[BP] 「{bp_name}」进度: {done_count}/{total}"
+        session.add_message("assistant", summary, reply_state={
+            "bp_instance_id": instance_id,
+            "bp_id": snap.bp_id,
+            "subtask_statuses": snap.subtask_statuses,
+        })
+    except Exception:
+        pass
+
+
+# ── New SSE endpoints (R4) ────────────────────────────────────
+
+
+@router.post("/start")
+async def bp_start(request: Request):
+    """Create BP instance and execute first subtask. Returns SSE stream."""
+    from seeagent.bestpractice.models import RunMode
+
+    body = await request.json()
+    bp_id = body.get("bp_id", "")
+    session_id = body.get("session_id", "")
+    input_data = body.get("input_data", {})
+    run_mode_str = body.get("run_mode", "manual")
+
+    engine = get_bp_engine()
+    sm = get_bp_state_manager()
+    if not engine or not sm:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+
+    loader = get_bp_config_loader()
+    bp_config = loader.configs.get(bp_id) if loader and loader.configs else None
+    if not bp_config:
+        return JSONResponse({"error": f"BP '{bp_id}' not found"}, status_code=404)
+
+    if not await _bp_mark_busy(session_id, "bp_start"):
+        return JSONResponse({"error": "Session is busy"}, status_code=409)
+
+    run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
+    instance_id = sm.create_instance(
+        bp_config, session_id, initial_input=input_data, run_mode=run_mode,
+    )
+    session = _resolve_session(request, session_id, create_if_missing=True)
+
+    async def generate():
+        disconnect_event = asyncio.Event()
+
+        async def _disconnect_watcher():
+            while not disconnect_event.is_set():
+                if await request.is_disconnected():
+                    disconnect_event.set()
+                    if session and hasattr(session, "context"):
+                        dt = getattr(session.context, "_bp_delegate_task", None)
+                        if dt and not dt.done():
+                            dt.cancel()
+                    return
+                await asyncio.sleep(2)
+
+        watcher = asyncio.create_task(_disconnect_watcher())
+
+        try:
+            yield _sse({"type": "bp_instance_created",
+                        "instance_id": instance_id, "bp_id": bp_id})
+
+            async for event in engine.advance(instance_id, session):
+                if disconnect_event.is_set():
+                    break
+                yield _sse(event)
+                if event.get("type") in ("bp_subtask_complete", "bp_progress"):
+                    _bp_renew_busy(session_id)
+
+            _persist_bp_to_session(session, instance_id, sm)
+            yield _sse({"type": "done"})
+        except Exception as e:
+            yield _sse({"type": "error", "message": str(e)})
+            yield _sse({"type": "done"})
+        finally:
+            watcher.cancel()
+            _bp_clear_busy(session_id)
+
+    return StreamingResponse(
+        generate(), media_type="text/event-stream", headers=_SSE_HEADERS,
+    )
+
+
+@router.post("/next")
+async def bp_next(request: Request):
+    """Advance BP to next subtask. Returns SSE stream."""
+    body = await request.json()
+    instance_id = body.get("instance_id", "")
+    session_id = body.get("session_id", "")
+
+    engine = get_bp_engine()
+    if not engine:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+
+    if not await _bp_mark_busy(session_id, "bp_next"):
+        return JSONResponse({"error": "Session is busy"}, status_code=409)
+
+    session = _resolve_session(request, session_id)
+
+    async def generate():
+        disconnect_event = asyncio.Event()
+
+        async def _disconnect_watcher():
+            while not disconnect_event.is_set():
+                if await request.is_disconnected():
+                    disconnect_event.set()
+                    if session and hasattr(session, "context"):
+                        dt = getattr(session.context, "_bp_delegate_task", None)
+                        if dt and not dt.done():
+                            dt.cancel()
+                    return
+                await asyncio.sleep(2)
+
+        watcher = asyncio.create_task(_disconnect_watcher())
+
+        try:
+            async for event in engine.advance(instance_id, session):
+                if disconnect_event.is_set():
+                    break
+                yield _sse(event)
+                if event.get("type") in ("bp_subtask_complete", "bp_progress"):
+                    _bp_renew_busy(session_id)
+
+            _persist_bp_to_session(session, instance_id, get_bp_state_manager())
+            yield _sse({"type": "done"})
+        except Exception as e:
+            yield _sse({"type": "error", "message": str(e)})
+            yield _sse({"type": "done"})
+        finally:
+            watcher.cancel()
+            _bp_clear_busy(session_id)
+
+    return StreamingResponse(
+        generate(), media_type="text/event-stream", headers=_SSE_HEADERS,
+    )
+
+
+@router.post("/answer")
+async def bp_answer(request: Request):
+    """Submit ask_user answer and continue. Returns SSE stream."""
+    body = await request.json()
+    instance_id = body.get("instance_id", "")
+    subtask_id = body.get("subtask_id", "")
+    data = body.get("data", {})
+    session_id = body.get("session_id", "")
+
+    engine = get_bp_engine()
+    if not engine:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+
+    if not await _bp_mark_busy(session_id, "bp_answer"):
+        return JSONResponse({"error": "Session is busy"}, status_code=409)
+
+    session = _resolve_session(request, session_id)
+
+    async def generate():
+        disconnect_event = asyncio.Event()
+
+        async def _disconnect_watcher():
+            while not disconnect_event.is_set():
+                if await request.is_disconnected():
+                    disconnect_event.set()
+                    if session and hasattr(session, "context"):
+                        dt = getattr(session.context, "_bp_delegate_task", None)
+                        if dt and not dt.done():
+                            dt.cancel()
+                    return
+                await asyncio.sleep(2)
+
+        watcher = asyncio.create_task(_disconnect_watcher())
+
+        try:
+            async for event in engine.answer(instance_id, subtask_id, data, session):
+                if disconnect_event.is_set():
+                    break
+                yield _sse(event)
+
+            _persist_bp_to_session(session, instance_id, get_bp_state_manager())
+            yield _sse({"type": "done"})
+        except Exception as e:
+            yield _sse({"type": "error", "message": str(e)})
+            yield _sse({"type": "done"})
+        finally:
+            watcher.cancel()
+            _bp_clear_busy(session_id)
+
+    return StreamingResponse(
+        generate(), media_type="text/event-stream", headers=_SSE_HEADERS,
+    )
+
+
+# ── New plain JSON endpoints (R5) ─────────────────────────────
+
+
+@router.get("/output/{instance_id}/{subtask_id}")
+async def bp_get_output(instance_id: str, subtask_id: str):
+    """Query subtask output (plain JSON)."""
+    sm = get_bp_state_manager()
+    if not sm:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+    snap = sm.get(instance_id)
+    if not snap:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    output = snap.subtask_outputs.get(subtask_id)
+    if output is None:
+        return JSONResponse({"error": "No output"}, status_code=404)
+    return JSONResponse({"output": output})
+
+
+@router.delete("/{instance_id}")
+async def bp_cancel(instance_id: str):
+    """Cancel BP instance."""
+    sm = get_bp_state_manager()
+    if not sm:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+    snap = sm.get(instance_id)
+    if not snap:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    sm.cancel(instance_id)
+    return JSONResponse({"status": "ok"})
