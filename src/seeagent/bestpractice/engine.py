@@ -17,6 +17,7 @@ import logging
 import re
 import time
 from string import Template
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from .models import BPStatus, RunMode, SubtaskStatus
@@ -75,7 +76,178 @@ class BPEngine:
         except Exception:
             return None
 
-    # ── Core execution ─────────────────────────────────────────
+    # ── Core execution (new: async generator) ────────────────────
+
+    async def advance(
+        self, instance_id: str, session: Any,
+    ) -> AsyncIterator[dict]:
+        """Execute the next ready subtask(s) and yield SSE events.
+
+        This is the core async generator that replaces execute_subtask() for
+        the new streaming architecture. It does NOT yield a final ``done``
+        event (R2).
+
+        Manual mode: executes one subtask then yields ``bp_waiting_next``.
+        Auto mode: loops through all remaining subtasks until completion.
+        """
+        snap = self.state_manager.get(instance_id)
+        if not snap:
+            yield {"type": "error", "message": f"BP instance {instance_id} not found"}
+            return
+
+        bp_config = self._get_config(snap)
+        if not bp_config:
+            yield {"type": "error", "message": f"BP config not found for {snap.bp_id}"}
+            return
+
+        scheduler = self._get_scheduler(bp_config, snap)
+
+        while True:
+            ready = scheduler.get_ready_tasks()
+            if not ready:
+                # No tasks ready — might already be done
+                if scheduler.is_done():
+                    self.state_manager.complete(instance_id)
+                    self._persist_state(instance_id, session)
+                    yield self._build_bp_complete_event(instance_id, snap, bp_config)
+                return
+
+            for subtask in ready:
+                # Quick path: check input completeness
+                input_data = scheduler.resolve_input(subtask.id)
+                missing = self._check_input_completeness(subtask, input_data)
+                if missing:
+                    self.state_manager.update_subtask_status(
+                        instance_id, subtask.id, SubtaskStatus.WAITING_INPUT,
+                    )
+                    yield {
+                        "type": "bp_ask_user",
+                        "instance_id": instance_id,
+                        "subtask_id": subtask.id,
+                        "subtask_name": subtask.name,
+                        "missing_fields": missing,
+                    }
+                    return
+
+                # Mark CURRENT and yield subtask_start
+                self.state_manager.update_subtask_status(
+                    instance_id, subtask.id, SubtaskStatus.CURRENT,
+                )
+                yield {
+                    "type": "bp_subtask_start",
+                    "instance_id": instance_id,
+                    "subtask_id": subtask.id,
+                    "subtask_name": subtask.name,
+                }
+
+                # Execute via _run_subtask_stream with error handling (R20)
+                output = None
+                try:
+                    async for event in self._run_subtask_stream(
+                        instance_id, subtask, input_data, bp_config, session,
+                    ):
+                        if event.get("type") == "_internal_output":
+                            output = event.get("data", {})
+                        elif event.get("type") == "bp_ask_user":
+                            self.state_manager.update_subtask_status(
+                                instance_id, subtask.id, SubtaskStatus.WAITING_INPUT,
+                            )
+                            yield event
+                            return
+                        else:
+                            # Passthrough other events to the caller
+                            yield event
+                except Exception as exc:
+                    logger.error(
+                        f"[BP] Subtask {subtask.id} failed: {exc}", exc_info=True,
+                    )
+                    self.state_manager.update_subtask_status(
+                        instance_id, subtask.id, SubtaskStatus.FAILED,
+                    )
+                    yield {
+                        "type": "bp_error",
+                        "instance_id": instance_id,
+                        "subtask_id": subtask.id,
+                        "error": str(exc),
+                    }
+                    return
+
+                # Subtask completed successfully
+                if output is None:
+                    output = {}
+                scheduler.complete_task(subtask.id, output)
+                self._persist_state(instance_id, session)
+
+                yield {
+                    "type": "bp_subtask_complete",
+                    "instance_id": instance_id,
+                    "subtask_id": subtask.id,
+                    "subtask_name": subtask.name,
+                    "output": output,
+                    "summary": self._extract_summary(output),
+                }
+                yield self._build_progress_event(instance_id, snap, bp_config)
+
+            # After processing ready tasks, check if done
+            if scheduler.is_done():
+                self.state_manager.complete(instance_id)
+                self._persist_state(instance_id, session)
+                yield self._build_bp_complete_event(instance_id, snap, bp_config)
+                return
+
+            # Manual mode: stop after one round, yield waiting_next
+            if snap.run_mode == RunMode.MANUAL:
+                yield {
+                    "type": "bp_waiting_next",
+                    "instance_id": instance_id,
+                    "next_subtask_index": snap.current_subtask_index,
+                }
+                return
+
+            # Auto mode: continue the while loop to pick up next ready tasks
+
+    # ── advance() helpers ──────────────────────────────────────
+
+    def _build_bp_complete_event(
+        self, instance_id: str, snap: Any, bp_config: BestPracticeConfig,
+    ) -> dict:
+        """Build the bp_complete SSE event dict."""
+        return {
+            "type": "bp_complete",
+            "instance_id": instance_id,
+            "bp_id": bp_config.id,
+            "bp_name": bp_config.name,
+            "outputs": dict(snap.subtask_outputs),
+        }
+
+    def _build_progress_event(
+        self, instance_id: str, snap: Any, bp_config: BestPracticeConfig,
+    ) -> dict:
+        """Build a bp_progress SSE event dict."""
+        return {
+            "type": "bp_progress",
+            "instance_id": instance_id,
+            "bp_name": bp_config.name,
+            "statuses": dict(snap.subtask_statuses),
+            "current_subtask_index": snap.current_subtask_index,
+            "run_mode": snap.run_mode.value if isinstance(snap.run_mode, RunMode) else snap.run_mode,
+        }
+
+    def _persist_state(self, instance_id: str, session: Any) -> None:
+        """Persist BP state to session metadata (delegates to _persist)."""
+        self._persist(instance_id, session)
+
+    @staticmethod
+    def _extract_summary(output: dict) -> str:
+        """Extract a short summary from subtask output."""
+        if not output:
+            return ""
+        import json as _json
+        keys = list(output.keys())
+        preview = _json.dumps(output, ensure_ascii=False)[:200]
+        return f"fields: {', '.join(keys)} | {preview}"
+
+    # ── Core execution (legacy) ─────────────────────────────────
 
     async def execute_subtask(
         self,
