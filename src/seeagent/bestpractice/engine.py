@@ -247,6 +247,114 @@ class BPEngine:
         preview = _json.dumps(output, ensure_ascii=False)[:200]
         return f"fields: {', '.join(keys)} | {preview}"
 
+    # ── Subtask streaming execution ─────────────────────────────
+
+    async def _run_subtask_stream(
+        self,
+        instance_id: str,
+        subtask: SubtaskConfig,
+        input_data: dict[str, Any],
+        bp_config: BestPracticeConfig,
+        session: Any,
+    ) -> AsyncIterator[dict]:
+        """Execute a single subtask, yield SubAgent streaming events.
+
+        Uses orchestrator.delegate() + temporary event_bus to capture streaming
+        events. The final output is yielded as an ``_internal_output`` event.
+
+        R17: delegate_task is exposed on session.context._bp_delegate_task for
+        disconnect watcher cancellation.
+        """
+        orchestrator = self._get_orchestrator()
+        if not orchestrator:
+            yield {"type": "error", "message": "Orchestrator not available"}
+            return
+
+        # Derive output schema for this subtask
+        subtask_index = next(
+            (i for i, s in enumerate(bp_config.subtasks) if s.id == subtask.id), 0
+        )
+        output_schema = self.schema_chain.derive_output_schema(bp_config, subtask_index)
+
+        # Build delegation message
+        message = self._build_delegation_message(bp_config, subtask, input_data, output_schema)
+
+        # Temporary event_bus to capture SubAgent streaming events
+        event_bus: asyncio.Queue = asyncio.Queue()
+        old_bus = None
+        if hasattr(session, "context"):
+            old_bus = getattr(session.context, "_sse_event_bus", None)
+            session.context._sse_event_bus = event_bus
+
+        try:
+            # Launch SubAgent (non-blocking)
+            delegate_task = asyncio.create_task(
+                orchestrator.delegate(
+                    session=session,
+                    from_agent="bp_engine",
+                    to_agent=subtask.agent_profile,
+                    message=message,
+                    reason=f"BP:{bp_config.name} / {subtask.name}",
+                    session_messages=[],  # Context isolation
+                )
+            )
+            # R17: expose delegate_task for disconnect watcher cancellation
+            if hasattr(session, "context"):
+                session.context._bp_delegate_task = delegate_task
+
+            # Consume events from event_bus
+            while True:
+                try:
+                    event = await asyncio.wait_for(event_bus.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    if delegate_task.done():
+                        break
+                    continue
+
+                etype = event.get("type")
+                if etype == "done":
+                    continue  # SubAgent's done event should not be passed through
+                yield event
+
+            # Get final result
+            raw_result = await delegate_task
+            output = self._parse_output(raw_result)
+            yield {"type": "_internal_output", "data": output}
+
+        finally:
+            if hasattr(session, "context"):
+                session.context._sse_event_bus = old_bus
+                session.context._bp_delegate_task = None  # Clean up reference
+
+    # ── Answer (user response to bp_ask_user) ─────────────────
+
+    async def answer(
+        self,
+        instance_id: str,
+        subtask_id: str,
+        data: dict,
+        session: Any,
+    ) -> AsyncIterator[dict]:
+        """Handle ask_user answer: merge supplemented data, re-execute subtask."""
+        snap = self.state_manager.get(instance_id)
+        if not snap:
+            yield {"type": "error", "message": "Instance not found"}
+            return
+
+        # Merge supplemented data into dedicated field (don't pollute subtask_outputs)
+        existing = snap.supplemented_inputs.get(subtask_id, {})
+        existing.update(data)
+        snap.supplemented_inputs[subtask_id] = existing
+
+        # Reset subtask status to PENDING to allow re-execution
+        self.state_manager.update_subtask_status(
+            instance_id, subtask_id, SubtaskStatus.PENDING,
+        )
+
+        # Reuse advance() flow
+        async for event in self.advance(instance_id, session):
+            yield event
+
     # ── Core execution (legacy) ─────────────────────────────────
 
     async def execute_subtask(
