@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
@@ -136,6 +137,20 @@ class BPEngine:
                     "subtask_name": subtask.name,
                 }
 
+                # Gap 5: yield delegate card (running)
+                delegate_step_id = f"delegate_{subtask.id}"
+                yield {
+                    "type": "step_card",
+                    "step_id": delegate_step_id,
+                    "title": f"委派 {subtask.agent_profile}: {subtask.name}",
+                    "status": "running",
+                    "source_type": "tool",
+                    "card_type": "delegate",
+                    "agent_id": "main",
+                    "duration": None,
+                }
+                delegate_start = time.monotonic()
+
                 # Execute via _run_subtask_stream with error handling (R20)
                 output = None
                 try:
@@ -167,6 +182,19 @@ class BPEngine:
                         "error": str(exc),
                     }
                     return
+
+                # Gap 5: yield delegate card (completed)
+                delegate_duration = round(time.monotonic() - delegate_start, 1)
+                yield {
+                    "type": "step_card",
+                    "step_id": delegate_step_id,
+                    "title": f"委派 {subtask.agent_profile}: {subtask.name}",
+                    "status": "completed",
+                    "source_type": "tool",
+                    "card_type": "delegate",
+                    "agent_id": "main",
+                    "duration": delegate_duration,
+                }
 
                 # Subtask completed successfully
                 if output is None:

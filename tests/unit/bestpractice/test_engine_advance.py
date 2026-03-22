@@ -212,3 +212,35 @@ class TestAdvanceInitialProgress:
         assert events[0]["type"] == "bp_progress"
         assert events[0]["instance_id"] == "bp-test"
         assert events[0]["bp_name"] == "Test BP"
+
+
+@pytest.mark.asyncio
+class TestAdvanceDelegateCards:
+    async def test_yields_delegate_card_running_and_completed(self):
+        """Gap 5: advance() yields a delegate step_card before/after subtask stream."""
+        cfg = _make_config(subtask_count=1)
+        snap = _make_snap(cfg, run_mode=RunMode.MANUAL)
+        sm = MagicMock()
+        sm.get.return_value = snap
+        sm.complete = MagicMock()
+        sm.update_subtask_status = MagicMock()
+        engine = BPEngine(sm)
+
+        async def mock_stream(*args, **kwargs):
+            yield {"type": "step_card", "step_id": "tool_1", "status": "completed"}
+            yield {"type": "_internal_output", "data": {"result": "done"}}
+        engine._run_subtask_stream = mock_stream
+        engine._get_config = MagicMock(return_value=cfg)
+
+        session = MagicMock()
+        events = await _collect_events(engine, "bp-test", session)
+
+        step_cards = [e for e in events if e["type"] == "step_card"]
+        # Should have: 1 delegate running + 1 tool completed + 1 delegate completed
+        delegate_cards = [c for c in step_cards if c.get("card_type") == "delegate"]
+        assert len(delegate_cards) == 2
+        assert delegate_cards[0]["status"] == "running"
+        assert delegate_cards[1]["status"] == "completed"
+        assert delegate_cards[1]["duration"] is not None
+        # Same step_id for both
+        assert delegate_cards[0]["step_id"] == delegate_cards[1]["step_id"]
