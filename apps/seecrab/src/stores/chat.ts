@@ -31,6 +31,7 @@ export const useChatStore = defineStore('chat', () => {
       bpSubtaskOutput: null,
       bpInstanceCreated: null,
       bpAskUser: null,
+      bpOffer: null,
       isDone: false,
     }
     isStreaming.value = true
@@ -166,6 +167,17 @@ export const useChatStore = defineStore('chat', () => {
 
       case 'bp_waiting_next': {
         // No extra action — 'done' event will set isDone=true, enabling buttons
+        break
+      }
+
+      case 'bp_offer': {
+        const e = event as any
+        reply.bpOffer = {
+          bpId: e.bp_id,
+          bpName: e.bp_name,
+          subtasks: e.subtasks ?? [],
+          defaultRunMode: e.default_run_mode ?? 'manual',
+        }
         break
       }
 
@@ -322,6 +334,7 @@ export const useChatStore = defineStore('chat', () => {
           bpSubtaskOutput: null,
           bpInstanceCreated: null,
           bpAskUser: null,
+          bpOffer: null,
           isDone: true,
         }
       }
