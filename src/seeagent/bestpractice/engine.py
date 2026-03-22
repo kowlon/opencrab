@@ -95,6 +95,9 @@ class BPEngine:
 
         scheduler = self._get_scheduler(bp_config, snap)
 
+        # Gap 1: yield initial progress so TaskProgressCard is visible immediately
+        yield self._build_progress_event(instance_id, snap, bp_config)
+
         while True:
             ready = scheduler.get_ready_tasks()
             if not ready:

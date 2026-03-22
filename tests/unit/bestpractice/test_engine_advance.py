@@ -186,3 +186,29 @@ class TestAdvanceErrorHandling:
         events = await _collect_events(engine, "bp-missing", session)
         assert len(events) == 1
         assert events[0]["type"] == "error"
+
+
+@pytest.mark.asyncio
+class TestAdvanceInitialProgress:
+    async def test_first_event_is_bp_progress(self):
+        """Gap 1: advance() must yield bp_progress before any subtask work."""
+        cfg = _make_config(subtask_count=2)
+        snap = _make_snap(cfg, run_mode=RunMode.MANUAL)
+        sm = MagicMock()
+        sm.get.return_value = snap
+        sm.complete = MagicMock()
+        sm.update_subtask_status = MagicMock()
+        engine = BPEngine(sm)
+
+        async def mock_stream(*args, **kwargs):
+            yield {"type": "_internal_output", "data": {"data": "result1"}}
+        engine._run_subtask_stream = mock_stream
+        engine._get_config = MagicMock(return_value=cfg)
+
+        session = MagicMock()
+        events = await _collect_events(engine, "bp-test", session)
+
+        # First event must be bp_progress
+        assert events[0]["type"] == "bp_progress"
+        assert events[0]["instance_id"] == "bp-test"
+        assert events[0]["bp_name"] == "Test BP"
