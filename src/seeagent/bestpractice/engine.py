@@ -254,8 +254,13 @@ class BPEngine:
             "instance_id": instance_id,
             "bp_name": bp_config.name,
             "statuses": dict(snap.subtask_statuses),
+            "subtasks": [
+                {"id": st.id, "name": st.name}
+                for st in bp_config.subtasks
+            ],
             "current_subtask_index": snap.current_subtask_index,
             "run_mode": snap.run_mode.value if isinstance(snap.run_mode, RunMode) else snap.run_mode,
+            "status": snap.status.value if hasattr(snap.status, "value") else str(snap.status),
         }
 
     def _persist_state(self, instance_id: str, session: Any) -> None:
