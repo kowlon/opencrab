@@ -331,7 +331,10 @@ class BPEngine:
             if hasattr(session, "context"):
                 session.context._bp_delegate_task = delegate_task
 
-            # Consume events from event_bus
+            # Consume events from event_bus, convert raw agent events to step_cards
+            sub_agent_id = subtask.agent_profile
+            tool_start_times: dict[str, float] = {}
+
             while True:
                 try:
                     event = await asyncio.wait_for(event_bus.get(), timeout=1.0)
@@ -342,8 +345,59 @@ class BPEngine:
 
                 etype = event.get("type")
                 if etype == "done":
-                    continue  # SubAgent's done event should not be passed through
-                yield event
+                    continue
+
+                # Track sub-agent identity
+                if etype == "agent_header":
+                    aid = event.get("agent_id")
+                    if aid and aid != "main":
+                        sub_agent_id = aid
+                    continue
+
+                # Convert tool_call_start → step_card (running)
+                if etype == "tool_call_start":
+                    tool_name = event.get("tool", "")
+                    tool_id = event.get("id", f"bp_tool_{id(event)}")
+                    title = tool_name
+                    tool_start_times[tool_id] = time.monotonic()
+                    yield {
+                        "type": "step_card",
+                        "step_id": tool_id,
+                        "title": title,
+                        "status": "running",
+                        "source_type": "tool",
+                        "card_type": self._infer_card_type(tool_name),
+                        "agent_id": sub_agent_id,
+                        "duration": None,
+                    }
+                    continue
+
+                # Convert tool_call_end → step_card (completed/failed)
+                if etype == "tool_call_end":
+                    tool_name = event.get("tool", "")
+                    tool_id = event.get("id", "")
+                    is_error = event.get("is_error", False)
+                    start_t = tool_start_times.pop(tool_id, None)
+                    duration = round(time.monotonic() - start_t, 1) if start_t else None
+                    yield {
+                        "type": "step_card",
+                        "step_id": tool_id,
+                        "title": tool_name,
+                        "status": "failed" if is_error else "completed",
+                        "source_type": "tool",
+                        "card_type": self._infer_card_type(tool_name),
+                        "agent_id": sub_agent_id,
+                        "duration": duration,
+                    }
+                    continue
+
+                # Pass through step_card events as-is (e.g. from nested delegates)
+                if etype == "step_card":
+                    yield event
+                    continue
+
+                # Skip other raw events (thinking, text_delta, etc.)
+                # — these aren't rendered by the BP frontend
 
             # Get final result
             raw_result = await delegate_task
@@ -450,6 +504,22 @@ class BPEngine:
         return result
 
     # ── Input completeness ─────────────────────────────────────
+
+    _CARD_TYPE_PREFIXES: dict[str, str] = {
+        "web_search": "search", "news_search": "search", "search_": "search",
+        "code_execute": "code", "python_execute": "code", "shell_execute": "code",
+        "browser_": "browser", "navigate_": "browser",
+        "analyze_": "analysis", "chart_": "analysis",
+    }
+
+    @classmethod
+    def _infer_card_type(cls, tool_name: str) -> str:
+        if tool_name in cls._CARD_TYPE_PREFIXES:
+            return cls._CARD_TYPE_PREFIXES[tool_name]
+        for prefix, card_type in cls._CARD_TYPE_PREFIXES.items():
+            if prefix.endswith("_") and tool_name.startswith(prefix):
+                return card_type
+        return "default"
 
     def _check_input_completeness(
         self, subtask: SubtaskConfig, input_data: dict[str, Any],

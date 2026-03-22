@@ -115,7 +115,8 @@ class TestRunSubtaskStream:
         assert events[0]["type"] == "error"
 
     async def test_passthrough_events_from_event_bus(self):
-        """Intermediate events from event_bus are yielded (except 'done')."""
+        """step_card events pass through; tool_call events are converted to step_cards;
+        raw events (thinking, done) are filtered out."""
         cfg = _make_config()
         sm = MagicMock()
         engine = BPEngine(sm)
@@ -124,8 +125,10 @@ class TestRunSubtaskStream:
         async def fake_delegate(**kwargs):
             session = kwargs.get("session")
             bus = session.context._sse_event_bus
-            await bus.put({"type": "step_card", "data": "card1"})
-            await bus.put({"type": "thinking", "data": "hmm"})
+            await bus.put({"type": "step_card", "step_id": "card1", "title": "existing", "status": "completed"})
+            await bus.put({"type": "tool_call_start", "tool": "web_search", "id": "t1"})
+            await bus.put({"type": "tool_call_end", "tool": "web_search", "id": "t1", "is_error": False})
+            await bus.put({"type": "thinking", "data": "hmm"})  # should be filtered
             await bus.put({"type": "done"})  # should be filtered
             return '{"result": "ok"}'
 
@@ -147,9 +150,15 @@ class TestRunSubtaskStream:
             events.append(ev)
 
         event_types = [e["type"] for e in events]
-        assert "step_card" in event_types
-        assert "thinking" in event_types
-        assert "done" not in event_types  # "done" should be filtered
+        step_cards = [e for e in events if e["type"] == "step_card"]
+        # Original step_card passes through
+        assert any(c.get("step_id") == "card1" for c in step_cards)
+        # tool_call_start/end converted to step_cards
+        assert any(c.get("step_id") == "t1" and c["status"] == "running" for c in step_cards)
+        assert any(c.get("step_id") == "t1" and c["status"] == "completed" for c in step_cards)
+        # Raw events filtered
+        assert "thinking" not in event_types
+        assert "done" not in event_types
         assert "_internal_output" in event_types
 
     async def test_restores_old_event_bus(self):
