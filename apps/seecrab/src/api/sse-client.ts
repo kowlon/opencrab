@@ -3,6 +3,7 @@ import { useChatStore } from '@/stores/chat'
 
 export class SSEClient {
   private abortController: AbortController | null = null
+  private bpAbortController: AbortController | null = null
 
   async sendMessage(
     message: string,
@@ -89,6 +90,66 @@ export class SSEClient {
   abort(): void {
     this.abortController?.abort()
     this.abortController = null
+  }
+
+  abortBP(): void {
+    if (this.bpAbortController) {
+      this.bpAbortController.abort()
+      this.bpAbortController = null
+    }
+  }
+
+  async streamBP(url: string, body: Record<string, unknown>): Promise<void> {
+    const store = useChatStore()
+    this.abortBP()
+    this.bpAbortController = new AbortController()
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: this.bpAbortController.signal,
+      })
+
+      if (!response.ok) {
+        const errText = await response.text()
+        store.dispatchEvent({ type: 'error', error: `BP request failed: ${errText}` })
+        return
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) return
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
+
+        for (const part of parts) {
+          const lines = part.split('\n')
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            try {
+              const event = JSON.parse(line.slice(6))
+              store.dispatchEvent(event)
+            } catch { /* skip malformed */ }
+          }
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return
+      console.error('[SSE] BP stream error:', err)
+      store.dispatchEvent({ type: 'error', error: 'BP 连接断开' })
+    } finally {
+      this.bpAbortController = null
+    }
   }
 }
 

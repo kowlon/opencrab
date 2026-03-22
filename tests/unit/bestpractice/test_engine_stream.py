@@ -39,20 +39,12 @@ def _make_snap(cfg):
     )
 
 
-def _make_schema_chain():
-    """Create a SchemaChain mock that returns proper dicts."""
-    sc = MagicMock()
-    sc.derive_output_schema.return_value = {"type": "object"}
-    return sc
-
-
 @pytest.mark.asyncio
 class TestRunSubtaskStream:
     async def test_streams_events_from_delegate(self):
         cfg = _make_config()
         sm = MagicMock()
-        sc = _make_schema_chain()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
 
         # Mock orchestrator.delegate to return result
         mock_orch = AsyncMock()
@@ -82,8 +74,7 @@ class TestRunSubtaskStream:
         """R17: delegate_task is stored on session.context._bp_delegate_task."""
         cfg = _make_config()
         sm = MagicMock()
-        sc = _make_schema_chain()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         mock_orch = AsyncMock()
         mock_orch.delegate = AsyncMock(return_value='{"ok": true}')
         engine.set_orchestrator(mock_orch)
@@ -108,8 +99,7 @@ class TestRunSubtaskStream:
         """When no orchestrator is available, yields an error event."""
         cfg = _make_config()
         sm = MagicMock()
-        sc = _make_schema_chain()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         # Do NOT set orchestrator
         engine._get_orchestrator = MagicMock(return_value=None)
 
@@ -128,8 +118,7 @@ class TestRunSubtaskStream:
         """Intermediate events from event_bus are yielded (except 'done')."""
         cfg = _make_config()
         sm = MagicMock()
-        sc = _make_schema_chain()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
 
         # Simulate delegate that puts events on the bus then returns
         async def fake_delegate(**kwargs):
@@ -167,8 +156,7 @@ class TestRunSubtaskStream:
         """After stream completes, the old event_bus is restored."""
         cfg = _make_config()
         sm = MagicMock()
-        sc = _make_schema_chain()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
 
         mock_orch = AsyncMock()
         mock_orch.delegate = AsyncMock(return_value='{"ok": true}')
@@ -200,8 +188,7 @@ class TestAnswer:
         sm = MagicMock()
         sm.get.return_value = snap
         sm.update_subtask_status = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         engine._get_config = MagicMock(return_value=cfg)
 
         # Mock _run_subtask_stream so advance() works
@@ -224,8 +211,7 @@ class TestAnswer:
     async def test_answer_instance_not_found(self):
         sm = MagicMock()
         sm.get.return_value = None
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
 
         events = []
         async for ev in engine.answer("bp-missing", "s1", {"q": "test"}, MagicMock()):
@@ -243,8 +229,7 @@ class TestAnswer:
         sm = MagicMock()
         sm.get.return_value = snap
         sm.update_subtask_status = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         engine._get_config = MagicMock(return_value=cfg)
 
         async def mock_stream(*args, **kwargs):

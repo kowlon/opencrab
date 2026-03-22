@@ -54,8 +54,7 @@ class TestAdvanceManualMode:
         sm.get.return_value = snap
         sm.complete = MagicMock()
         sm.update_subtask_status = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         # Mock _run_subtask_stream to yield output directly
         async def mock_stream(*args, **kwargs):
             yield {"type": "_internal_output", "data": {"data": "result1"}}
@@ -79,8 +78,7 @@ class TestAdvanceManualMode:
         sm.get.return_value = snap
         sm.complete = MagicMock()
         sm.update_subtask_status = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
 
         async def mock_stream(*args, **kwargs):
             yield {"type": "_internal_output", "data": {"result": "final"}}
@@ -104,8 +102,7 @@ class TestAdvanceAutoMode:
         sm.get.return_value = snap
         sm.complete = MagicMock()
         sm.update_subtask_status = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
 
         call_count = 0
         async def mock_stream(*args, **kwargs):
@@ -140,8 +137,7 @@ class TestAdvanceAskUser:
         sm = MagicMock()
         sm.get.return_value = snap
         sm.update_subtask_status = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         engine._get_config = MagicMock(return_value=cfg)
 
         session = MagicMock()
@@ -163,8 +159,7 @@ class TestAdvanceErrorHandling:
         sm = MagicMock()
         sm.get.return_value = snap
         sm.update_subtask_status = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         engine._get_config = MagicMock(return_value=cfg)
 
         async def mock_stream_raises(*args, **kwargs):
@@ -185,8 +180,7 @@ class TestAdvanceErrorHandling:
     async def test_instance_not_found_yields_error(self):
         sm = MagicMock()
         sm.get.return_value = None
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
 
         session = MagicMock()
         events = await _collect_events(engine, "bp-missing", session)

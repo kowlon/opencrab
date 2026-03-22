@@ -78,7 +78,6 @@ def init_bp_system(
     from .engine import BPEngine
     from .handler import BPToolHandler
     from .prompt_loader import PromptTemplateLoader
-    from .schema_chain import SchemaChain
     from .state_manager import BPStateManager
 
     # 搜索路径
@@ -90,8 +89,7 @@ def init_bp_system(
 
     # 初始化组件
     _bp_state_manager = BPStateManager()
-    schema_chain = SchemaChain()
-    _bp_engine = BPEngine(state_manager=_bp_state_manager, schema_chain=schema_chain)
+    _bp_engine = BPEngine(state_manager=_bp_state_manager)
     _bp_context_bridge = ContextBridge(state_manager=_bp_state_manager)
     _bp_prompt_loader = PromptTemplateLoader()
 
@@ -287,11 +285,9 @@ def get_dynamic_prompt_section(session_id: str) -> str:
                 intent_routing += "A) 修改上一步结果 (bp_edit_output)\n"
             
             intent_routing += (
-                "B) 继续下一步 (bp_continue)\n"
-                "C) 补充当前子任务缺失的输入数据 (bp_supplement_input + bp_continue)\n"
-                "D) 切换到其他任务 (bp_switch_task)\n"
-                "E) 询问相关问题\n"
-                "F) 开始新话题"
+                "B) 切换到其他任务 (bp_switch_task)\n"
+                "C) 询问相关问题\n"
+                "D) 开始新话题"
             )
 
     # 冷却

@@ -31,20 +31,6 @@ BP_TOOL_DEFINITIONS: list[dict] = [
         },
     },
     {
-        "name": "bp_continue",
-        "category": "Best Practice",
-        "description": "继续执行当前最佳实践的下一个子任务",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "instance_id": {
-                    "type": "string",
-                    "description": "BP 实例 ID (可选，默认使用当前活跃实例)",
-                },
-            },
-        },
-    },
-    {
         "name": "bp_edit_output",
         "category": "Best Practice",
         "description": "修改已完成子任务的输出 (Chat-to-Edit 模式)",
@@ -80,62 +66,6 @@ BP_TOOL_DEFINITIONS: list[dict] = [
                 },
             },
             "required": ["target_instance_id"],
-        },
-    },
-    {
-        "name": "bp_get_output",
-        "category": "Best Practice",
-        "description": "获取子任务的完整输出内容",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "instance_id": {
-                    "type": "string",
-                    "description": "BP 实例 ID (可选)",
-                },
-                "subtask_id": {
-                    "type": "string",
-                    "description": "子任务 ID",
-                },
-            },
-            "required": ["subtask_id"],
-        },
-    },
-    {
-        "name": "bp_cancel",
-        "category": "Best Practice",
-        "description": "取消一个 BP 实例",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "instance_id": {
-                    "type": "string",
-                    "description": "BP 实例 ID (可选，默认使用当前活跃实例)",
-                },
-            },
-        },
-    },
-    {
-        "name": "bp_supplement_input",
-        "category": "Best Practice",
-        "description": "补充子任务缺失的输入数据 (用于输入不完整时)",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "instance_id": {
-                    "type": "string",
-                    "description": "BP 实例 ID",
-                },
-                "subtask_id": {
-                    "type": "string",
-                    "description": "子任务 ID",
-                },
-                "data": {
-                    "type": "object",
-                    "description": "补充的字段数据",
-                },
-            },
-            "required": ["instance_id", "subtask_id", "data"],
         },
     },
 ]

@@ -9,7 +9,6 @@ from seeagent.bestpractice.context_bridge import ContextBridge
 from seeagent.bestpractice.engine import BPEngine
 from seeagent.bestpractice.handler import BPToolHandler
 from seeagent.bestpractice.models import RunMode, SubtaskConfig, SubtaskStatus
-from seeagent.bestpractice.schema_chain import SchemaChain
 from seeagent.bestpractice.state_manager import BPStateManager
 
 
@@ -51,7 +50,7 @@ def bp_config():
 @pytest.fixture
 def handler(bp_config):
     state_mgr = BPStateManager()
-    engine = BPEngine(state_manager=state_mgr, schema_chain=SchemaChain())
+    engine = BPEngine(state_manager=state_mgr)
     bridge = ContextBridge(state_manager=state_mgr)
     return BPToolHandler(
         engine=engine, state_manager=state_mgr,
@@ -88,33 +87,6 @@ class TestBPStart:
             "bp_start", {"bp_id": "test-bp", "run_mode": "auto", "input_data": {"q": "x"}}, agent,
         )
         assert "已创建" in result or "instance" in result.lower()
-
-
-# ── bp_continue ────────────────────────────────────────────────
-
-
-class TestBPContinue:
-    @pytest.mark.asyncio
-    async def test_continue_without_instance_id(self, handler):
-        agent = MockAgent()
-        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
-        active = handler.state_manager.get_active("test-session")
-        # Manually complete s1 so bp_continue can proceed to s2
-        handler.state_manager.update_subtask_output(
-            active.instance_id, "s1", {"result": "ok"}
-        )
-        handler.state_manager.update_subtask_status(
-            active.instance_id, "s1", SubtaskStatus.DONE
-        )
-        handler.state_manager.advance_subtask(active.instance_id)
-        result = await handler.handle("bp_continue", {}, agent)
-        assert "S2" in result or "完成" in result
-
-    @pytest.mark.asyncio
-    async def test_continue_no_active_returns_error(self, handler):
-        agent = MockAgent()
-        result = await handler.handle("bp_continue", {}, agent)
-        assert "没有" in result or "❌" in result
 
 
 # ── bp_edit_output ─────────────────────────────────────────────
@@ -169,80 +141,6 @@ class TestBPSwitchTask:
         active_id = handler.state_manager.get_active("test-session").instance_id
         result = await handler.handle("bp_switch_task", {"target_instance_id": active_id}, agent)
         assert "已经是" in result
-
-
-# ── bp_get_output ──────────────────────────────────────────────
-
-
-class TestBPGetOutput:
-    @pytest.mark.asyncio
-    async def test_get_output(self, handler):
-        agent = MockAgent()
-        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
-        active = handler.state_manager.get_active("test-session")
-        # Manually populate subtask output (bp_start no longer executes subtasks)
-        handler.state_manager.update_subtask_output(
-            active.instance_id, "s1", {"result": "ok"}
-        )
-        result = await handler.handle("bp_get_output", {
-            "instance_id": active.instance_id,
-            "subtask_id": "s1",
-        }, agent)
-        assert "result" in result or "ok" in result
-
-    @pytest.mark.asyncio
-    async def test_get_output_no_result(self, handler):
-        agent = MockAgent()
-        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
-        active = handler.state_manager.get_active("test-session")
-        result = await handler.handle("bp_get_output", {
-            "instance_id": active.instance_id,
-            "subtask_id": "s2",
-        }, agent)
-        assert "暂无" in result
-
-
-# ── bp_cancel ──────────────────────────────────────────────────
-
-
-class TestBPCancel:
-    @pytest.mark.asyncio
-    async def test_cancel(self, handler):
-        agent = MockAgent()
-        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
-        active = handler.state_manager.get_active("test-session")
-        result = await handler.handle("bp_cancel", {"instance_id": active.instance_id}, agent)
-        assert "取消" in result or "✅" in result
-
-
-# ── bp_supplement_input ────────────────────────────────────────
-
-
-class TestBPSupplementInput:
-    @pytest.mark.asyncio
-    async def test_supplement_input(self, handler):
-        agent = MockAgent()
-        # Start without required input → will get INPUT_INCOMPLETE
-        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {}}, agent)
-        # There should be an active instance
-        active = handler.state_manager.get_active("test-session")
-        assert active is not None
-
-        result = await handler.handle("bp_supplement_input", {
-            "instance_id": active.instance_id,
-            "subtask_id": "s1",
-            "data": {"q": "补充内容"},
-        }, agent)
-        assert "补充" in result or "✅" in result
-        assert "bp_continue" in result
-
-    @pytest.mark.asyncio
-    async def test_supplement_missing_data(self, handler):
-        agent = MockAgent()
-        result = await handler.handle("bp_supplement_input", {
-            "instance_id": "x", "subtask_id": "s1",
-        }, agent)
-        assert "required" in result
 
 
 # ── Unknown tool ───────────────────────────────────────────────

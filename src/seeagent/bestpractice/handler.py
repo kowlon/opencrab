@@ -1,14 +1,10 @@
 """
 BPToolHandler — BP 工具路由。
 
-7 个工具:
-- bp_start: 启动 BP
-- bp_continue: 继续下一个子任务
+3 个工具:
+- bp_start: 启动 BP (创建实例，不执行子任务)
 - bp_edit_output: 修改子任务输出 (Chat-to-Edit)
 - bp_switch_task: 切换活跃 BP 实例
-- bp_get_output: 获取子任务完整输出
-- bp_cancel: 取消 BP 实例
-- bp_supplement_input: 补充缺失的输入数据
 """
 
 from __future__ import annotations
@@ -27,10 +23,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-BP_TOOLS = [
-    "bp_start", "bp_continue", "bp_edit_output", "bp_switch_task",
-    "bp_get_output", "bp_cancel", "bp_supplement_input",
-]
+BP_TOOLS = ["bp_start", "bp_edit_output", "bp_switch_task"]
 
 
 class BPToolHandler:
@@ -57,12 +50,8 @@ class BPToolHandler:
 
         dispatch = {
             "bp_start": self._handle_start,
-            "bp_continue": self._handle_continue,
             "bp_edit_output": self._handle_edit_output,
             "bp_switch_task": self._handle_switch_task,
-            "bp_get_output": self._handle_get_output,
-            "bp_cancel": self._handle_cancel,
-            "bp_supplement_input": self._handle_supplement_input,
         }
 
         handler = dispatch.get(tool_name)
@@ -90,7 +79,7 @@ class BPToolHandler:
                 # Same BP already active — guide LLM to continue
                 return (
                     f"✅ 「{bp_config.name}」已在运行中 (instance={existing.instance_id})。"
-                    f"请直接使用 bp_continue(instance_id=\"{existing.instance_id}\") 继续执行，"
+                    f"该实例已在运行中，前端会自动接管执行。"
                     f"无需重复启动。"
                 )
             else:
@@ -130,48 +119,6 @@ class BPToolHandler:
             f"✅ 已创建 BP 实例「{bp_config.name}」(id={inst_id})。"
             f"前端将自动开始执行。"
         )
-
-    # ── bp_continue ────────────────────────────────────────────
-
-    async def _handle_continue(self, params: dict, agent: Any, session: Any) -> str:
-        instance_id = self._resolve_instance_id(params, session)
-        logger.info(f"[BP-DEBUG] bp_continue called, instance_id={instance_id}, params={params}, "
-                     f"session_id={getattr(session, 'id', '?')}")
-        if not instance_id:
-            # 诊断: 列出所有实例
-            all_instances = list(self.state_manager._instances.keys())
-            logger.warning(f"[BP-DEBUG] bp_continue: NO active instance found! "
-                           f"All instances in memory: {all_instances}")
-            for iid, snap in self.state_manager._instances.items():
-                logger.warning(f"[BP-DEBUG]   {iid}: session_id={snap.session_id}, "
-                               f"status={snap.status.value}, idx={snap.current_subtask_index}")
-            return "❌ 没有活跃的 BP 实例，请指定 instance_id"
-
-        snap = self.state_manager.get(instance_id)
-        if not snap:
-            logger.warning(f"[BP-DEBUG] bp_continue: instance {instance_id} not found")
-            return f"❌ BP instance {instance_id} 不存在"
-
-        bp_config = self._get_config_for_instance(snap)
-        if not bp_config:
-            logger.warning(f"[BP-DEBUG] bp_continue: config {snap.bp_id} not found")
-            return f"❌ BP config {snap.bp_id} 不存在"
-
-        logger.info(f"[BP-DEBUG] bp_continue: executing subtask idx={snap.current_subtask_index}, "
-                     f"total={len(bp_config.subtasks)}, status={snap.status.value}, "
-                     f"subtask_statuses={snap.subtask_statuses}")
-
-        # 重置 stale 子任务
-        self.engine.reset_stale_if_needed(instance_id, bp_config)
-
-        orchestrator = self._get_orchestrator(agent)
-        if not orchestrator:
-            logger.warning("[BP-DEBUG] bp_continue: orchestrator not available")
-            return "❌ Orchestrator not available"
-
-        result = await self.engine.execute_subtask(instance_id, bp_config, orchestrator, session)
-        logger.info(f"[BP-DEBUG] bp_continue: execute_subtask returned, result length={len(result)}")
-        return result
 
     # ── bp_edit_output ─────────────────────────────────────────
 
@@ -256,71 +203,6 @@ class BPToolHandler:
             f"上下文将在下一轮对话中恢复。"
         )
 
-    # ── bp_get_output ──────────────────────────────────────────
-
-    async def _handle_get_output(self, params: dict, agent: Any, session: Any) -> str:
-        instance_id = self._resolve_instance_id(params, session)
-        if not instance_id:
-            return "❌ 请指定 instance_id"
-
-        subtask_id = (params.get("subtask_id") or "").strip()
-        if not subtask_id:
-            return "❌ subtask_id is required"
-
-        snap = self.state_manager.get(instance_id)
-        if not snap:
-            return f"❌ BP instance {instance_id} 不存在"
-
-        output = snap.subtask_outputs.get(subtask_id)
-        if output is None:
-            return f"❌ 子任务 '{subtask_id}' 暂无输出"
-
-        return json.dumps(output, ensure_ascii=False, indent=2)
-
-    # ── bp_cancel ──────────────────────────────────────────────
-
-    async def _handle_cancel(self, params: dict, agent: Any, session: Any) -> str:
-        instance_id = self._resolve_instance_id(params, session)
-        if not instance_id:
-            return "❌ 请指定 instance_id"
-
-        snap = self.state_manager.get(instance_id)
-        if not snap:
-            return f"❌ BP instance {instance_id} 不存在"
-
-        bp_config = self._get_config_for_instance(snap)
-        bp_name = bp_config.name if bp_config else snap.bp_id
-
-        self.state_manager.cancel(instance_id)
-        return f"✅ 已取消任务「{bp_name}」(id={instance_id})"
-
-    # ── bp_supplement_input ────────────────────────────────────
-
-    async def _handle_supplement_input(self, params: dict, agent: Any, session: Any) -> str:
-        instance_id = (params.get("instance_id") or "").strip()
-        if not instance_id:
-            return "❌ instance_id is required"
-
-        subtask_id = (params.get("subtask_id") or "").strip()
-        if not subtask_id:
-            return "❌ subtask_id is required"
-
-        data = params.get("data", {})
-        if not data:
-            return "❌ data is required (补充的字段数据)"
-
-        result = self.engine.supplement_input(instance_id, subtask_id, data)
-
-        if not result.get("success"):
-            return f"❌ {result.get('error', 'Unknown error')}"
-
-        merged_preview = json.dumps(result["merged"], ensure_ascii=False)[:300]
-        return (
-            f"✅ 输入数据已补充。\n"
-            f"合并后数据预览: {merged_preview}\n\n"
-            f"请调用 bp_continue(instance_id=\"{instance_id}\") 继续执行。"
-        )
-
     # ── Helpers ────────────────────────────────────────────────
 
     def _resolve_instance_id(self, params: dict, session: Any) -> str | None:
@@ -335,15 +217,3 @@ class BPToolHandler:
         if snap.bp_config:
             return snap.bp_config
         return self.config_registry.get(snap.bp_id)
-
-    @staticmethod
-    def _get_orchestrator(agent: Any) -> Any:
-        """获取 AgentOrchestrator 实例。"""
-        orch = getattr(agent, "_orchestrator", None)
-        if orch:
-            return orch
-        try:
-            import seeagent.main
-            return getattr(seeagent.main, "_orchestrator", None)
-        except ImportError:
-            return None

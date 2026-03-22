@@ -29,6 +29,8 @@ export const useChatStore = defineStore('chat', () => {
       askUser: null,
       bpProgress: null,
       bpSubtaskOutput: null,
+      bpInstanceCreated: null,
+      bpAskUser: null,
       isDone: false,
     }
     isStreaming.value = true
@@ -124,6 +126,71 @@ export const useChatStore = defineStore('chat', () => {
         const bpStore = useBestPracticeStore()
         const e = event as any
         bpStore.markStale(e.instance_id, e.stale_subtask_ids)
+        break
+      }
+
+      case 'bp_instance_created': {
+        const bpStore = useBestPracticeStore()
+        bpStore.handleInstanceCreated(event)
+        reply.bpInstanceCreated = {
+          instanceId: (event as any).instance_id,
+          bpId: (event as any).bp_id,
+          bpName: (event as any).bp_name,
+          runMode: (event as any).run_mode,
+          subtasks: (event as any).subtasks,
+        }
+        break
+      }
+
+      case 'bp_subtask_start': {
+        const bpStore = useBestPracticeStore()
+        const e = event as any
+        bpStore.handleSubtaskStart(e.instance_id, e.subtask_id)
+        break
+      }
+
+      case 'bp_subtask_complete': {
+        const bpStore = useBestPracticeStore()
+        const e = event as any
+        bpStore.updateSubtaskOutput(e.instance_id, e.subtask_id, e.output, {
+          summary: e.summary,
+          subtaskName: e.subtask_name,
+        })
+        reply.bpSubtaskOutput = {
+          subtaskId: e.subtask_id,
+          output: e.output,
+          summary: e.summary,
+        }
+        break
+      }
+
+      case 'bp_waiting_next': {
+        // No extra action — 'done' event will set isDone=true, enabling buttons
+        break
+      }
+
+      case 'bp_ask_user': {
+        const e = event as any
+        reply.bpAskUser = {
+          instanceId: e.instance_id,
+          subtaskId: e.subtask_id,
+          subtaskName: e.subtask_name,
+          missingFields: e.missing_fields,
+          inputSchema: e.input_schema,
+        }
+        break
+      }
+
+      case 'bp_complete': {
+        const bpStore = useBestPracticeStore()
+        const e = event as any
+        bpStore.handleComplete(e.instance_id)
+        break
+      }
+
+      case 'bp_error': {
+        const e = event as any
+        reply.errorMessage = e.error || 'BP 执行出错'
         break
       }
 
@@ -253,6 +320,8 @@ export const useChatStore = defineStore('chat', () => {
           askUser: null,
           bpProgress: null,
           bpSubtaskOutput: null,
+          bpInstanceCreated: null,
+          bpAskUser: null,
           isDone: true,
         }
       }

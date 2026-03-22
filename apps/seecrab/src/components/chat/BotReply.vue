@@ -24,6 +24,19 @@
       @continue="handleContinue"
       @edit="handleEdit"
     />
+    <BPInstanceCreatedBlock
+      v-if="reply.bpInstanceCreated"
+      :bp="reply.bpInstanceCreated"
+      :disabled="!reply.isDone"
+      @start="handleBpStart"
+    />
+
+    <BPAskUserBlock
+      v-if="reply.bpAskUser"
+      :ask-user="reply.bpAskUser"
+      @submit="handleBpAnswer"
+    />
+
     <AskUserBlock v-if="reply.askUser" :ask="reply.askUser" />
   </div>
 </template>
@@ -38,6 +51,8 @@ import SummaryOutput from './SummaryOutput.vue'
 import AskUserBlock from './AskUserBlock.vue'
 import TaskProgressCard from './TaskProgressCard.vue'
 import SubtaskCompleteBlock from './SubtaskCompleteBlock.vue'
+import BPInstanceCreatedBlock from './BPInstanceCreatedBlock.vue'
+import BPAskUserBlock from './BPAskUserBlock.vue'
 import { useBestPracticeStore } from '@/stores/bestpractice'
 import { useUIStore } from '@/stores/ui'
 import { useChatStore } from '@/stores/chat'
@@ -45,7 +60,7 @@ import { useSessionStore } from '@/stores/session'
 import { httpClient } from '@/api/http-client'
 import { sseClient } from '@/api/sse-client'
 
-defineProps<{ reply: ReplyState }>()
+const props = defineProps<{ reply: ReplyState }>()
 
 const bpStore = useBestPracticeStore()
 const uiStore = useUIStore()
@@ -66,22 +81,53 @@ async function handleContinue() {
   const chatStore = useChatStore()
   const sessionStore = useSessionStore()
   const msg = '进入下一步'
-  const convId = sessionStore.activeSessionId
-  console.log('[BP-DEBUG] handleContinue clicked, convId:', convId, 'isStreaming:', chatStore.isStreaming)
   chatStore.addUserMessage(msg)
-  console.log('[BP-DEBUG] addUserMessage done, messages count:', chatStore.messages.length)
-  if (convId) {
-    try {
-      console.log('[BP-DEBUG] sending message to backend...')
-      await sseClient.sendMessage(msg, convId, { thinking_mode: 'auto' })
-      console.log('[BP-DEBUG] sendMessage completed')
-    } catch (e) {
-      console.error('[BP-DEBUG] sendMessage FAILED:', e)
-      alert('发送失败，请检查网络连接或重试')
-      chatStore.cancelCurrentReply() // 回退状态
-    }
-  } else {
-    console.warn('[BP-DEBUG] No convId! Cannot send message to backend')
+  const inst = bpStore.activeInstance
+  if (!inst) {
+    console.warn('[BP] handleContinue: no active BP instance')
+    return
+  }
+  try {
+    await sseClient.streamBP('/api/bp/next', {
+      instance_id: inst.instanceId,
+      session_id: sessionStore.activeSessionId,
+    })
+  } catch (e) {
+    console.error('[BP] handleContinue error:', e)
+    alert('发送失败，请检查网络连接或重试')
+    chatStore.cancelCurrentReply()
+  }
+}
+
+async function handleBpStart() {
+  if (!props.reply.bpInstanceCreated) return
+  const chatStore = useChatStore()
+  const sessionStore = useSessionStore()
+  chatStore.addUserMessage('开始执行')
+  try {
+    await sseClient.streamBP('/api/bp/next', {
+      instance_id: props.reply.bpInstanceCreated.instanceId,
+      session_id: sessionStore.activeSessionId,
+    })
+  } catch (err) {
+    console.error('[BP] start error:', err)
+  }
+}
+
+async function handleBpAnswer(data: Record<string, unknown>) {
+  if (!props.reply.bpAskUser) return
+  const chatStore = useChatStore()
+  const sessionStore = useSessionStore()
+  chatStore.addUserMessage(`补充数据: ${JSON.stringify(data).slice(0, 100)}`)
+  try {
+    await sseClient.streamBP('/api/bp/answer', {
+      instance_id: props.reply.bpAskUser.instanceId,
+      subtask_id: props.reply.bpAskUser.subtaskId,
+      data,
+      session_id: sessionStore.activeSessionId,
+    })
+  } catch (err) {
+    console.error('[BP] answer error:', err)
   }
 }
 

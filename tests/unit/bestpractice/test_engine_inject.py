@@ -7,30 +7,26 @@ from seeagent.bestpractice.scheduler import LinearScheduler
 class TestOrchestratorInjection:
     def test_initial_state_is_none(self):
         sm = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         assert engine._orchestrator is None
 
     def test_set_orchestrator(self):
         sm = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         mock_orch = MagicMock()
         engine.set_orchestrator(mock_orch)
         assert engine._orchestrator is mock_orch
 
     def test_get_orchestrator_returns_injected(self):
         sm = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         mock_orch = MagicMock()
         engine.set_orchestrator(mock_orch)
         assert engine._get_orchestrator() is mock_orch
 
     def test_get_orchestrator_fallback_when_none(self):
         sm = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         # Should not crash, returns None or global fallback
         result = engine._get_orchestrator()
         # Just verify no exception
@@ -39,8 +35,7 @@ class TestOrchestratorInjection:
 class TestGetScheduler:
     def test_returns_linear_scheduler(self):
         sm = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         mock_config = MagicMock()
         mock_config.subtasks = [MagicMock(id="s1")]
         mock_snap = MagicMock()
@@ -51,8 +46,7 @@ class TestGetScheduler:
 class TestGetConfig:
     def test_uses_snap_bp_config_if_available(self):
         sm = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         mock_config = MagicMock()
         mock_snap = MagicMock()
         mock_snap.bp_config = mock_config
@@ -60,8 +54,7 @@ class TestGetConfig:
 
     def test_falls_back_to_registry(self):
         sm = MagicMock()
-        sc = MagicMock()
-        engine = BPEngine(sm, sc)
+        engine = BPEngine(sm)
         mock_snap = MagicMock()
         mock_snap.bp_config = None
         mock_snap.bp_id = "test_bp"

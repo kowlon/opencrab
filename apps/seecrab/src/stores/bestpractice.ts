@@ -71,6 +71,43 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
     }
   }
 
+  function handleInstanceCreated(event: {
+    instance_id: string
+    bp_id: string
+    bp_name: string
+    run_mode: string
+    subtasks: { id: string; name: string }[]
+  }) {
+    const state: BPInstanceState = {
+      instanceId: event.instance_id,
+      bpId: event.bp_id,
+      bpName: event.bp_name,
+      status: 'active',
+      runMode: event.run_mode as BPRunMode,
+      subtasks: event.subtasks.map((s) => ({
+        id: s.id,
+        name: s.name,
+        status: 'pending' as BPSubtaskInfo['status'],
+      })),
+      currentSubtaskIndex: 0,
+    }
+    instances.value.set(event.instance_id, state)
+    activeInstanceId.value = event.instance_id
+  }
+
+  function handleSubtaskStart(instanceId: string, subtaskId: string) {
+    const inst = instances.value.get(instanceId)
+    if (!inst) return
+    const st = inst.subtasks.find(s => s.id === subtaskId)
+    if (st) st.status = 'current'
+  }
+
+  function handleComplete(instanceId: string) {
+    const inst = instances.value.get(instanceId)
+    if (!inst) return
+    inst.status = 'completed'
+  }
+
   function clear() {
     instances.value.clear()
     activeInstanceId.value = null
@@ -83,6 +120,9 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
     updateFromProgress,
     updateSubtaskOutput,
     markStale,
+    handleInstanceCreated,
+    handleSubtaskStart,
+    handleComplete,
     clear,
   }
 })
