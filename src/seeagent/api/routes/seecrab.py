@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/seecrab")
 
+_BP_START_COMMANDS = {
+    "进入最佳实践",
+    "最佳实践模式",
+    "开始最佳实践",
+}
+_BP_NEXT_COMMANDS = {
+    "进入下一步",
+    "下一步",
+    "继续执行",
+    "继续",
+}
+
 def _upsert_step_card(cards: list[dict], event: dict) -> None:
     """Upsert a step_card event into the cards list by step_id."""
     step_id = event.get("step_id")
@@ -75,6 +87,181 @@ async def _get_agent(request: Request, conversation_id: str | None, profile_id: 
         except Exception:
             pass
     return getattr(request.app.state, "agent", None)
+
+
+def _normalize_bp_command(message: str) -> str:
+    punct = " \t\r\n，。！？,.!?：:；;“”\"'`（）()【】[]"
+    return "".join(ch for ch in (message or "").strip().lower() if ch not in punct)
+
+
+def _match_bp_command(message: str) -> str | None:
+    normalized = _normalize_bp_command(message)
+    if normalized in _BP_START_COMMANDS:
+        return "start"
+    if normalized in _BP_NEXT_COMMANDS:
+        return "next"
+    return None
+
+
+def _has_bp_next_step(snap) -> bool:
+    if not snap:
+        return False
+    total = len(snap.bp_config.subtasks) if snap.bp_config else len(snap.subtask_statuses or {})
+    if total <= 0:
+        return False
+    return int(getattr(snap, "current_subtask_index", 0) or 0) < total
+
+
+async def _stream_bp_start_from_chat(
+    request: Request,
+    *,
+    session_id: str,
+    bp_id: str,
+    run_mode_str: str,
+    input_data: dict,
+    session,
+    session_manager,
+    disconnect_event: asyncio.Event,
+):
+    from seeagent.api.routes.bestpractice import (
+        _bp_clear_busy,
+        _bp_mark_busy,
+        _bp_renew_busy,
+        _collect_reply_state,
+        _new_reply_state,
+        _persist_bp_to_session,
+    )
+    from seeagent.bestpractice.facade import (
+        get_bp_config_loader,
+        get_bp_engine,
+        get_bp_state_manager,
+    )
+    from seeagent.bestpractice.models import RunMode
+
+    engine = get_bp_engine()
+    sm = get_bp_state_manager()
+    if not engine or not sm:
+        yield {"type": "error", "message": "BP system not initialized", "code": "bp"}
+        yield {"type": "done"}
+        return
+    active = sm.get_active(session_id)
+    if active:
+        yield {
+            "type": "ai_text",
+            "content": "当前已有进行中的最佳实践任务，请先使用“进入下一步”继续。",
+        }
+        yield {"type": "done"}
+        return
+    loader = get_bp_config_loader()
+    bp_config = loader.configs.get(bp_id) if loader and loader.configs else None
+    if not bp_config:
+        yield {"type": "error", "message": f"BP '{bp_id}' not found", "code": "bp"}
+        yield {"type": "done"}
+        return
+    if not await _bp_mark_busy(session_id, "seecrab_bp_start"):
+        yield {"type": "error", "message": "Session is busy", "code": "bp"}
+        yield {"type": "done"}
+        return
+
+    run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
+    instance_id = sm.create_instance(
+        bp_config, session_id, initial_input=input_data, run_mode=run_mode,
+    )
+    reply_state = _new_reply_state()
+    full_reply: list[str] = []
+    try:
+        created_event = {"type": "bp_instance_created", "instance_id": instance_id, "bp_id": bp_id}
+        yield created_event
+        _collect_reply_state(created_event, reply_state, full_reply)
+        async for event in engine.advance(instance_id, session):
+            if disconnect_event.is_set():
+                break
+            yield event
+            _collect_reply_state(event, reply_state, full_reply)
+            if event.get("type") in ("bp_subtask_complete", "bp_progress"):
+                _bp_renew_busy(session_id)
+        _persist_bp_to_session(
+            session,
+            instance_id,
+            sm,
+            reply_state=reply_state,
+            full_reply="".join(full_reply),
+            session_manager=session_manager,
+        )
+        sm.clear_pending_offer(session_id)
+        yield {"type": "done"}
+    except Exception as e:
+        yield {"type": "error", "message": str(e), "code": "bp"}
+        yield {"type": "done"}
+    finally:
+        _bp_clear_busy(session_id)
+
+
+async def _stream_bp_next_from_chat(
+    request: Request,
+    *,
+    session_id: str,
+    instance_id: str,
+    session,
+    session_manager,
+    disconnect_event: asyncio.Event,
+):
+    from seeagent.api.routes.bestpractice import (
+        _bp_clear_busy,
+        _bp_mark_busy,
+        _bp_renew_busy,
+        _collect_reply_state,
+        _ensure_bp_restored,
+        _new_reply_state,
+        _persist_bp_to_session,
+    )
+    from seeagent.bestpractice.facade import get_bp_engine, get_bp_state_manager
+
+    engine = get_bp_engine()
+    sm = get_bp_state_manager()
+    if not engine or not sm:
+        yield {"type": "error", "message": "BP system not initialized", "code": "bp"}
+        yield {"type": "done"}
+        return
+    _ensure_bp_restored(request, session_id, sm)
+    snap = sm.get(instance_id)
+    if not snap:
+        yield {"type": "ai_text", "content": "当前没有可继续的最佳实践任务。"}
+        yield {"type": "done"}
+        return
+    if not _has_bp_next_step(snap):
+        yield {"type": "ai_text", "content": "当前最佳实践已完成或没有下一步可执行。"}
+        yield {"type": "done"}
+        return
+    if not await _bp_mark_busy(session_id, "seecrab_bp_next"):
+        yield {"type": "error", "message": "Session is busy", "code": "bp"}
+        yield {"type": "done"}
+        return
+
+    reply_state = _new_reply_state()
+    full_reply: list[str] = []
+    try:
+        async for event in engine.advance(instance_id, session):
+            if disconnect_event.is_set():
+                break
+            yield event
+            _collect_reply_state(event, reply_state, full_reply)
+            if event.get("type") in ("bp_subtask_complete", "bp_progress"):
+                _bp_renew_busy(session_id)
+        _persist_bp_to_session(
+            session,
+            instance_id,
+            sm,
+            reply_state=reply_state,
+            full_reply="".join(full_reply),
+            session_manager=session_manager,
+        )
+        yield {"type": "done"}
+    except Exception as e:
+        yield {"type": "error", "message": str(e), "code": "bp"}
+        yield {"type": "done"}
+    finally:
+        _bp_clear_busy(session_id)
 
 
 @router.post("/chat")
@@ -147,15 +334,65 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             if not user_messages and body.message:
                 user_messages = [body.message]
 
-            # BP trigger check: MUST run before raw_stream creation
-            # because engine_stream() immediately starts the LLM in a background pump
-            bp_matched = False
+            bp_session_id = session.id if session else conversation_id
+            bp_cmd = _match_bp_command(body.message or "")
+            if bp_cmd:
+                from seeagent.bestpractice.facade import get_bp_state_manager
+
+                bp_sm = get_bp_state_manager()
+                if bp_cmd == "start":
+                    active = bp_sm.get_active(bp_session_id) if bp_sm else None
+                    if active:
+                        fallback = {
+                            "type": "ai_text",
+                            "content": "当前已有进行中的最佳实践任务，请先使用“进入下一步”继续。",
+                        }
+                        yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
+                        yield 'data: {"type": "done"}\n\n'
+                        return
+                    pending_offer = bp_sm.get_pending_offer(bp_session_id) if bp_sm else None
+                    if pending_offer and pending_offer.get("bp_id"):
+                        async for event in _stream_bp_start_from_chat(
+                            request,
+                            session_id=bp_session_id,
+                            bp_id=pending_offer.get("bp_id", ""),
+                            run_mode_str=pending_offer.get("default_run_mode", "manual"),
+                            input_data={},
+                            session=session,
+                            session_manager=session_manager,
+                            disconnect_event=disconnect_event,
+                        ):
+                            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                        return
+                    fallback = {
+                        "type": "ai_text",
+                        "content": "当前没有可进入的最佳实践，请先触发最佳实践推荐。",
+                    }
+                    yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
+                    yield 'data: {"type": "done"}\n\n'
+                    return
+                if bp_cmd == "next":
+                    active = bp_sm.get_active(bp_session_id) if bp_sm else None
+                    if active and _has_bp_next_step(active):
+                        async for event in _stream_bp_next_from_chat(
+                            request,
+                            session_id=bp_session_id,
+                            instance_id=active.instance_id,
+                            session=session,
+                            session_manager=session_manager,
+                            disconnect_event=disconnect_event,
+                        ):
+                            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                        return
+                    fallback = {"type": "ai_text", "content": "当前没有可继续的最佳实践任务。"}
+                    yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
+                    yield 'data: {"type": "done"}\n\n'
+                    return
+
             try:
                 from seeagent.bestpractice.facade import match_bp_from_message
-                bp_session_id = session.id if session else conversation_id
                 bp_match = match_bp_from_message(body.message or "", bp_session_id)
                 if bp_match:
-                    bp_matched = True
                     bp_name = bp_match["bp_name"]
                     bp_id = bp_match["bp_id"]
                     subtask_names = " → ".join(
@@ -195,6 +432,15 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     bp_sm = get_bp_state_manager()
                     if bp_sm:
                         bp_sm.mark_bp_offered(bp_session_id, bp_id)
+                        bp_sm.set_pending_offer(
+                            bp_session_id,
+                            {
+                                "bp_id": bp_id,
+                                "bp_name": bp_name,
+                                "subtasks": bp_match.get("subtasks", []),
+                                "default_run_mode": "manual",
+                            },
+                        )
 
                     if session:
                         session.add_message(

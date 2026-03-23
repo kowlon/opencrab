@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .models import (
     BPInstanceSnapshot,
@@ -36,6 +36,7 @@ class BPStateManager:
         self._pending_switches: dict[str, PendingContextSwitch] = {}  # session_id → switch
         self._cooldowns: dict[str, int] = {}  # session_id → remaining turns
         self._offered_bps: dict[str, set[str]] = {}  # session_id → set of offered bp_ids
+        self._pending_offers: dict[str, dict[str, Any]] = {}  # session_id → offer payload
 
     # ── Instance lifecycle ─────────────────────────────────────
 
@@ -209,6 +210,16 @@ class BPStateManager:
     def is_bp_offered(self, session_id: str, bp_id: str) -> bool:
         """该 bp_id 是否已在此 session 中提示过。"""
         return bp_id in self._offered_bps.get(session_id, set())
+
+    def set_pending_offer(self, session_id: str, offer: dict[str, Any]) -> None:
+        self._pending_offers[session_id] = dict(offer)
+
+    def get_pending_offer(self, session_id: str) -> dict[str, Any] | None:
+        offer = self._pending_offers.get(session_id)
+        return dict(offer) if offer else None
+
+    def clear_pending_offer(self, session_id: str) -> None:
+        self._pending_offers.pop(session_id, None)
 
     # ── Persistence ────────────────────────────────────────────
 

@@ -714,12 +714,12 @@ class BPEngine:
         # 快速检查：如果 output 已经符合 schema，直接返回
         required = set(output_schema.get("required", []))
         if required and required.issubset(raw_output.keys()):
-            return raw_output
+            return self._sanitize_output(raw_output, output_schema)
 
         brain = self._get_brain()
         if not brain:
-            logger.warning("[BP] No brain available for _conform_output, returning raw")
-            return raw_output
+            logger.warning("[BP] No brain available for _conform_output, using required-field fallback")
+            return self._ensure_required_fields(raw_output, output_schema)
 
         example = self._schema_to_example(output_schema)
 
@@ -754,6 +754,8 @@ class BPEngine:
             # 从 LLM 回复中提取 JSON
             conformed = self._parse_output(text)
             if "_raw_output" not in conformed:
+                conformed = self._sanitize_output(conformed, output_schema)
+                conformed = self._ensure_required_fields(conformed, output_schema)
                 logger.info(
                     f"[BP] _conform_output: mapped {list(raw_output.keys())} "
                     f"-> {list(conformed.keys())}"
@@ -762,7 +764,55 @@ class BPEngine:
         except Exception as e:
             logger.warning(f"[BP] _conform_output LLM call failed: {e}")
 
-        return raw_output
+        return self._ensure_required_fields(raw_output, output_schema)
+
+    @staticmethod
+    def _sanitize_output(output: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+        required = set(schema.get("required", []))
+        cleaned: dict[str, Any] = {}
+        for key, value in output.items():
+            if str(key).startswith("_") and key not in required:
+                continue
+            cleaned[key] = value
+        return cleaned
+
+    @staticmethod
+    def _default_value_for_field(field_schema: Any) -> Any:
+        if not isinstance(field_schema, dict):
+            return ""
+        ftype = field_schema.get("type", "string")
+        if ftype == "array":
+            return []
+        if ftype == "object":
+            return {}
+        if ftype in {"number", "integer"}:
+            return 0
+        if ftype == "boolean":
+            return False
+        return ""
+
+    def _ensure_required_fields(
+        self,
+        output: dict[str, Any],
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        cleaned = self._sanitize_output(output, schema)
+        required = schema.get("required", [])
+        if not required:
+            return cleaned
+
+        props = schema.get("properties", {})
+        merged = dict(cleaned)
+        for field in required:
+            if field in merged:
+                continue
+            merged[field] = self._default_value_for_field(props.get(field, {}))
+        if set(merged.keys()) != set(output.keys()):
+            logger.warning(
+                "[BP] _conform_output fallback filled required fields: missing=%s",
+                [f for f in required if f not in cleaned],
+            )
+        return merged
 
     def _get_brain(self):
         """获取 Brain 实例用于轻量 LLM 调用。"""

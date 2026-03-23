@@ -14,15 +14,15 @@ ${bp_list}
 ## 交互规则
 
 - 手动模式: 每个子任务完成后，使用 ask_user 展示选项让用户决定下一步
-- 自动模式: 子任务完成后自动调用 bp_continue，除非输入不完整
+- 自动模式: 子任务完成后自动调用 bp_next，除非输入不完整
 - 输入不完整时: 使用 ask_user 收集缺失字段，然后调用 bp_supplement_input 补充
 - Chat-to-Edit: 用户想修改已完成子任务的输出时，先调用 bp_get_output 获取当前内容，再调用 bp_edit_output 修改
 - 任务切换: 用户想切换到另一个进行中的任务时，调用 bp_switch_task
 
 ## 补充输入流程
 
-当 bp_start 或 bp_continue 返回"输入不完整"的提示时:
+当 bp_start 或 bp_next 返回"输入不完整"的提示时:
 1. 使用 ask_user 向用户列出缺失的必要字段
 2. 收集用户提供的信息
 3. 调用 bp_supplement_input 补充数据
-4. 调用 bp_continue 继续执行
+4. 调用 bp_next 继续执行

@@ -98,6 +98,57 @@ class TestParseOutput:
         assert result["_raw_output"] == "plain text response"
 
 
+class TestConformOutputFallback:
+    @pytest.mark.asyncio
+    async def test_fills_required_fields_when_brain_unavailable(self, engine):
+        engine._get_brain = lambda: None
+        output_schema = {
+            "type": "object",
+            "properties": {
+                "insights": {"type": "array"},
+                "trends": {"type": "array"},
+                "recommendations": {"type": "array"},
+            },
+            "required": ["insights", "trends"],
+        }
+        raw_output = {"_raw_output": "⚠️ 大模型返回异常：未产生可用输出。任务已中断。"}
+
+        conformed = await engine._conform_output(
+            raw_output=raw_output,
+            output_schema=output_schema,
+            raw_result_text=raw_output["_raw_output"],
+            tool_results=[],
+        )
+
+        assert conformed["insights"] == []
+        assert conformed["trends"] == []
+        assert "_raw_output" not in conformed
+
+    @pytest.mark.asyncio
+    async def test_keeps_existing_required_values(self, engine):
+        engine._get_brain = lambda: None
+        output_schema = {
+            "type": "object",
+            "properties": {
+                "insights": {"type": "array"},
+                "summary": {"type": "string"},
+            },
+            "required": ["insights", "summary"],
+        }
+        raw_output = {"insights": [{"k": "v"}], "_raw_output": "fallback"}
+
+        conformed = await engine._conform_output(
+            raw_output=raw_output,
+            output_schema=output_schema,
+            raw_result_text="",
+            tool_results=[],
+        )
+
+        assert conformed["insights"] == [{"k": "v"}]
+        assert conformed["summary"] == ""
+        assert "_raw_output" not in conformed
+
+
 # ── A2: _emit_progress subtasks array ────────────────────────
 
 
@@ -204,4 +255,3 @@ class TestEmitSubtaskOutputFields:
         assert isinstance(data["summary"], str)
         assert "key1" in data["summary"]
         assert "key2" in data["summary"]
-
