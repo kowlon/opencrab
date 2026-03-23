@@ -128,6 +128,7 @@ export const useChatStore = defineStore('chat', () => {
             subtaskId: e.subtask_id,
             output: e.output,
             summary: e.summary,
+            outputSchema: e.output_schema,
           }
         }
         break
@@ -172,6 +173,7 @@ export const useChatStore = defineStore('chat', () => {
           subtaskId: e.subtask_id,
           output: e.output,
           summary: e.summary,
+          outputSchema: e.output_schema,
         }
         break
       }
@@ -351,6 +353,7 @@ export const useChatStore = defineStore('chat', () => {
             subtaskId: rs.bp_subtask_output.subtask_id,
             output: rs.bp_subtask_output.output,
             summary: rs.bp_subtask_output.summary,
+            outputSchema: rs.bp_subtask_output.output_schema,
           } : null,
           bpInstanceCreated: rs?.bp_instance_created ? {
             instanceId: rs.bp_instance_created.instance_id,
@@ -439,7 +442,10 @@ export const useChatStore = defineStore('chat', () => {
             msg.reply.bpProgress.instanceId,
             msg.reply.bpSubtaskOutput.subtaskId,
             msg.reply.bpSubtaskOutput.output,
-            { summary: msg.reply.bpSubtaskOutput.summary },
+            {
+              summary: msg.reply.bpSubtaskOutput.summary,
+              outputSchema: msg.reply.bpSubtaskOutput.outputSchema,
+            },
           )
         }
       }

@@ -38,7 +38,7 @@ export interface ReplyState {
   askUser: AskUserState | null
   isDone: boolean
   bpProgress: BPInstanceState | null
-  bpSubtaskOutput: { subtaskId: string; output: Record<string, unknown>; summary?: string } | null
+  bpSubtaskOutput: { subtaskId: string; output: Record<string, unknown>; summary?: string; outputSchema?: Record<string, unknown> } | null
   bpInstanceCreated: {
     instanceId: string
     bpId: string

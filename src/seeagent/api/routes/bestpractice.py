@@ -214,6 +214,8 @@ def _collect_reply_state(event: dict, reply_state: dict, full_reply: list) -> No
         reply_state["bp_subtask_output"] = event
     elif etype == "bp_subtask_complete":
         reply_state["bp_subtask_complete"] = event
+        # Also store as bp_subtask_output for frontend restoration
+        reply_state["bp_subtask_output"] = event
     elif etype == "bp_instance_created":
         reply_state["bp_instance_created"] = event
     elif etype == "plan_checklist":
