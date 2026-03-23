@@ -204,6 +204,7 @@ def _new_reply_state() -> dict:
         "bp_subtask_outputs": [],  # ALL subtask outputs (auto mode produces multiple)
         "bp_subtask_complete": None,
         "bp_instance_created": None,
+        "bp_ask_user": None,
     }
 
 
@@ -252,6 +253,8 @@ def _collect_reply_state(event: dict, reply_state: dict, full_reply: list) -> No
         reply_state["bp_subtask_outputs"].append(event)
     elif etype == "bp_instance_created":
         reply_state["bp_instance_created"] = event
+    elif etype == "bp_ask_user":
+        reply_state["bp_ask_user"] = event
     elif etype == "plan_checklist":
         reply_state["plan_checklist"] = event.get("steps")
     elif etype == "timer_update":
@@ -387,8 +390,17 @@ async def bp_start(request: Request):
         watcher = asyncio.create_task(_disconnect_watcher())
 
         try:
-            created_event = {"type": "bp_instance_created",
-                             "instance_id": instance_id, "bp_id": bp_id}
+            created_event = {
+                "type": "bp_instance_created",
+                "instance_id": instance_id,
+                "bp_id": bp_id,
+                "bp_name": bp_config.name,
+                "run_mode": run_mode.value,
+                "subtasks": [
+                    {"id": s.id, "name": s.name}
+                    for s in bp_config.subtasks
+                ],
+            }
             yield _sse(created_event)
             _collect_reply_state(created_event, reply_state, full_reply)
 

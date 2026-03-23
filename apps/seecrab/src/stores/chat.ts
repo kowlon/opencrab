@@ -364,11 +364,17 @@ export const useChatStore = defineStore('chat', () => {
           bpInstanceCreated: rs?.bp_instance_created ? {
             instanceId: rs.bp_instance_created.instance_id,
             bpId: rs.bp_instance_created.bp_id,
-            bpName: rs.bp_instance_created.bp_name,
-            runMode: rs.bp_instance_created.run_mode,
+            bpName: rs.bp_instance_created.bp_name ?? rs.bp_instance_created.bp_id ?? '',
+            runMode: rs.bp_instance_created.run_mode ?? 'manual',
             subtasks: rs.bp_instance_created.subtasks ?? [],
           } : null,
-          bpAskUser: null,
+          bpAskUser: rs?.bp_ask_user ? {
+            instanceId: rs.bp_ask_user.instance_id,
+            subtaskId: rs.bp_ask_user.subtask_id,
+            subtaskName: rs.bp_ask_user.subtask_name,
+            missingFields: rs.bp_ask_user.missing_fields ?? [],
+            inputSchema: rs.bp_ask_user.input_schema,
+          } : null,
           bpOffer: null,
           isDone: true,
         }

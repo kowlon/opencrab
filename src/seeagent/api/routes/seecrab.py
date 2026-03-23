@@ -170,7 +170,17 @@ async def _stream_bp_start_from_chat(
     reply_state = _new_reply_state()
     full_reply: list[str] = []
     try:
-        created_event = {"type": "bp_instance_created", "instance_id": instance_id, "bp_id": bp_id}
+        created_event = {
+            "type": "bp_instance_created",
+            "instance_id": instance_id,
+            "bp_id": bp_id,
+            "bp_name": bp_config.name,
+            "run_mode": run_mode.value,
+            "subtasks": [
+                {"id": s.id, "name": s.name}
+                for s in bp_config.subtasks
+            ],
+        }
         yield created_event
         _collect_reply_state(created_event, reply_state, full_reply)
         async for event in engine.advance(instance_id, session):

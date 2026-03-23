@@ -25,13 +25,6 @@
       @continue="handleContinue"
       @edit="handleEdit"
     />
-    <BPInstanceCreatedBlock
-      v-if="reply.bpInstanceCreated"
-      :bp="reply.bpInstanceCreated"
-      :disabled="!reply.isDone"
-      @start="handleBpStart"
-    />
-
     <BPAskUserBlock
       v-if="reply.bpAskUser"
       :ask-user="reply.bpAskUser"
@@ -61,7 +54,6 @@ import SummaryOutput from './SummaryOutput.vue'
 import AskUserBlock from './AskUserBlock.vue'
 import TaskProgressCard from './TaskProgressCard.vue'
 import SubtaskCompleteBlock from './SubtaskCompleteBlock.vue'
-import BPInstanceCreatedBlock from './BPInstanceCreatedBlock.vue'
 import BPAskUserBlock from './BPAskUserBlock.vue'
 import BPOfferBlock from './BPOfferBlock.vue'
 import { useBestPracticeStore } from '@/stores/bestpractice'
@@ -131,25 +123,6 @@ async function handleContinue() {
     console.error('[BP] handleContinue error:', e)
     alert('发送失败，请检查网络连接或重试')
     chatStore.cancelCurrentReply()
-  }
-}
-
-async function handleBpStart() {
-  if (!props.reply.bpInstanceCreated) return
-  const chatStore = useChatStore()
-  const sessionStore = useSessionStore()
-  chatStore.addUserMessage('开始执行')
-  if (chatStore.currentReply && bpStore.activeInstance) {
-    chatStore.currentReply.bpProgress = bpStore.activeInstance
-  }
-  try {
-    await sseClient.streamBP('/api/bp/next', {
-      instance_id: props.reply.bpInstanceCreated.instanceId,
-      session_id: sessionStore.activeSessionId,
-      user_message: '开始执行',
-    })
-  } catch (err) {
-    console.error('[BP] start error:', err)
   }
 }
 
