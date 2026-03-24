@@ -370,17 +370,33 @@ def get_dynamic_prompt_section(session_id: str) -> str:
 
         # 暂停点意图路由
         if active.bp_config:
-            prev_status = list(active.subtask_statuses.values())[idx - 1] if idx > 0 and idx <= total else ""
-            
-            intent_routing = "用户可能想要:\n"
-            if prev_status == "done":
-                intent_routing += "A) 修改上一步结果 (bp_edit_output)\n"
-            
-            intent_routing += (
-                "B) 切换到其他任务 (bp_switch_task)\n"
-                "C) 询问相关问题\n"
-                "D) 开始新话题"
-            )
+            # Determine current subtask status for routing guidance
+            statuses = list(active.subtask_statuses.values())
+            current_status = statuses[idx] if idx < len(statuses) else ""
+            prev_status = statuses[idx - 1] if idx > 0 and idx <= len(statuses) else ""
+
+            if current_status == "waiting_input":
+                intent_routing = (
+                    "当前子任务等待用户输入参数。\n"
+                    "如果用户提供了参数值，调用 bp_answer(subtask_id=..., data={...}) 补充。\n"
+                    "如果用户想取消，调用 bp_cancel。\n"
+                )
+            elif prev_status == "done" or current_status == "done":
+                intent_routing = (
+                    "上一步已完成。用户可能想要:\n"
+                    "A) 继续下一步 → 调用 bp_next\n"
+                    "B) 修改上一步结果 → 调用 bp_edit_output(subtask_id=..., changes={...})\n"
+                    "C) 取消任务 → 调用 bp_cancel\n"
+                    "D) 询问其他问题（不涉及 BP 操作）\n"
+                )
+            else:
+                intent_routing = (
+                    "用户可能想要:\n"
+                    "A) 修改已完成子任务结果 (bp_edit_output)\n"
+                    "B) 切换到其他任务 (bp_switch_task)\n"
+                    "C) 取消当前任务 (bp_cancel)\n"
+                    "D) 询问相关问题\n"
+                )
 
     # 冷却
     cooldown = _bp_state_manager.get_cooldown(session_id)

@@ -206,6 +206,12 @@ export const useChatStore = defineStore('chat', () => {
         break
       }
 
+      case 'bp_cancelled': {
+        const bpStore = useBestPracticeStore()
+        bpStore.handleCancelled((event as any).instance_id)
+        break
+      }
+
       case 'bp_complete': {
         const bpStore = useBestPracticeStore()
         const e = event as any
