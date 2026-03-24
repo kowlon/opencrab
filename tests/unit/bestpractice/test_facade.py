@@ -106,6 +106,42 @@ class TestFacadeInit:
         assert "active" in section
         assert "test-session" not in section  # session_id not in output
 
+    def test_dynamic_prompt_waiting_input_routing(self, bp_base_path):
+        if not bp_base_path.is_dir():
+            pytest.skip("best_practice/ directory not found")
+
+        init_bp_system(search_paths=[bp_base_path])
+        mgr = get_bp_state_manager()
+        handler = get_bp_handler()
+        config = list(handler.config_registry.values())[0]
+        inst_id = mgr.create_instance(config, "test-session", {"topic": "test"})
+
+        # Set first subtask to waiting_input
+        from seeagent.bestpractice.models import SubtaskStatus
+        first_subtask_id = config.subtasks[0].id
+        mgr.update_subtask_status(inst_id, first_subtask_id, SubtaskStatus.WAITING_INPUT)
+
+        section = get_dynamic_prompt_section("test-session")
+        assert "bp_answer" in section or "等待" in section
+
+    def test_dynamic_prompt_done_routing(self, bp_base_path):
+        if not bp_base_path.is_dir():
+            pytest.skip("best_practice/ directory not found")
+
+        init_bp_system(search_paths=[bp_base_path])
+        mgr = get_bp_state_manager()
+        handler = get_bp_handler()
+        config = list(handler.config_registry.values())[0]
+        inst_id = mgr.create_instance(config, "test-session", {"topic": "test"})
+
+        from seeagent.bestpractice.models import SubtaskStatus
+        first_subtask_id = config.subtasks[0].id
+        mgr.update_subtask_status(inst_id, first_subtask_id, SubtaskStatus.DONE)
+        mgr.advance_subtask(inst_id)
+
+        section = get_dynamic_prompt_section("test-session")
+        assert "bp_next" in section or "bp_edit_output" in section or "bp_cancel" in section
+
 
 class TestMatchBPFromMessage:
     """Tests for match_bp_from_message() trigger matching."""

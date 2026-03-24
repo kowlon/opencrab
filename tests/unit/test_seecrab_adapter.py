@@ -206,6 +206,96 @@ class TestAgentHeader:
         assert ai_texts[1]["content"] == "Main summary"
 
 
+@pytest.fixture
+def adapter():
+    """Adapter instance for direct _process_event() testing."""
+    return SeeCrabAdapter(brain=None, user_messages=[])
+
+
+class TestBPEventPassthrough:
+    """All bp_* events must pass through the adapter."""
+
+    @pytest.mark.asyncio
+    async def test_bp_subtask_start_passthrough(self, adapter):
+        event = {"type": "bp_subtask_start", "instance_id": "i1", "subtask_id": "s1"}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_subtask_start"
+        assert result[0]["subtask_id"] == "s1"
+
+    @pytest.mark.asyncio
+    async def test_bp_subtask_complete_passthrough(self, adapter):
+        event = {"type": "bp_subtask_complete", "instance_id": "i1", "subtask_id": "s1", "summary": "done"}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_subtask_complete"
+
+    @pytest.mark.asyncio
+    async def test_bp_waiting_next_passthrough(self, adapter):
+        event = {"type": "bp_waiting_next", "instance_id": "i1"}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_waiting_next"
+
+    @pytest.mark.asyncio
+    async def test_bp_ask_user_passthrough(self, adapter):
+        event = {"type": "bp_ask_user", "instance_id": "i1", "subtask_id": "s1", "missing_fields": ["domain"]}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_ask_user"
+        assert result[0]["missing_fields"] == ["domain"]
+
+    @pytest.mark.asyncio
+    async def test_bp_complete_passthrough(self, adapter):
+        event = {"type": "bp_complete", "instance_id": "i1"}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_complete"
+
+    @pytest.mark.asyncio
+    async def test_bp_error_passthrough(self, adapter):
+        event = {"type": "bp_error", "instance_id": "i1", "message": "fail"}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_error"
+
+    @pytest.mark.asyncio
+    async def test_bp_cancelled_passthrough(self, adapter):
+        event = {"type": "bp_cancelled", "instance_id": "i1", "bp_name": "Test"}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_cancelled"
+        assert result[0]["bp_name"] == "Test"
+
+    @pytest.mark.asyncio
+    async def test_bp_progress_flat_format(self, adapter):
+        """advance() yields flat format (no data wrapper)."""
+        event = {"type": "bp_progress", "instance_id": "i1", "current_subtask": 1, "total_subtasks": 3}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_progress"
+        assert result[0]["current_subtask"] == 1
+
+    @pytest.mark.asyncio
+    async def test_bp_progress_data_wrapper_format(self, adapter):
+        """_emit_progress() uses data wrapper format."""
+        event = {"type": "bp_progress", "data": {"instance_id": "i1", "current_subtask": 1}}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_progress"
+        assert result[0]["instance_id"] == "i1"
+        assert "data" not in result[0]
+
+    @pytest.mark.asyncio
+    async def test_bp_instance_created_still_works(self, adapter):
+        """Existing bp_instance_created must still pass through."""
+        event = {"type": "bp_instance_created", "instance_id": "i1", "bp_id": "bp1"}
+        result = await adapter._process_event(event)
+        assert len(result) == 1
+        assert result[0]["type"] == "bp_instance_created"
+        assert result[0]["bp_id"] == "bp1"
+
+
 class TestEventBusMerge:
     @pytest.mark.asyncio
     async def test_event_bus_events_merged_into_stream(self):

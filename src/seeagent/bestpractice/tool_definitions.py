@@ -1,4 +1,4 @@
-"""BP 工具定义 — 注册到 ToolCatalog 的 7 个 BP 工具。
+"""BP 工具定义 — 注册到 ToolCatalog 的 6 个 BP 工具。
 
 格式遵循 tool-definition-spec.md 规范，使用 input_schema（非 parameters）。
 """
@@ -66,6 +66,59 @@ BP_TOOL_DEFINITIONS: list[dict] = [
                 },
             },
             "required": ["target_instance_id"],
+        },
+    },
+    {
+        "name": "bp_next",
+        "category": "Best Practice",
+        "description": "执行下一个子任务（继续最佳实践流程）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "instance_id": {
+                    "type": "string",
+                    "description": "BP 实例 ID (可选，默认当前活跃实例)",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "bp_answer",
+        "category": "Best Practice",
+        "description": "补充子任务缺失的输入参数（响应 bp_ask_user）",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "instance_id": {
+                    "type": "string",
+                    "description": "BP 实例 ID (可选)",
+                },
+                "subtask_id": {
+                    "type": "string",
+                    "description": "等待输入的子任务 ID",
+                },
+                "data": {
+                    "type": "object",
+                    "description": "补充的参数数据 (字段名→值)",
+                },
+            },
+            "required": ["subtask_id", "data"],
+        },
+    },
+    {
+        "name": "bp_cancel",
+        "category": "Best Practice",
+        "description": "取消当前最佳实践任务",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "instance_id": {
+                    "type": "string",
+                    "description": "BP 实例 ID (可选，默认当前活跃实例)",
+                },
+            },
+            "required": [],
         },
     },
 ]

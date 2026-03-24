@@ -1,10 +1,13 @@
 """
 BPToolHandler — BP 工具路由。
 
-3 个工具:
-- bp_start: 启动 BP (创建实例，不执行子任务)
+6 个工具:
+- bp_start: 启动 BP (创建实例并执行首个子任务)
 - bp_edit_output: 修改子任务输出 (Chat-to-Edit)
 - bp_switch_task: 切换活跃 BP 实例
+- bp_next: 继续执行下一个子任务
+- bp_answer: 补充缺失参数后继续执行
+- bp_cancel: 取消当前 BP 实例
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-BP_TOOLS = ["bp_start", "bp_edit_output", "bp_switch_task"]
+BP_TOOLS = ["bp_start", "bp_edit_output", "bp_switch_task", "bp_next", "bp_answer", "bp_cancel"]
 
 
 class BPToolHandler:
@@ -52,6 +55,9 @@ class BPToolHandler:
             "bp_start": self._handle_start,
             "bp_edit_output": self._handle_edit_output,
             "bp_switch_task": self._handle_switch_task,
+            "bp_next": self._handle_next,
+            "bp_answer": self._handle_answer,
+            "bp_cancel": self._handle_cancel,
         }
 
         handler = dispatch.get(tool_name)
@@ -117,23 +123,27 @@ class BPToolHandler:
         self.engine._persist(inst_id, session)
 
         # Push event to SSE event_bus for frontend to take over (R6, R14)
-        if hasattr(session, "context") and hasattr(session.context, "_sse_event_bus"):
-            bus = session.context._sse_event_bus
+        bus = getattr(session.context, "_sse_event_bus", None) if hasattr(session, "context") else None
+        if bus:
+            await bus.put({
+                "type": "bp_instance_created",
+                "instance_id": inst_id,
+                "bp_id": bp_id,
+                "bp_name": bp_config.name,
+                "run_mode": run_mode.value,
+                "subtasks": [
+                    {"id": s.id, "name": s.name} for s in bp_config.subtasks
+                ],
+            })
+
+        # Execute first subtask
+        async for event in self.engine.advance(inst_id, session):
             if bus:
-                await bus.put({
-                    "type": "bp_instance_created",
-                    "instance_id": inst_id,
-                    "bp_id": bp_id,
-                    "bp_name": bp_config.name,
-                    "run_mode": run_mode.value,
-                    "subtasks": [
-                        {"id": s.id, "name": s.name} for s in bp_config.subtasks
-                    ],
-                })
+                await bus.put(event)
+        self._persist_to_session(inst_id, session)
 
         return (
-            f"✅ 已创建 BP 实例「{bp_config.name}」(id={inst_id})。"
-            f"前端将自动开始执行。"
+            f"✅ 已创建并执行 BP 实例「{bp_config.name}」(id={inst_id})。"
         )
 
     # ── bp_edit_output ─────────────────────────────────────────
@@ -228,6 +238,59 @@ class BPToolHandler:
             f"上下文将在下一轮对话中恢复。"
         )
 
+    # ── bp_next ────────────────────────────────────────────────
+
+    async def _handle_next(self, params: dict, agent: Any, session: Any) -> str:
+        instance_id = self._resolve_instance_id(params, session)
+        if not instance_id:
+            return "❌ 当前没有活跃的最佳实践任务"
+        snap = self.state_manager.get(instance_id)
+        if not snap:
+            return "❌ BP 实例不存在"
+        bus = getattr(session.context, "_sse_event_bus", None) if hasattr(session, "context") else None
+        async for event in self.engine.advance(instance_id, session):
+            if bus:
+                await bus.put(event)
+        self._persist_to_session(instance_id, session)
+        return "✅ 子任务执行完成"
+
+    # ── bp_answer ─────────────────────────────────────────────
+
+    async def _handle_answer(self, params: dict, agent: Any, session: Any) -> str:
+        instance_id = self._resolve_instance_id(params, session)
+        subtask_id = (params.get("subtask_id") or "").strip()
+        data = params.get("data", {})
+        if not instance_id or not subtask_id or not data:
+            return "❌ 需要 subtask_id 和 data 参数"
+        bus = getattr(session.context, "_sse_event_bus", None) if hasattr(session, "context") else None
+        async for event in self.engine.answer(instance_id, subtask_id, data, session):
+            if bus:
+                await bus.put(event)
+        self._persist_to_session(instance_id, session)
+        return "✅ 参数已补充，子任务执行中"
+
+    # ── bp_cancel ─────────────────────────────────────────────
+
+    async def _handle_cancel(self, params: dict, agent: Any, session: Any) -> str:
+        instance_id = self._resolve_instance_id(params, session)
+        if not instance_id:
+            return "❌ 当前没有活跃的最佳实践任务"
+        snap = self.state_manager.get(instance_id)
+        if not snap:
+            return "❌ BP 实例不存在"
+        bp_name = snap.bp_config.name if snap.bp_config else snap.bp_id
+        self.state_manager.cancel(instance_id)
+        self.state_manager.set_cooldown(snap.session_id)
+        bus = getattr(session.context, "_sse_event_bus", None) if hasattr(session, "context") else None
+        if bus:
+            await bus.put({
+                "type": "bp_cancelled",
+                "instance_id": instance_id,
+                "bp_name": bp_name,
+            })
+        self._persist_to_session(instance_id, session)
+        return f"✅ 已取消最佳实践任务「{bp_name}」(id={instance_id})"
+
     # ── Helpers ────────────────────────────────────────────────
 
     def _resolve_instance_id(self, params: dict, session: Any) -> str | None:
@@ -242,3 +305,13 @@ class BPToolHandler:
         if snap.bp_config:
             return snap.bp_config
         return self.config_registry.get(snap.bp_id)
+
+    def _persist_to_session(self, instance_id: str, session: Any) -> None:
+        """Persist BP state to session metadata."""
+        snap = self.state_manager.get(instance_id)
+        if not snap or not session:
+            return
+        try:
+            session.metadata["bp_state"] = self.state_manager.serialize_for_session(snap.session_id)
+        except Exception:
+            pass

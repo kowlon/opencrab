@@ -8,7 +8,7 @@ export type SSEEventType =
   | 'bp_progress' | 'bp_subtask_output' | 'bp_stale'
   | 'bp_instance_created' | 'bp_subtask_start' | 'bp_subtask_complete'
   | 'bp_waiting_next' | 'bp_ask_user' | 'bp_complete' | 'bp_error'
-  | 'bp_offer'
+  | 'bp_offer' | 'bp_cancelled'
 
 export interface SSEEvent {
   type: SSEEventType

@@ -591,7 +591,7 @@ async def bp_get_output(instance_id: str, subtask_id: str):
 
 
 @router.delete("/{instance_id}")
-async def bp_cancel(instance_id: str):
+async def bp_cancel(instance_id: str, request: Request):
     """Cancel BP instance."""
     sm = get_bp_state_manager()
     if not sm:
@@ -600,4 +600,11 @@ async def bp_cancel(instance_id: str):
     if not snap:
         return JSONResponse({"error": "Not found"}, status_code=404)
     sm.cancel(instance_id)
+    # Persist cancelled state to session metadata
+    session = _resolve_session(request, snap.session_id)
+    if session:
+        session.metadata["bp_state"] = sm.serialize_for_session(snap.session_id)
+        session_mgr = _resolve_session_manager(request)
+        if session_mgr:
+            session_mgr.mark_dirty()
     return JSONResponse({"status": "ok"})

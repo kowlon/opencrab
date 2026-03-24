@@ -107,6 +107,16 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
     if (st) st.status = 'current'
   }
 
+  function handleCancelled(instanceId: string) {
+    const inst = instances.value.get(instanceId)
+    if (inst) {
+      inst.status = 'cancelled'
+    }
+    if (activeInstanceId.value === instanceId) {
+      activeInstanceId.value = null
+    }
+  }
+
   function handleComplete(instanceId: string) {
     const inst = instances.value.get(instanceId)
     if (!inst) return
@@ -127,6 +137,7 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
     markStale,
     handleInstanceCreated,
     handleSubtaskStart,
+    handleCancelled,
     handleComplete,
     clear,
   }
