@@ -41,7 +41,12 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
       currentSubtaskIndex: event.current_subtask_index,
     }
     instances.value.set(event.instance_id, state)
-    activeInstanceId.value = event.instance_id
+    // Only update activeInstanceId if no other instance is already active,
+    // or if this event is for the current active instance.
+    // This prevents stale events from a suspended BP overwriting the active one.
+    if (!activeInstanceId.value || activeInstanceId.value === event.instance_id) {
+      activeInstanceId.value = event.instance_id
+    }
   }
 
   function updateSubtaskOutput(

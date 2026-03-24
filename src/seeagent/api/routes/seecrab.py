@@ -92,7 +92,7 @@ async def _get_agent(request: Request, conversation_id: str | None, profile_id: 
 
 
 def _normalize_bp_command(message: str) -> str:
-    punct = " \t\r\n，。！？,.!?：:；;“”\"'`（）()【】[]"
+    punct = " \t\r\n，。！？,.!?：:；;""\"'`（）()【】[]"
     return "".join(ch for ch in (message or "").strip().lower() if ch not in punct)
 
 
@@ -183,12 +183,14 @@ async def _stream_bp_start_from_chat(
         return
     active = sm.get_active(session_id)
     if active:
-        yield {
-            "type": "ai_text",
-            "content": "当前已有进行中的最佳实践任务，请先使用“进入下一步”继续。",
-        }
-        yield {"type": "done"}
-        return
+        sm.suspend(active.instance_id)
+        ctx = getattr(session, "context", None)
+        if ctx:
+            ctx._bp_cancelled_instance = active.instance_id
+        dt = getattr(ctx, "_bp_delegate_task", None)
+        if dt and not dt.done():
+            dt.cancel()
+        logger.info(f"[BP] Suspended and cancelled {active.instance_id} to start new BP")
     loader = get_bp_config_loader()
     bp_config = loader.configs.get(bp_id) if loader and loader.configs else None
     if not bp_config:
@@ -392,13 +394,17 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 if bp_cmd == "start":
                     active = bp_sm.get_active(bp_session_id) if bp_sm else None
                     if active:
-                        fallback = {
-                            "type": "ai_text",
-                            "content": "当前已有进行中的最佳实践任务，请先使用“进入下一步”继续。",
-                        }
-                        yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
-                        yield 'data: {"type": "done"}\n\n'
-                        return
+                        bp_sm.suspend(active.instance_id)
+                        ctx = getattr(session, "context", None)
+                        if ctx:
+                            ctx._bp_cancelled_instance = active.instance_id
+                        dt = getattr(ctx, "_bp_delegate_task", None)
+                        if dt and not dt.done():
+                            dt.cancel()
+                        logger.info(
+                            f"[BP] Suspended and cancelled {active.instance_id} "
+                            f"for new BP from chat"
+                        )
                     pending_offer = bp_sm.get_pending_offer(bp_session_id) if bp_sm else None
                     if pending_offer and pending_offer.get("bp_id"):
                         # 用 LLM 从用户原始 query 中提取 input_data

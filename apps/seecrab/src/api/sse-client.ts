@@ -12,6 +12,7 @@ export class SSEClient {
   ): Promise<void> {
     console.log('[BP-DEBUG][SSE] sendMessage called, msg:', message, 'convId:', conversationId)
     this.abort()
+    this.abortBP()
     this.abortController = new AbortController()
     const store = useChatStore()
 

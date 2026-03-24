@@ -3879,6 +3879,38 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
             pending_audio, pending_files, attachments,
         )
 
+        # 10.4 BP lazy restore — after server restart, in-memory state may be empty
+        try:
+            from seeagent.bestpractice.facade import (
+                get_bp_state_manager, get_bp_config_loader,
+            )
+            _bp_sm = get_bp_state_manager()
+            if _bp_sm and session_id and session and not _bp_sm.get_all_for_session(session_id):
+                _bp_data = getattr(session, "metadata", {}).get("bp_state")
+                if _bp_data:
+                    _loader = get_bp_config_loader()
+                    _cmap = dict(_loader.configs) if _loader and _loader.configs else {}
+                    _restored = _bp_sm.restore_from_dict(session_id, _bp_data, config_map=_cmap)
+                    if _restored:
+                        logger.info(
+                            f"[Session:{session_id}] BP lazy restore: {_restored} instance(s)"
+                        )
+        except Exception as e:
+            logger.debug(f"[Session:{session_id}] BP lazy restore skipped: {e}")
+
+        # 10.5 BP context switch — consume PendingContextSwitch if any
+        try:
+            from seeagent.bestpractice.facade import get_bp_context_bridge
+            _bp_cb = get_bp_context_bridge()
+            if _bp_cb and session_id:
+                switched = await _bp_cb.execute_pending_switch(
+                    session_id, brain=self.brain, messages=messages,
+                )
+                if switched:
+                    logger.info(f"[Session:{session_id}] BP context switch executed")
+        except Exception as e:
+            logger.debug(f"[Session:{session_id}] BP context switch skipped: {e}")
+
         # 11. Context compression
         messages = await self._compress_context(messages)
 

@@ -290,9 +290,10 @@ def get_dynamic_prompt_section(session_id: str) -> str:
                 intent_routing += "A) 修改上一步结果 (bp_edit_output)\n"
             
             intent_routing += (
-                "B) 切换到其他任务 (bp_switch_task)\n"
-                "C) 询问相关问题\n"
-                "D) 开始新话题"
+                "B) 切换到已有的暂停任务 (bp_switch_task)\n"
+                "C) 启动一个新的最佳实践任务 (bp_start，当前任务会自动暂停)\n"
+                "D) 询问相关问题\n"
+                "E) 开始新话题"
             )
 
     # 冷却

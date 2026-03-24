@@ -86,6 +86,14 @@ class BPToolHandler:
                 # Different BP — suspend old, proceed to create new
                 old_name = existing.bp_config.name if existing.bp_config else existing.bp_id
                 self.state_manager.suspend(existing.instance_id)
+                # Queue context compression for the suspended instance
+                self.state_manager.set_pending_switch(
+                    session.id,
+                    PendingContextSwitch(
+                        suspended_instance_id=existing.instance_id,
+                        target_instance_id="",  # will be filled after create
+                    ),
+                )
                 logger.info(f"[BP] Suspended existing instance {existing.instance_id} "
                             f"({old_name}) to start {bp_id}")
 
@@ -99,6 +107,14 @@ class BPToolHandler:
             bp_config, session.id, initial_input=input_data, run_mode=run_mode,
         )
         logger.info(f"[BP-DEBUG] bp_start: created instance {inst_id}")
+
+        # Backfill target_instance_id on pending switch (if queued above)
+        pending = self.state_manager._pending_switches.get(session.id)
+        if pending and not pending.target_instance_id:
+            pending.target_instance_id = inst_id
+
+        # Persist state (including suspended old instance) to survive restart
+        self.engine._persist(inst_id, session)
 
         # Push event to SSE event_bus for frontend to take over (R6, R14)
         if hasattr(session, "context") and hasattr(session.context, "_sse_event_bus"):
@@ -139,6 +155,9 @@ class BPToolHandler:
         if not snap:
             return f"❌ BP instance {instance_id} 不存在"
 
+        if snap.session_id != session.id:
+            return f"❌ BP instance {instance_id} 不属于当前会话"
+
         bp_config = self._get_config_for_instance(snap)
         if not bp_config:
             return f"❌ BP config {snap.bp_id} 不存在"
@@ -176,6 +195,9 @@ class BPToolHandler:
         if not target:
             return f"❌ BP instance {target_id} 不存在"
 
+        if target.session_id != session.id:
+            return f"❌ BP instance {target_id} 不属于当前会话"
+
         current_active = self.state_manager.get_active(session.id)
         current_id = current_active.instance_id if current_active else ""
 
@@ -194,6 +216,9 @@ class BPToolHandler:
                 target_instance_id=target_id,
             ),
         )
+
+        # Persist state change so it survives server restart
+        self.engine._persist(target_id, session)
 
         bp_config = self._get_config_for_instance(target)
         bp_name = bp_config.name if bp_config else target.bp_id

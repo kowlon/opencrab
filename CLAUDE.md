@@ -38,8 +38,9 @@ pytest tests/unit/test_config.py::TestClassName::test_name -x -v  # Single test
 
 ### Desktop App (apps/setup-center)
 ```bash
-cd apps/setup-center && npm ci && npm run build   # Build web frontend
-cd apps/setup-center && npx tauri build           # Build Tauri desktop app (requires Rust)
+cd apps/setup-center && npm ci && npm run build         # Build Tauri-embedded frontend
+cd apps/setup-center && VITE_BUILD_TARGET=web npm run build:web  # Build standalone web UI (→ dist-web/)
+cd apps/setup-center && npx tauri build                 # Build Tauri desktop app (requires Rust)
 ```
 
 ### Version Check
@@ -83,15 +84,22 @@ python scripts/version.py check   # Verify version consistency across files
 
 **LLM Abstraction** (`llm/`): Provider-agnostic client with adapters for Anthropic, OpenAI, and others.
 
-**Multi-Agent** (`agents/`): `orchestrator.py` coordinates parallel agent teams, `presets.py` defines agent templates.
+**Multi-Agent** (`agents/`): `orchestrator.py` coordinates parallel agent teams, `presets.py` defines agent templates. `factory.py` creates agents dynamically, `task_queue.py` manages async task dispatching.
 
-**Channels** (`channels/`): IM platform adapters (Telegram, Feishu, DingTalk, WeCom, QQ, OneBot) routed through `gateway.py`.
+**Channels** (`channels/`): IM platform adapters (Telegram, Feishu, DingTalk, WeCom, QQ, OneBot) routed through `gateway.py`. Media handling (audio, images) in `media/`.
 
 **Skills** (`skills/`): SKILL.md-based skill system with loader, registry, and i18n.
 
+**REST API** (`api/`): FastAPI server (`server.py`) on port 18900 with SSE streaming chat, skills management, file upload, and WebSocket. `adapters/` contains seecrab-format converters for the frontend card UI.
+
+**Evolution** (`evolution/`): Self-evolution subsystem — analyzes failure logs (`log_analyzer.py`, `failure_analysis.py`), generates new skills (`generator.py`), and installs them (`installer.py`).
+
+**Evaluation** (`evaluation/`): Quality evaluation pipeline with LLM-as-judge scoring (`judge.py`), metrics tracking, and optimization feedback loop.
+
 ### Entry Point
 - CLI: `seeagent` command → `src/seeagent/main.py` (Typer app)
-- Supports CLI mode + simultaneous IM channel connections
+- `seeagent serve` — starts FastAPI HTTP server (port 18900) + optional IM channels simultaneously
+- `seeagent run` — CLI interactive mode
 
 ### Configuration
 - `src/seeagent/config.py` — Pydantic settings class
