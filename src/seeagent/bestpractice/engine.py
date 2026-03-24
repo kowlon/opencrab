@@ -750,7 +750,7 @@ class BPEngine:
 
         try:
             resp = await brain.think_lightweight(prompt, max_tokens=4096)
-            text = resp.text if hasattr(resp, "text") else str(resp)
+            text = resp.content if hasattr(resp, "content") else str(resp)
             # 从 LLM 回复中提取 JSON
             conformed = self._parse_output(text)
             if "_raw_output" not in conformed:
