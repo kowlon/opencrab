@@ -700,6 +700,12 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             try:
                 from seeagent.bestpractice.facade import match_bp_from_message
                 bp_match = match_bp_from_message(body.message or "", bp_session_id)
+                # Step 4: LLM fallback if keyword didn't match
+                if not bp_match and brain:
+                    from seeagent.bestpractice.facade import llm_match_bp_from_message
+                    bp_match = await llm_match_bp_from_message(
+                        body.message or "", bp_session_id, brain,
+                    )
                 if bp_match:
                     bp_name = bp_match["bp_name"]
                     bp_id = bp_match["bp_id"]
@@ -749,6 +755,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                                 "default_run_mode": "manual",
                                 "user_query": bp_match.get("user_query", ""),
                                 "first_input_schema": bp_match.get("first_input_schema"),
+                                "extracted_input": bp_match.get("extracted_input", {}),
                             },
                         )
 

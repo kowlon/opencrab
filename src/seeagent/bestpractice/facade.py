@@ -202,6 +202,93 @@ def match_bp_from_message(user_message: str, session_id: str) -> dict | None:
     return None
 
 
+async def llm_match_bp_from_message(
+    user_message: str,
+    session_id: str,
+    brain,
+) -> dict | None:
+    """LLM 回退匹配：当关键词匹配失败时，用 LLM 判断用户意图是否匹配某个 BP。"""
+    if not _initialized:
+        init_bp_system()
+    if not _bp_state_manager or not _bp_config_loader or not _bp_prompt_loader or not brain:
+        return None
+
+    # Pre-checks: cooldown, active instance
+    if _bp_state_manager.get_cooldown(session_id) > 0:
+        return None
+    if _bp_state_manager.get_active(session_id):
+        return None
+
+    # Build BP list for prompt, filtering already-offered BPs
+    bp_list_lines = []
+    for bp_id, config in _bp_config_loader.configs.items():
+        if _bp_state_manager.is_bp_offered(session_id, bp_id):
+            continue
+        first_schema = config.subtasks[0].input_schema if config.subtasks else {}
+        params_desc = ""
+        if first_schema:
+            props = first_schema.get("properties", {})
+            required = set(first_schema.get("required", []))
+            param_lines = []
+            for pname, pinfo in props.items():
+                req_mark = "必填" if pname in required else "选填"
+                param_lines.append(
+                    f"   - {pname} ({pinfo.get('type', 'string')}, {req_mark}): "
+                    f"{pinfo.get('description', '')}"
+                )
+            if param_lines:
+                params_desc = "\n" + "\n".join(param_lines)
+
+        bp_list_lines.append(
+            f"- {bp_id}: \"{config.name}\"\n"
+            f"  描述: {config.description}"
+            f"{params_desc}"
+        )
+
+    if not bp_list_lines:
+        return None
+
+    bp_list = "\n".join(bp_list_lines)
+
+    try:
+        prompt = _bp_prompt_loader.render(
+            "bp_match", bp_list=bp_list, user_message=user_message,
+        )
+        resp = await brain.think_lightweight(prompt, max_tokens=512)
+        text = resp.content if hasattr(resp, "content") else str(resp)
+
+        from seeagent.bestpractice.engine import BPEngine
+        parsed = BPEngine._parse_output(text)
+        if not isinstance(parsed, dict):
+            return None
+
+        if not parsed.get("matched") or parsed.get("confidence", 0) < 0.7:
+            return None
+
+        bp_id = parsed.get("bp_id", "")
+        config = _bp_config_loader.configs.get(bp_id)
+        if not config:
+            return None
+
+        if _bp_state_manager.is_bp_offered(session_id, bp_id):
+            return None
+
+        first_input_schema = config.subtasks[0].input_schema if config.subtasks else None
+        return {
+            "bp_id": bp_id,
+            "bp_name": config.name,
+            "description": config.description,
+            "subtask_count": len(config.subtasks),
+            "subtasks": [{"id": s.id, "name": s.name} for s in config.subtasks],
+            "extracted_input": parsed.get("extracted_input", {}),
+            "user_query": user_message,
+            "first_input_schema": first_input_schema,
+        }
+    except Exception as e:
+        logger.warning(f"[BP] LLM match failed: {e}")
+        return None
+
+
 # ── Prompt injection ───────────────────────────────────────────
 
 
