@@ -146,13 +146,15 @@ class SeeCrabAdapter:
         if etype == "step_card":
             return [event]
 
-        # bp_instance_created from handler.py — no data wrapper, pass through directly
-        if etype == "bp_instance_created":
-            return [event]
-
-        # BP events — flatten data wrapper for frontend consumption
-        if etype in ("bp_progress", "bp_subtask_output", "bp_stale"):
-            return [{"type": etype, **event.get("data", {})}]
+        # BP events — unified passthrough for all bp_* event types
+        # Two formats: flat (from engine.advance() yield) and data-wrapped (from _emit_*())
+        if etype.startswith("bp_"):
+            if "data" in event and isinstance(event["data"], dict):
+                # data wrapper format → flatten
+                return [{"type": etype, **event["data"]}]
+            else:
+                # flat format → pass through directly
+                return [event]
 
         if etype == "heartbeat":
             return [{"type": "heartbeat"}]
