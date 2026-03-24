@@ -325,6 +325,33 @@ async def _stream_bp_next_from_chat(
         _bp_clear_busy(session_id)
 
 
+async def _cancel_bp_from_chat(
+    *,
+    session_id: str,
+    instance_id: str,
+    bp_name: str,
+    sm,
+    session,
+    session_manager,
+):
+    """Chat path cancel. Calls sm.cancel() — same as DELETE /api/bp/{id}."""
+    sm.cancel(instance_id)
+    sm.set_cooldown(session_id)
+
+    yield {
+        "type": "bp_cancelled",
+        "instance_id": instance_id,
+        "bp_name": bp_name,
+    }
+
+    if session:
+        session.metadata["bp_state"] = sm.serialize_for_session(session_id)
+        if session_manager:
+            session_manager.mark_dirty()
+
+    yield {"type": "done"}
+
+
 @router.post("/chat")
 async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
     """SSE streaming chat via SeeCrabAdapter."""
@@ -398,11 +425,24 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             # 使用 conversation_id(=chat_id)，与前端 activeSessionId 一致，
             # 确保 /api/bp/start 能通过 get_pending_offer(session_id) 找到 pending_offer
             bp_session_id = conversation_id
+
+            # ── Step 0: BP state restoration + cooldown tick ──
+            from seeagent.bestpractice.facade import get_bp_state_manager
+            bp_sm = get_bp_state_manager()
+            if bp_sm:
+                from seeagent.api.routes.bestpractice import _ensure_bp_restored
+                _ensure_bp_restored(request, bp_session_id, bp_sm)
+                bp_sm.tick_cooldown(bp_session_id)
+
+            # Pre-fetch brain for LLM operations
+            brain = getattr(agent, "brain", None)
+
             bp_cmd = _match_bp_command(body.message or "")
             if bp_cmd:
-                from seeagent.bestpractice.facade import get_bp_state_manager
+                if not bp_sm:
+                    from seeagent.bestpractice.facade import get_bp_state_manager
+                    bp_sm = get_bp_state_manager()
 
-                bp_sm = get_bp_state_manager()
                 if bp_cmd == "start":
                     active = bp_sm.get_active(bp_session_id) if bp_sm else None
                     if active:
@@ -415,18 +455,16 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                         return
                     pending_offer = bp_sm.get_pending_offer(bp_session_id) if bp_sm else None
                     if pending_offer and pending_offer.get("bp_id"):
-                        # 用 LLM 从用户原始 query 中提取 input_data
-                        extracted_input = {}
-                        user_query = pending_offer.get("user_query", "")
-                        first_schema = pending_offer.get("first_input_schema")
-                        if user_query and first_schema:
-                            brain = getattr(agent, "brain", None)
-                            extracted_input = await _extract_input_from_query(
-                                brain, user_query, first_schema,
-                            )
-                            logger.info(
-                                f"[BP] Extracted input from query: {extracted_input}"
-                            )
+                        # Prefer pre-extracted input, fallback to LLM extraction
+                        extracted_input = pending_offer.get("extracted_input", {})
+                        if not extracted_input:
+                            user_query = pending_offer.get("user_query", "")
+                            first_schema = pending_offer.get("first_input_schema")
+                            if user_query and first_schema:
+                                extracted_input = await _extract_input_from_query(
+                                    brain, user_query, first_schema,
+                                )
+                                logger.info(f"[BP] Extracted input from query: {extracted_input}")
                         async for event in _stream_bp_start_from_chat(
                             request,
                             session_id=bp_session_id,
@@ -446,23 +484,66 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
                     yield 'data: {"type": "done"}\n\n'
                     return
-                if bp_cmd == "next":
+
+                if bp_cmd == "cancel":
                     active = bp_sm.get_active(bp_session_id) if bp_sm else None
-                    if active and _has_bp_next_step(active):
-                        async for event in _stream_bp_next_from_chat(
-                            request,
+                    if active:
+                        bp_name = active.bp_config.name if active.bp_config else active.bp_id
+                        async for event in _cancel_bp_from_chat(
                             session_id=bp_session_id,
                             instance_id=active.instance_id,
+                            bp_name=bp_name,
+                            sm=bp_sm,
                             session=session,
                             session_manager=session_manager,
-                            disconnect_event=disconnect_event,
                         ):
                             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                         return
-                    fallback = {"type": "ai_text", "content": "当前没有可继续的最佳实践任务。"}
-                    yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
-                    yield 'data: {"type": "done"}\n\n'
-                    return
+                    else:
+                        fallback = {"type": "ai_text", "content": "当前没有进行中的最佳实践任务。"}
+                        yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
+                        yield 'data: {"type": "done"}\n\n'
+                        return
+
+                if bp_cmd in ("next", "next_loose"):
+                    active = bp_sm.get_active(bp_session_id) if bp_sm else None
+                    # next_loose without active BP → fall through to agent
+                    if bp_cmd == "next_loose" and not active:
+                        pass  # fall through
+                    elif active:
+                        # Check waiting_input — can't advance, need params first
+                        has_waiting = any(
+                            s == "waiting_input"
+                            for s in active.subtask_statuses.values()
+                        )
+                        if has_waiting:
+                            fallback = {
+                                "type": "ai_text",
+                                "content": "当前子任务正在等待您补充参数，请先提供所需信息，或输入“取消任务”退出。",
+                            }
+                            yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
+                            yield 'data: {"type": "done"}\n\n'
+                            return
+                        if _has_bp_next_step(active):
+                            async for event in _stream_bp_next_from_chat(
+                                request,
+                                session_id=bp_session_id,
+                                instance_id=active.instance_id,
+                                session=session,
+                                session_manager=session_manager,
+                                disconnect_event=disconnect_event,
+                            ):
+                                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                            return
+                        fallback = {"type": "ai_text", "content": "当前最佳实践已完成或没有下一步可执行。"}
+                        yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
+                        yield 'data: {"type": "done"}\n\n'
+                        return
+                    elif bp_cmd == "next":
+                        fallback = {"type": "ai_text", "content": "当前没有可继续的最佳实践任务。"}
+                        yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
+                        yield 'data: {"type": "done"}\n\n'
+                        return
 
             try:
                 from seeagent.bestpractice.facade import match_bp_from_message
