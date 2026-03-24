@@ -163,6 +163,42 @@ async def _extract_input_from_query(
     return {}
 
 
+async def _llm_extract_answer_fields(
+    user_message: str,
+    missing_fields: list[str],
+    input_schema: dict,
+    brain,
+) -> dict:
+    """从用户消息中提取指定的缺失字段值。"""
+    if not brain or not missing_fields:
+        return {}
+
+    props = input_schema.get("properties", {})
+    fields_desc = "\n".join(
+        f"- {name}: {props.get(name, {}).get('description', '无描述')} "
+        f"(type: {props.get(name, {}).get('type', 'string')})"
+        for name in missing_fields
+    )
+    prompt = (
+        "从用户消息中提取以下字段，输出一个 JSON 对象。\n"
+        "只提取消息中明确提到或可推断的字段，没有提到的字段不要包含。\n"
+        "只输出 JSON，不要其他文字。\n\n"
+        f"## 需要提取的字段\n{fields_desc}\n\n"
+        f"## 用户消息\n{user_message}"
+    )
+    try:
+        from seeagent.bestpractice.engine import BPEngine
+
+        resp = await brain.think_lightweight(prompt, max_tokens=512)
+        text = resp.content if hasattr(resp, "content") else str(resp)
+        parsed = BPEngine._parse_output(text)
+        if isinstance(parsed, dict):
+            return {k: v for k, v in parsed.items() if k in missing_fields}
+    except Exception as e:
+        logger.warning(f"[BP] Failed to extract answer fields: {e}")
+    return {}
+
+
 async def _stream_bp_start_from_chat(
     request: Request,
     *,
@@ -350,6 +386,63 @@ async def _cancel_bp_from_chat(
             session_manager.mark_dirty()
 
     yield {"type": "done"}
+
+
+async def _stream_bp_answer_from_chat(
+    request: Request,
+    *,
+    session_id: str,
+    instance_id: str,
+    subtask_id: str,
+    data: dict,
+    session,
+    session_manager,
+    disconnect_event: asyncio.Event,
+):
+    """Chat path answer. Calls engine.answer() — same as POST /api/bp/answer."""
+    from seeagent.api.routes.bestpractice import (
+        _bp_clear_busy,
+        _bp_mark_busy,
+        _collect_reply_state,
+        _new_reply_state,
+        _persist_bp_to_session,
+    )
+    from seeagent.bestpractice.facade import get_bp_engine, get_bp_state_manager
+
+    engine = get_bp_engine()
+    sm = get_bp_state_manager()
+    if not engine or not sm:
+        yield {"type": "error", "message": "BP system not initialized", "code": "bp"}
+        yield {"type": "done"}
+        return
+
+    # Use bestpractice.py's _bp_busy_locks for concurrency safety with UI path
+    if not await _bp_mark_busy(session_id, "seecrab_bp_answer"):
+        yield {"type": "error", "message": "Session is busy", "code": "bp"}
+        yield {"type": "done"}
+        return
+
+    reply_state = _new_reply_state()
+    full_reply: list[str] = []
+    try:
+        async for event in engine.answer(instance_id, subtask_id, data, session):
+            if disconnect_event.is_set():
+                break
+            yield event
+            _collect_reply_state(event, reply_state, full_reply)
+
+        _persist_bp_to_session(
+            session, instance_id, sm,
+            reply_state=reply_state,
+            full_reply="".join(full_reply),
+            session_manager=session_manager,
+        )
+        yield {"type": "done"}
+    except Exception as e:
+        yield {"type": "error", "message": str(e), "code": "bp"}
+        yield {"type": "done"}
+    finally:
+        _bp_clear_busy(session_id)
 
 
 @router.post("/chat")
@@ -544,6 +637,65 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                         yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
                         yield 'data: {"type": "done"}\n\n'
                         return
+
+            # ── Step 2: waiting_input → route to answer ──
+            if not bp_sm:
+                from seeagent.bestpractice.facade import get_bp_state_manager
+                bp_sm = get_bp_state_manager()
+            active = bp_sm.get_active(bp_session_id) if bp_sm else None
+            if active:
+                waiting_subtask_id = None
+                for st_id, st_status in active.subtask_statuses.items():
+                    if st_status == "waiting_input":
+                        waiting_subtask_id = st_id
+                        break
+                if waiting_subtask_id:
+                    # Determine missing fields for smart extraction
+                    subtask_config = None
+                    for st in active.bp_config.subtasks:
+                        if st.id == waiting_subtask_id:
+                            subtask_config = st
+                            break
+
+                    data = {}
+                    still_missing = []
+                    if subtask_config:
+                        required = subtask_config.input_schema.get("required", [])
+                        from seeagent.bestpractice.scheduler import LinearScheduler
+                        scheduler = LinearScheduler(active.bp_config, active)
+                        resolved_input = scheduler.resolve_input(waiting_subtask_id)
+                        still_missing = [f for f in required if f not in resolved_input]
+
+                        if len(still_missing) == 1:
+                            data = {still_missing[0]: body.message}
+                        elif len(still_missing) > 1:
+                            data = await _llm_extract_answer_fields(
+                                body.message, still_missing,
+                                subtask_config.input_schema, brain,
+                            )
+
+                    if not data:
+                        field_hints = ", ".join(still_missing) if still_missing else "必填参数"
+                        fallback = {
+                            "type": "ai_text",
+                            "content": f"无法从您的消息中识别参数，请按字段提供：{field_hints}",
+                        }
+                        yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
+                        yield 'data: {"type": "done"}\n\n'
+                        return
+
+                    async for event in _stream_bp_answer_from_chat(
+                        request,
+                        session_id=bp_session_id,
+                        instance_id=active.instance_id,
+                        subtask_id=waiting_subtask_id,
+                        data=data,
+                        session=session,
+                        session_manager=session_manager,
+                        disconnect_event=disconnect_event,
+                    ):
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    return
 
             try:
                 from seeagent.bestpractice.facade import match_bp_from_message
