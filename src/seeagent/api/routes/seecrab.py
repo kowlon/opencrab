@@ -374,6 +374,12 @@ async def _cancel_bp_from_chat(
     sm.cancel(instance_id)
     sm.set_cooldown(session_id)
 
+    # Cancel running delegate task if any
+    if session and hasattr(session, "context"):
+        dt = getattr(session.context, "_bp_delegate_task", None)
+        if dt and not dt.done():
+            dt.cancel()
+
     yield {
         "type": "bp_cancelled",
         "instance_id": instance_id,

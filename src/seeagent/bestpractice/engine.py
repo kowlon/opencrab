@@ -497,6 +497,13 @@ class BPEngine:
             }
 
         finally:
+            # Cancel the delegate task if still running (e.g. user cancelled BP)
+            if not delegate_task.done():
+                delegate_task.cancel()
+                try:
+                    await delegate_task
+                except (asyncio.CancelledError, Exception):
+                    pass
             if hasattr(session, "context"):
                 session.context._sse_event_bus = old_bus
                 session.context._bp_delegate_task = None  # Clean up reference

@@ -256,6 +256,11 @@ class BPToolHandler:
         bp_name = snap.bp_config.name if snap.bp_config else snap.bp_id
         self.state_manager.cancel(instance_id)
         self.state_manager.set_cooldown(snap.session_id)
+        # Cancel running delegate task if any
+        if session and hasattr(session, "context"):
+            dt = getattr(session.context, "_bp_delegate_task", None)
+            if dt and not dt.done():
+                dt.cancel()
         bus = getattr(session.context, "_sse_event_bus", None) if hasattr(session, "context") else None
         if bus:
             await bus.put({

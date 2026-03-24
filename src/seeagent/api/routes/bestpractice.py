@@ -600,8 +600,12 @@ async def bp_cancel(instance_id: str, request: Request):
     if not snap:
         return JSONResponse({"error": "Not found"}, status_code=404)
     sm.cancel(instance_id)
-    # Persist cancelled state to session metadata
+    # Cancel running delegate task if any
     session = _resolve_session(request, snap.session_id)
+    if session and hasattr(session, "context"):
+        dt = getattr(session.context, "_bp_delegate_task", None)
+        if dt and not dt.done():
+            dt.cancel()
     if session:
         session.metadata["bp_state"] = sm.serialize_for_session(snap.session_id)
         session_mgr = _resolve_session_manager(request)
