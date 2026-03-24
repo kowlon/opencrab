@@ -29,11 +29,21 @@ _BP_START_COMMANDS = {
     "最佳实践模式",
     "开始最佳实践",
 }
-_BP_NEXT_COMMANDS = {
-    "进入下一步",
-    "下一步",
-    "继续执行",
-    "继续",
+
+# Strict next: always match, return "next"
+_BP_NEXT_COMMANDS_STRICT = {
+    "进入下一步", "下一步", "继续执行", "继续",
+    "好的继续", "开始下一步", "执行下一步",
+}
+
+# Loose next: only match when active BP exists, return "next_loose"
+_BP_NEXT_COMMANDS_LOOSE = {
+    "好", "没问题", "ok", "确认", "好的下一步",
+}
+
+_BP_CANCEL_COMMANDS = {
+    "取消最佳实践", "终止最佳实践", "取消任务", "终止任务",
+    "停止最佳实践", "退出最佳实践",
 }
 
 def _upsert_step_card(cards: list[dict], event: dict) -> None:
@@ -100,8 +110,12 @@ def _match_bp_command(message: str) -> str | None:
     normalized = _normalize_bp_command(message)
     if normalized in _BP_START_COMMANDS:
         return "start"
-    if normalized in _BP_NEXT_COMMANDS:
+    if normalized in _BP_NEXT_COMMANDS_STRICT:
         return "next"
+    if normalized in _BP_NEXT_COMMANDS_LOOSE:
+        return "next_loose"
+    if normalized in _BP_CANCEL_COMMANDS:
+        return "cancel"
     return None
 
 
