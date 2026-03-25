@@ -5,7 +5,7 @@ import pytest
 from seeagent.bestpractice.config import BestPracticeConfig
 from seeagent.bestpractice.engine import BPEngine
 from seeagent.bestpractice.models import SubtaskConfig, SubtaskStatus
-from seeagent.bestpractice.state_manager import BPStateManager
+from seeagent.bestpractice.engine import BPStateManager
 
 
 class MockSession:

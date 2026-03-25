@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from seeagent.bestpractice.engine import BPEngine
-from seeagent.bestpractice.state_manager import BPStateManager
+from seeagent.bestpractice.engine import BPStateManager
 
 
 class TestConformOutputAttribute:

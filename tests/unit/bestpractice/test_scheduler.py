@@ -4,7 +4,7 @@ from seeagent.bestpractice.models import (
     BestPracticeConfig, SubtaskConfig, SubtaskStatus,
     BPInstanceSnapshot, RunMode,
 )
-from seeagent.bestpractice.scheduler import LinearScheduler
+from seeagent.bestpractice.engine import LinearScheduler
 
 
 def _make_config(subtask_count=3, input_mappings=None):

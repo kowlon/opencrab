@@ -19,11 +19,11 @@ import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
+from ..models import BPStatus, RunMode, SubtaskStatus
 from .event_formatter import BPEventFormatter
-from .models import BPStatus, RunMode, SubtaskStatus
 
 if TYPE_CHECKING:
-    from .models import BestPracticeConfig, SubtaskConfig
+    from ..models import BestPracticeConfig, SubtaskConfig
     from .state_manager import BPStateManager
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class BPEngine:
         if snap.bp_config:
             return snap.bp_config
         try:
-            from .facade import get_bp_config_loader
+            from ..facade import get_bp_config_loader
             loader = get_bp_config_loader()
             if loader and loader.configs:
                 return loader.configs.get(snap.bp_id)
@@ -86,7 +86,7 @@ class BPEngine:
 
         Yields: bp_instance_created, then all events from advance().
         """
-        from .models import PendingContextSwitch
+        from ..models import PendingContextSwitch
 
         existing = self.state_manager.get_active(session.id)
         if existing and existing.bp_id == bp_config.id:
@@ -141,7 +141,7 @@ class BPEngine:
 
     def switch(self, target_id: str, session: Any) -> dict[str, Any]:
         """Switch active instance. Returns result metadata dict."""
-        from .models import PendingContextSwitch
+        from ..models import PendingContextSwitch
 
         target = self.state_manager.get(target_id)
         if not target:

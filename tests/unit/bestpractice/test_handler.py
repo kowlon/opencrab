@@ -5,11 +5,11 @@ import json
 import pytest
 
 from seeagent.bestpractice.config import BestPracticeConfig
-from seeagent.bestpractice.context_bridge import ContextBridge
+from seeagent.bestpractice.engine import ContextBridge
 from seeagent.bestpractice.engine import BPEngine
 from seeagent.bestpractice.handler import BPToolHandler
 from seeagent.bestpractice.models import RunMode, SubtaskConfig, SubtaskStatus
-from seeagent.bestpractice.state_manager import BPStateManager
+from seeagent.bestpractice.engine import BPStateManager
 
 
 class MockOrchestrator:

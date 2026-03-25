@@ -693,7 +693,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     still_missing = []
                     if subtask_config:
                         required = subtask_config.input_schema.get("required", [])
-                        from seeagent.bestpractice.scheduler import LinearScheduler
+                        from seeagent.bestpractice.engine import LinearScheduler
                         scheduler = LinearScheduler(active.bp_config, active)
                         resolved_input = scheduler.resolve_input(waiting_subtask_id)
                         still_missing = [f for f in required if f not in resolved_input]

@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from seeagent.bestpractice.context_bridge import ContextBridge
-from seeagent.bestpractice.state_manager import BPStateManager
+from seeagent.bestpractice.engine import ContextBridge
+from seeagent.bestpractice.engine import BPStateManager
 
 
 @pytest.fixture

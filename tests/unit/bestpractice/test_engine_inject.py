@@ -1,7 +1,7 @@
 """Tests for BPEngine orchestrator injection and scheduler factory."""
 from unittest.mock import MagicMock
 from seeagent.bestpractice.engine import BPEngine
-from seeagent.bestpractice.scheduler import LinearScheduler
+from seeagent.bestpractice.engine import LinearScheduler
 
 
 class TestOrchestratorInjection:

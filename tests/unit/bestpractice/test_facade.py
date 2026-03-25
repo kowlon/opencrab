@@ -21,7 +21,7 @@ from seeagent.bestpractice.models import (
     TriggerConfig,
     TriggerType,
 )
-from seeagent.bestpractice.state_manager import BPStateManager
+from seeagent.bestpractice.engine import BPStateManager
 
 
 @pytest.fixture(autouse=True)
@@ -172,8 +172,8 @@ class TestMatchBPFromMessage:
     @pytest.fixture
     def setup_facade_with_config(self, sample_bp_config):
         """Wire up facade globals with a mock config loader and real state manager."""
-        from seeagent.bestpractice.matcher import BPMatcher
-        from seeagent.bestpractice.prompt_loader import PromptTemplateLoader
+        from seeagent.bestpractice.prompt import BPMatcher
+        from seeagent.bestpractice.prompt import PromptTemplateLoader
 
         mock_loader = MagicMock()
         mock_loader.configs = {sample_bp_config.id: sample_bp_config}

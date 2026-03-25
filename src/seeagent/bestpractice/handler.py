@@ -19,10 +19,8 @@ from typing import TYPE_CHECKING, Any
 from .models import RunMode
 
 if TYPE_CHECKING:
-    from .context_bridge import ContextBridge
-    from .engine import BPEngine
+    from .engine import BPEngine, BPStateManager, ContextBridge
     from .models import BestPracticeConfig
-    from .state_manager import BPStateManager
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ from seeagent.bestpractice.models import (
     TriggerConfig,
     TriggerType,
 )
-from seeagent.bestpractice.state_manager import BPStateManager
+from seeagent.bestpractice.engine import BPStateManager
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +61,7 @@ def setup_llm_match():
 
     state_mgr = BPStateManager()
 
-    from seeagent.bestpractice.matcher import BPMatcher
+    from seeagent.bestpractice.prompt import BPMatcher
 
     facade._initialized = True
     facade._bp_config_loader = mock_loader

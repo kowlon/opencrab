@@ -11,7 +11,7 @@ from seeagent.bestpractice.models import (
     SubtaskConfig,
     SubtaskStatus,
 )
-from seeagent.bestpractice.state_manager import BPStateManager
+from seeagent.bestpractice.engine import BPStateManager
 
 
 @pytest.fixture

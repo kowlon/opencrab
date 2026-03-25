@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .models import TriggerType
+from ..models import TriggerType
 
 if TYPE_CHECKING:
-    from .config_loader import BPConfigLoader
-    from .prompt_loader import PromptTemplateLoader
-    from .state_manager import BPStateManager
+    from ..config import BPConfigLoader
+    from ..engine import BPStateManager
+    from .loader import PromptTemplateLoader
 
 logger = logging.getLogger(__name__)
 

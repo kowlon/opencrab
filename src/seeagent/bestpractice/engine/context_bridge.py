@@ -13,7 +13,7 @@ import logging
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .models import PendingContextSwitch  # noqa: F401
+    from ..models import PendingContextSwitch  # noqa: F401
     from .state_manager import BPStateManager
 
 logger = logging.getLogger(__name__)

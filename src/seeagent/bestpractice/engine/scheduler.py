@@ -8,10 +8,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from .models import SubtaskStatus
+from ..models import SubtaskStatus
 
 if TYPE_CHECKING:
-    from .models import BPInstanceSnapshot, BestPracticeConfig, SubtaskConfig
+    from ..models import BPInstanceSnapshot, BestPracticeConfig, SubtaskConfig
 
 
 class TaskScheduler(ABC):

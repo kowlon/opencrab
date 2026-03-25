@@ -16,14 +16,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .config_loader import BPConfigLoader
-    from .context_bridge import ContextBridge
-    from .engine import BPEngine
+    from .config import BPConfigLoader
+    from .engine import BPEngine, BPStateManager, ContextBridge
     from .handler import BPToolHandler
-    from .matcher import BPMatcher
-    from .prompt_builder import BPPromptBuilder
-    from .prompt_loader import PromptTemplateLoader
-    from .state_manager import BPStateManager
+    from .prompt import BPMatcher, BPPromptBuilder, PromptTemplateLoader
 
 logger = logging.getLogger(__name__)
 
@@ -77,14 +73,10 @@ def init_bp_system(
     if _initialized:
         return bool(_bp_config_loader and _bp_config_loader.configs)
 
-    from .config_loader import BPConfigLoader
-    from .context_bridge import ContextBridge
-    from .engine import BPEngine
+    from .config import BPConfigLoader
+    from .engine import BPEngine, BPStateManager, ContextBridge
     from .handler import BPToolHandler
-    from .matcher import BPMatcher
-    from .prompt_builder import BPPromptBuilder
-    from .prompt_loader import PromptTemplateLoader
-    from .state_manager import BPStateManager
+    from .prompt import BPMatcher, BPPromptBuilder, PromptTemplateLoader
 
     # 搜索路径
     paths = search_paths or _find_bp_dirs()

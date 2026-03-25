@@ -12,7 +12,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from .models import (
+from ..models import (
     BPInstanceSnapshot,
     BPStatus,
     PendingContextSwitch,
@@ -21,7 +21,7 @@ from .models import (
 )
 
 if TYPE_CHECKING:
-    from .models import BestPracticeConfig
+    from ..models import BestPracticeConfig
 
 logger = logging.getLogger(__name__)
 

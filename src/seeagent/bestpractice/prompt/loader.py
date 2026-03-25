@@ -9,7 +9,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_TEMPLATE_DIR = Path(__file__).parent / "prompts"
+_TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 
 class PromptTemplateLoader:

@@ -4,7 +4,7 @@ import json
 import pytest
 from pathlib import Path
 
-from seeagent.bestpractice.config_loader import BPConfigLoader
+from seeagent.bestpractice.config import BPConfigLoader
 
 
 @pytest.fixture
@@ -85,14 +85,14 @@ best_practice:
 
 class TestPromptTemplateLoader:
     def test_render_static(self):
-        from seeagent.bestpractice.prompt_loader import PromptTemplateLoader
+        from seeagent.bestpractice.prompt import PromptTemplateLoader
         loader = PromptTemplateLoader()
         result = loader.render("system_static", bp_list="- 市场调研\n- 竞品分析")
         assert "市场调研" in result
         assert "竞品分析" in result
 
     def test_render_dynamic(self):
-        from seeagent.bestpractice.prompt_loader import PromptTemplateLoader
+        from seeagent.bestpractice.prompt import PromptTemplateLoader
         loader = PromptTemplateLoader()
         result = loader.render(
             "system_dynamic",
