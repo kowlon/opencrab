@@ -157,29 +157,68 @@ class BPStateManager:
     def get_all_for_session(self, session_id: str) -> list[BPInstanceSnapshot]:
         return [s for s in self._instances.values() if s.session_id == session_id]
 
-    def get_status_table(self, session_id: str) -> str:
-        """生成供 system prompt 注入的状态概览表。"""
+    def get_status_table(
+        self, session_id: str, max_suspended: int = 3,
+    ) -> str:
+        """Generate status overview table for system prompt injection.
+
+        Args:
+            session_id: Session to query.
+            max_suspended: Max suspended instances to show in the table.
+                Excess suspended instances are summarised in a single line.
+        """
         instances = self.get_all_for_session(session_id)
         if not instances:
+            return ""
+
+        # Partition: active/suspended shown, completed/cancelled excluded
+        active = [
+            i for i in instances
+            if i.status == BPStatus.ACTIVE
+        ]
+        suspended = sorted(
+            (i for i in instances if i.status == BPStatus.SUSPENDED),
+            key=lambda i: i.suspended_at or 0,
+            reverse=True,
+        )
+        shown_suspended = suspended[:max_suspended]
+        hidden_count = len(suspended) - len(shown_suspended)
+
+        visible = active + shown_suspended
+        if not visible:
             return ""
 
         lines = [
             "| Instance | BP | Status | Progress | Current Step | RunMode |",
             "| --- | --- | --- | --- | --- | --- |",
         ]
-        for inst in instances:
+        for inst in visible:
             bp_name = inst.bp_config.name if inst.bp_config else inst.bp_id
             total = len(inst.subtask_statuses)
-            done = sum(1 for v in inst.subtask_statuses.values() if v == SubtaskStatus.DONE.value)
+            done = sum(
+                1 for v in inst.subtask_statuses.values()
+                if v == SubtaskStatus.DONE.value
+            )
             progress = f"{done}/{total}"
-            # Current subtask name for disambiguation
             current_step = ""
-            if inst.bp_config and 0 <= inst.current_subtask_index < len(inst.bp_config.subtasks):
-                current_step = inst.bp_config.subtasks[inst.current_subtask_index].name
+            if (
+                inst.bp_config
+                and 0 <= inst.current_subtask_index < len(inst.bp_config.subtasks)
+            ):
+                current_step = inst.bp_config.subtasks[
+                    inst.current_subtask_index
+                ].name
             lines.append(
                 f"| {inst.instance_id} | {bp_name} | {inst.status.value} "
                 f"| {progress} | {current_step} | {inst.run_mode.value} |"
             )
+
+        if hidden_count > 0:
+            lines.append(
+                f"\n({hidden_count} more suspended task(s) hidden"
+                f" -- use bp_switch_task to view)"
+            )
+
         return "\n".join(lines)
 
     # ── PendingContextSwitch ──────────────────────────────────
@@ -246,11 +285,16 @@ class BPStateManager:
     def serialize_for_session(self, session_id: str) -> dict[str, Any]:
         """序列化 session 的所有实例 → 可存入 Session.metadata["bp_state"]。"""
         instances = self.get_all_for_session(session_id)
+        pending = self._pending_switches.get(session_id)
         return {
-            "version": 1,
+            "version": 2,
             "instances": [inst.serialize() for inst in instances],
             "cooldown": self._cooldowns.get(session_id, 0),
             "offered_bps": sorted(self._offered_bps.get(session_id, set())),
+            "pending_switch": {
+                "suspended_id": pending.suspended_instance_id,
+                "target_id": pending.target_instance_id,
+            } if pending else None,
         }
 
     def restore_from_dict(
@@ -276,6 +320,12 @@ class BPStateManager:
             self._cooldowns[session_id] = data["cooldown"]
         if "offered_bps" in data:
             self._offered_bps[session_id] = set(data["offered_bps"])
+        ps_data = data.get("pending_switch")
+        if ps_data:
+            self._pending_switches[session_id] = PendingContextSwitch(
+                suspended_instance_id=ps_data["suspended_id"],
+                target_instance_id=ps_data["target_id"],
+            )
         return count
 
     # ── Helpers ─────────────────────────────────────────────────
