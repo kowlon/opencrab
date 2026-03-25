@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import TYPE_CHECKING
 
 from ..models import TriggerType
+
+_DYNAMIC_OUTPUTS_BUDGET = 1000  # max chars for outputs_preview (~250-300 tokens)
 
 if TYPE_CHECKING:
     from ..config import BPConfigLoader
@@ -96,6 +99,8 @@ class BPPromptBuilder:
         active = self._state_manager.get_active(session_id)
         active_context = ""
         intent_routing = ""
+        outputs_preview = ""
+        user_preferences = ""
 
         if active:
             bp_name = active.bp_config.name if active.bp_config else active.bp_id
@@ -105,6 +110,34 @@ class BPPromptBuilder:
             active_context = (
                 f"**当前活跃任务**: {bp_name} (进度: {done}/{total})\n"
             )
+
+            # Outputs preview: show completed subtask outputs (budget-limited)
+            if active.subtask_outputs:
+                preview_lines: list[str] = []
+                total_len = 0
+                for st_id, output in active.subtask_outputs.items():
+                    line = json.dumps(output, ensure_ascii=False)[:200]
+                    if total_len + len(line) > _DYNAMIC_OUTPUTS_BUDGET:
+                        preview_lines.append("...")
+                        break
+                    preview_lines.append(f"- {st_id}: {line}")
+                    total_len += len(line)
+                if preview_lines:
+                    outputs_preview = (
+                        "### 已完成子任务输出\n" + "\n".join(preview_lines)
+                    )
+
+            # User preferences: extract from context_summary (v1 JSON)
+            if active.context_summary:
+                try:
+                    parsed = json.loads(active.context_summary)
+                    semantic = parsed.get("semantic_summary", "")
+                    if semantic:
+                        user_preferences = (
+                            f"### 用户偏好/上下文\n{semantic}"
+                        )
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
             if active.bp_config:
                 statuses = list(active.subtask_statuses.values())
@@ -148,5 +181,7 @@ class BPPromptBuilder:
             "system_dynamic",
             status_table=status_table,
             active_context=active_context,
+            outputs_preview=outputs_preview,
+            user_preferences=user_preferences,
             intent_routing=intent_routing,
         )

@@ -552,3 +552,112 @@ class TestBuildRecoveryMessage:
         snap = _make_snap(context_summary="plain text summary")
         msg = bridge.build_recovery_message(snap)
         assert "plain text summary" in msg
+
+
+# ── Empty summary fallback ───────────────────────────────────
+
+
+class TestRestoreEmptySummaryWithOutputs:
+    def test_restoreEmptySummaryWithOutputsTest(self, bridge):
+        """Empty context_summary but has outputs → generates minimal recovery."""
+        snap = _make_snap(
+            context_summary="",
+            subtask_outputs={"s1": {"result": "analysis done"}},
+            initial_input={"topic": "AI"},
+            bp_config=_make_bp_config(),
+        )
+        messages = [{"role": "assistant", "content": "prev"}]
+
+        bridge._restore_context(messages, snap)
+
+        assert len(messages) == 2
+        recovery = messages[1]["content"]
+        assert "[Task Resumed]" in recovery
+        assert "analysis done" in recovery
+        assert "AI" in recovery
+        assert "Please continue" in recovery
+
+
+class TestRestoreEmptySummaryNoData:
+    def test_restoreEmptySummaryNoDataTest(self, bridge):
+        """Empty context_summary and no data → no-op."""
+        snap = _make_snap(
+            context_summary="",
+            subtask_outputs={},
+            initial_input={},
+        )
+        messages = [{"role": "user", "content": "q"}]
+
+        bridge._restore_context(messages, snap)
+
+        assert len(messages) == 1
+        assert messages[0]["content"] == "q"
+
+
+# ── Dynamic prompt: outputs preview and user preferences ─────
+
+
+class TestDynamicSectionOutputsPreview:
+    def test_dynamicSectionOutputsPreviewTest(self):
+        """build_dynamic_section includes outputs preview for active instance."""
+        from unittest.mock import MagicMock
+        from seeagent.bestpractice.prompt.builder import BPPromptBuilder
+        from seeagent.bestpractice.prompt.loader import PromptTemplateLoader
+
+        sm = BPStateManager()
+        bp_config = _make_bp_config()
+
+        active = BPInstanceSnapshot(
+            bp_id="bp1", instance_id="bp-test",
+            session_id="sess1", status=BPStatus.ACTIVE,
+            subtask_statuses={"s1": "done", "s2": "current", "s3": "pending"},
+            subtask_outputs={"s1": {"insights": "key finding"}},
+            current_subtask_index=1,
+            bp_config=bp_config,
+        )
+        sm._instances["bp-test"] = active
+
+        config_loader = MagicMock()
+        config_loader.configs = {"bp1": bp_config}
+        prompt_loader = PromptTemplateLoader()
+
+        builder = BPPromptBuilder(config_loader, sm, prompt_loader)
+        result = builder.build_dynamic_section("sess1")
+
+        assert "已完成子任务输出" in result
+        assert "key finding" in result
+
+
+class TestDynamicSectionUserPreferences:
+    def test_dynamicSectionUserPreferencesTest(self):
+        """build_dynamic_section includes user preferences from context_summary."""
+        from unittest.mock import MagicMock
+        from seeagent.bestpractice.prompt.builder import BPPromptBuilder
+        from seeagent.bestpractice.prompt.loader import PromptTemplateLoader
+
+        sm = BPStateManager()
+        bp_config = _make_bp_config()
+
+        active = BPInstanceSnapshot(
+            bp_id="bp1", instance_id="bp-test",
+            session_id="sess1", status=BPStatus.ACTIVE,
+            subtask_statuses={"s1": "done", "s2": "current", "s3": "pending"},
+            subtask_outputs={"s1": {"data": "result"}},
+            current_subtask_index=1,
+            bp_config=bp_config,
+            context_summary=json.dumps({
+                "version": 1,
+                "semantic_summary": "User wants B2B focus only",
+            }),
+        )
+        sm._instances["bp-test"] = active
+
+        config_loader = MagicMock()
+        config_loader.configs = {"bp1": bp_config}
+        prompt_loader = PromptTemplateLoader()
+
+        builder = BPPromptBuilder(config_loader, sm, prompt_loader)
+        result = builder.build_dynamic_section("sess1")
+
+        assert "用户偏好" in result
+        assert "B2B focus" in result

@@ -4,4 +4,8 @@ ${status_table}
 
 ${active_context}
 
+${outputs_preview}
+
+${user_preferences}
+
 ${intent_routing}

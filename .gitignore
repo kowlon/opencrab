@@ -39,7 +39,7 @@ env/
 *~
 
 # Environment
-# .env
+ .env
 .env.local
 
 # Database

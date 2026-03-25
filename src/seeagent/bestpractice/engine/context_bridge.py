@@ -148,7 +148,7 @@ class ContextBridge:
                 for st_id, output in snap.subtask_outputs.items():
                     key_outputs[st_id] = json.dumps(
                         output, ensure_ascii=False,
-                    )[:200]
+                    )[:300]
 
             # Section 3: Semantic summary
             semantic_summary = ""
@@ -279,19 +279,26 @@ class ContextBridge:
     # ── Restoration ───────────────────────────────────────────
 
     def _restore_context(self, messages: list[dict], snap: Any) -> None:
-        """Inject structured recovery message from context_summary."""
-        if not snap.context_summary:
-            return
+        """Inject structured recovery message from context_summary.
+
+        Falls back to Snapshot-based minimal recovery when context_summary
+        is empty but the snapshot contains structural data.
+        """
         try:
-            try:
-                summary = json.loads(snap.context_summary)
-                recovery_msg = self._build_recovery_prompt(summary, snap)
-            except (json.JSONDecodeError, KeyError, TypeError):
-                recovery_msg = (
-                    f"[Task Resumed] Continuing a Best Practice task.\n"
-                    f"Previous context: {snap.context_summary}\n"
-                    f"Please continue the current subtask."
-                )
+            if snap.context_summary:
+                try:
+                    summary = json.loads(snap.context_summary)
+                    recovery_msg = self._build_recovery_prompt(summary, snap)
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    recovery_msg = (
+                        f"[Task Resumed] Continuing a Best Practice task.\n"
+                        f"Previous context: {snap.context_summary}\n"
+                        f"Please continue the current subtask."
+                    )
+            else:
+                recovery_msg = self._build_minimal_recovery(snap)
+                if not recovery_msg:
+                    return
 
             if messages and messages[-1].get("role") == "user":
                 content = messages[-1]["content"]
@@ -330,7 +337,7 @@ class ContextBridge:
         # Key outputs
         key_outputs = summary.get("key_outputs", {})
         if key_outputs:
-            out_lines = [f"  {k}: {v[:150]}" for k, v in key_outputs.items()]
+            out_lines = [f"  {k}: {v[:300]}" for k, v in key_outputs.items()]
             parts.append("Completed outputs:\n" + "\n".join(out_lines))
 
         # Semantic summary
@@ -366,3 +373,39 @@ class ContextBridge:
                         )
             return " ".join(texts).strip()
         return ""
+
+    @staticmethod
+    def _build_minimal_recovery(snap: Any) -> str:
+        """Build minimal recovery from Snapshot when context_summary is empty."""
+        has_data = (
+            getattr(snap, "subtask_outputs", None)
+            or getattr(snap, "initial_input", None)
+        )
+        if not has_data:
+            return ""
+
+        parts = ["[Task Resumed]"]
+        bp_name = (
+            snap.bp_config.name
+            if getattr(snap, "bp_config", None)
+            else getattr(snap, "bp_id", "")
+        )
+        if bp_name:
+            parts.append(f"Best Practice: {bp_name}")
+
+        if snap.subtask_outputs:
+            out_lines = [
+                f"  {k}: {json.dumps(v, ensure_ascii=False)[:300]}"
+                for k, v in snap.subtask_outputs.items()
+            ]
+            parts.append("Completed outputs:\n" + "\n".join(out_lines))
+
+        if snap.initial_input:
+            parts.append(
+                f"Original input: "
+                f"{json.dumps(snap.initial_input, ensure_ascii=False)[:300]}"
+            )
+
+        parts.append("Please continue from where this task was suspended.")
+        return "\n\n".join(parts)
+
