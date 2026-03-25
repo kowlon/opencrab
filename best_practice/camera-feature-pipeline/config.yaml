@@ -1,0 +1,66 @@
+id: "camera-feature-pipeline"
+name: "相机特征检索出图"
+description: "从相机搜索到预处理检索再到表格图片生成的三阶段流程"
+default_run_mode: manual
+
+final_output_schema:
+  type: object
+  properties:
+    title: { type: string }
+    camera_candidates:
+      type: array
+      items: { type: object }
+    feature_result: { type: object }
+    table_image_path: { type: string }
+    summary: { type: string }
+  required: [title, feature_result, table_image_path]
+
+triggers:
+  - type: command
+    pattern: "执行相机特征检索出图"
+  - type: context
+    conditions: ["相机", "预处理", "特征检索", "表格图片"]
+
+subtasks:
+  - id: "camera-search"
+    name: "相机搜索"
+    description: "根据用户场景描述搜索候选相机"
+    agent_profile: "camera-locator"
+    input_schema:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "相机搜索关键词，如园区东门"
+      required: [query]
+
+  - id: "feature-extraction"
+    name: "特征检索"
+    description: "对指定相机创建预处理任务，轮询完成后执行文本特征检索"
+    agent_profile: "feature-extractor"
+    input_schema:
+      type: object
+      properties:
+        camera_ids:
+          type: array
+          items: { type: string }
+          description: "要处理的相机ID列表"
+        feature_text:
+          type: string
+          description: "文本特征描述"
+      required: [camera_ids, feature_text]
+
+  - id: "render-image"
+    name: "结果出图"
+    description: "将特征检索结果渲染为带图片缩略图的表格 PNG"
+    agent_profile: "result-visualizer"
+    input_schema:
+      type: object
+      properties:
+        feature_result:
+          type: object
+          description: "特征检索阶段输出的完整JSON对象"
+        output_image_path:
+          type: string
+          description: "输出图片路径"
+      required: [feature_result]

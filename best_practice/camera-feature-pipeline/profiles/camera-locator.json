@@ -1,0 +1,18 @@
+{
+  "id": "camera-locator",
+  "name": "相机定位员",
+  "description": "负责基于自然语言场景描述调用相机搜索能力，返回候选相机列表。",
+  "type": "custom",
+  "skills": [
+    "seeagent/skills@camera-search"
+  ],
+  "skills_mode": "inclusive",
+  "custom_prompt": "",
+  "prompt_file": "prompts/camera-locator.md",
+  "icon": "📷",
+  "color": "#3B82F6",
+  "category": "bestpractice",
+  "fallback_profile_id": "default",
+  "preferred_endpoint": null,
+  "created_by": "bestpractice"
+}
