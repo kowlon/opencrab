@@ -91,6 +91,9 @@ export class SSEClient {
   abort(): void {
     this.abortController?.abort()
     this.abortController = null
+    // Finalize any running step cards so their live timers stop
+    const store = useChatStore()
+    store.finalizeRunningCards()
   }
 
   abortBP(): void {
@@ -139,6 +142,7 @@ export class SSEClient {
             if (!line.startsWith('data: ')) continue
             try {
               const event = JSON.parse(line.slice(6))
+              console.log('[BP-DEBUG][BP-Stream] Event:', event.type)
               store.dispatchEvent(event)
             } catch { /* skip malformed */ }
           }

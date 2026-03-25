@@ -501,6 +501,26 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                         create_if_missing=True,
                     )
                     if session and body.message:
+                        # Persist active BP reply BEFORE user message
+                        # so message order is correct on page refresh
+                        try:
+                            from seeagent.bestpractice.facade import (
+                                get_bp_state_manager as _get_bp_sm,
+                            )
+                            _bp_sm = _get_bp_sm()
+                            if _bp_sm:
+                                _bp_sid = f"seecrab_{conversation_id}"
+                                _bp_active = _bp_sm.get_active(_bp_sid)
+                                if _bp_active:
+                                    from seeagent.api.routes.bestpractice import (
+                                        _persist_bp_to_session,
+                                    )
+                                    _persist_bp_to_session(
+                                        session, _bp_active.instance_id,
+                                        _bp_sm, session_manager=session_manager,
+                                    )
+                        except Exception:
+                            pass
                         session.add_message("user", body.message)
                         session_messages = list(
                             session.context.messages
@@ -781,6 +801,28 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     return  # Skip LLM stream — wait for user choice
             except Exception:
                 pass  # Non-critical, don't block chat
+
+            # Suspend active BP when user sends a free-form message
+            # (bp_cmd didn't match, so suspend wasn't handled above)
+            try:
+                from seeagent.bestpractice.facade import get_bp_state_manager as _get_sm
+                _sm = _get_sm()
+                if _sm:
+                    _active = _sm.get_active(bp_session_id)
+                    if _active:
+                        _sm.suspend(_active.instance_id)
+                        _ctx = getattr(session, "context", None)
+                        if _ctx:
+                            _ctx._bp_cancelled_instance = _active.instance_id
+                        _dt = getattr(_ctx, "_bp_delegate_task", None)
+                        if _dt and not _dt.done():
+                            _dt.cancel()
+                        logger.info(
+                            f"[BP] Suspended {_active.instance_id} "
+                            f"for free-form chat message"
+                        )
+            except Exception:
+                pass
 
             brain = getattr(agent, "brain", None)
             adapter = SeeCrabAdapter(brain=brain, user_messages=user_messages)
