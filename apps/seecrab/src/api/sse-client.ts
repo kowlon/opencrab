@@ -12,6 +12,7 @@ export class SSEClient {
   ): Promise<void> {
     console.log('[BP-DEBUG][SSE] sendMessage called, msg:', message, 'convId:', conversationId)
     this.abort()
+    this.abortBP()
     this.abortController = new AbortController()
     const store = useChatStore()
 
@@ -90,6 +91,9 @@ export class SSEClient {
   abort(): void {
     this.abortController?.abort()
     this.abortController = null
+    // Finalize any running step cards so their live timers stop
+    const store = useChatStore()
+    store.finalizeRunningCards()
   }
 
   abortBP(): void {
@@ -138,6 +142,7 @@ export class SSEClient {
             if (!line.startsWith('data: ')) continue
             try {
               const event = JSON.parse(line.slice(6))
+              console.log('[BP-DEBUG][BP-Stream] Event:', event.type)
               store.dispatchEvent(event)
             } catch { /* skip malformed */ }
           }

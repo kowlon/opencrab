@@ -425,10 +425,16 @@ async def bp_start(request: Request):
                 if event.get("type") in ("bp_subtask_complete", "bp_progress"):
                     _bp_renew_busy(session_id)
 
-            _persist_bp_to_session(session, instance_id, sm,
-                                   reply_state=reply_state,
-                                   full_reply="".join(full_reply),
-                                   session_manager=session_mgr)
+            # Skip if already persisted by seecrab.py suspend logic
+            _snap = sm.get(instance_id)
+            _is_suspended = _snap and (
+                getattr(_snap.status, "value", _snap.status) == "suspended"
+            )
+            if not _is_suspended:
+                _persist_bp_to_session(session, instance_id, sm,
+                                       reply_state=reply_state,
+                                       full_reply="".join(full_reply),
+                                       session_manager=session_mgr)
             yield _sse({"type": "done"})
         except Exception as e:
             yield _sse({"type": "error", "message": str(e)})

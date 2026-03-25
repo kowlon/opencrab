@@ -163,14 +163,22 @@ class BPStateManager:
         if not instances:
             return ""
 
-        lines = ["| Instance | BP | Status | Progress | RunMode |", "| --- | --- | --- | --- | --- |"]
+        lines = [
+            "| Instance | BP | Status | Progress | Current Step | RunMode |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
         for inst in instances:
             bp_name = inst.bp_config.name if inst.bp_config else inst.bp_id
             total = len(inst.subtask_statuses)
             done = sum(1 for v in inst.subtask_statuses.values() if v == SubtaskStatus.DONE.value)
             progress = f"{done}/{total}"
+            # Current subtask name for disambiguation
+            current_step = ""
+            if inst.bp_config and 0 <= inst.current_subtask_index < len(inst.bp_config.subtasks):
+                current_step = inst.bp_config.subtasks[inst.current_subtask_index].name
             lines.append(
-                f"| {inst.instance_id} | {bp_name} | {inst.status.value} | {progress} | {inst.run_mode.value} |"
+                f"| {inst.instance_id} | {bp_name} | {inst.status.value} "
+                f"| {progress} | {current_step} | {inst.run_mode.value} |"
             )
         return "\n".join(lines)
 
@@ -230,6 +238,7 @@ class BPStateManager:
             "version": 1,
             "instances": [inst.serialize() for inst in instances],
             "cooldown": self._cooldowns.get(session_id, 0),
+            "offered_bps": sorted(self._offered_bps.get(session_id, set())),
         }
 
     def restore_from_dict(
@@ -253,6 +262,8 @@ class BPStateManager:
             count += 1
         if "cooldown" in data:
             self._cooldowns[session_id] = data["cooldown"]
+        if "offered_bps" in data:
+            self._offered_bps[session_id] = set(data["offered_bps"])
         return count
 
     # ── Helpers ─────────────────────────────────────────────────

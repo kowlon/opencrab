@@ -89,7 +89,7 @@ class BestPracticeConfig:
 
 @dataclass
 class PendingContextSwitch:
-    """由 bp_switch_task 创建，由 Agent._pre_reasoning_hook() 消费。"""
+    """由 bp_switch_task/bp_start 创建，由 Agent._prepare_session_context() 消费。"""
     suspended_instance_id: str
     target_instance_id: str
     created_at: float = field(default_factory=time.time)

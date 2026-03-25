@@ -1,6 +1,6 @@
 // apps/seecrab/src/stores/chat.ts
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, toRaw } from 'vue'
 import { useSessionStore } from './session'
 import { httpClient } from '@/api/http-client'
 import { useBestPracticeStore } from './bestpractice'
@@ -240,13 +240,16 @@ export const useChatStore = defineStore('chat', () => {
           at.done = true
         }
         isStreaming.value = false
-        messages.value.push({
-          id: reply.replyId,
-          role: 'assistant',
-          content: reply.summaryText,
-          timestamp: Date.now(),
-          reply: { ...reply },
-        })
+        {
+          const rawReply = JSON.parse(JSON.stringify(toRaw(reply)))
+          messages.value.push({
+            id: rawReply.replyId,
+            role: 'assistant',
+            content: rawReply.summaryText,
+            timestamp: Date.now(),
+            reply: rawReply,
+          })
+        }
         // Update session lastMessage with assistant summary
         if (reply.summaryText) {
           const sessionStore = useSessionStore()
@@ -271,19 +274,21 @@ export const useChatStore = defineStore('chat', () => {
         currentReply.value = null
         break
 
-      case 'error':
+      case 'error': {
         console.error('[BP-DEBUG][Chat] ERROR event:', event)
         reply.isDone = true
         isStreaming.value = false
+        const rawErrReply = JSON.parse(JSON.stringify(toRaw(reply)))
         messages.value.push({
-          id: reply.replyId,
+          id: rawErrReply.replyId,
           role: 'assistant',
-          content: reply.summaryText || `Error: ${(event as any).message ?? 'Unknown error'}`,
+          content: rawErrReply.summaryText || `Error: ${(event as any).message ?? 'Unknown error'}`,
           timestamp: Date.now(),
-          reply: { ...reply },
+          reply: rawErrReply,
         })
         currentReply.value = null
         break
+      }
     }
   }
 
@@ -419,7 +424,8 @@ export const useChatStore = defineStore('chat', () => {
     return {
       stepId: raw.step_id,
       title: raw.title,
-      status: raw.status,
+      // If a step_card was persisted as "running", it was interrupted (e.g. BP suspended)
+      status: raw.status === 'running' ? 'cancelled' : raw.status,
       sourceType: raw.source_type,
       cardType: raw.card_type,
       duration: raw.duration ?? null,
@@ -485,6 +491,11 @@ export const useChatStore = defineStore('chat', () => {
 
   function addUserMessage(content: string) {
     console.log('[BP-DEBUG][Chat] addUserMessage:', content, 'existing msgs:', messages.value.length, 'isStreaming:', isStreaming.value)
+    // Finalize any in-progress reply BEFORE pushing the user message
+    // so the assistant reply appears in correct order (before the new user message)
+    if (currentReply.value) {
+      cancelCurrentReply()
+    }
     // On first user message, set session title from message content
     const sessionStore = useSessionStore()
     const isFirstMessage = messages.value.length === 0
@@ -504,23 +515,53 @@ export const useChatStore = defineStore('chat', () => {
     startNewReply(`reply_${Date.now()}`)
   }
 
+  function finalizeRunningCards() {
+    if (!currentReply.value) return
+    for (const card of currentReply.value.stepCards) {
+      if (card.status === 'running') {
+        card.status = 'cancelled'
+      }
+    }
+  }
+
   function cancelCurrentReply() {
     if (!currentReply.value) {
       isStreaming.value = false
       return
     }
     const reply = currentReply.value
+    // Only save if reply has meaningful content
+    const hasContent = reply.summaryText || reply.thinking || reply.stepCards.length > 0
+      || reply.bpProgress || reply.bpSubtaskOutput || reply.bpOffer || reply.bpInstanceCreated
+    console.log('[BP-DEBUG][Chat] cancelCurrentReply called, hasContent:', hasContent,
+      'stepCards:', reply.stepCards.length, 'bpProgress:', !!reply.bpProgress,
+      'thinking:', reply.thinking?.length, 'summaryText:', reply.summaryText?.slice(0, 50))
     reply.isDone = true
+    reply.thinkingDone = true
+    for (const at of Object.values(reply.agentThinking)) {
+      at.done = true
+    }
+    // Finalize running step cards so timers stop
+//     for (const card of reply.stepCards) {
+//       if (card.status === 'running') {
+//         card.status = 'cancelled'
+//       }
+//     }
     isStreaming.value = false
-    messages.value.push({
-      id: reply.replyId,
-      role: 'assistant',
-      content: reply.summaryText || '',
-      timestamp: Date.now(),
-      reply: { ...reply },
-    })
+    if (hasContent) {
+      // Deep copy to avoid Vue reactive proxy issues
+      const rawReply = JSON.parse(JSON.stringify(toRaw(reply)))
+      messages.value.push({
+        id: rawReply.replyId,
+        role: 'assistant',
+        content: rawReply.summaryText || '',
+        timestamp: Date.now(),
+        reply: rawReply,
+      })
+      console.log('[BP-DEBUG][Chat] cancelCurrentReply saved reply, total msgs:', messages.value.length)
+    }
     currentReply.value = null
   }
 
-  return { messages, currentReply, isStreaming, dispatchEvent, addUserMessage, startNewReply, loadSessionMessages, cancelCurrentReply }
+  return { messages, currentReply, isStreaming, dispatchEvent, addUserMessage, startNewReply, loadSessionMessages, cancelCurrentReply, finalizeRunningCards }
 })

@@ -297,3 +297,43 @@ class TestSupplementedInputsPersistence:
             "s1": {"clarification": "use GPT-4"},
             "s2": {"format": "markdown", "depth": 3},
         }
+
+
+class TestOfferedBpsPersistence:
+    def test_serialize_offered_bpsTest(self, mgr, bp_config):
+        """offered_bps should survive serialize → restore round-trip."""
+        mgr.create_instance(bp_config, "sess-1")
+        mgr.mark_bp_offered("sess-1", "test-bp")
+        mgr.mark_bp_offered("sess-1", "other-bp")
+
+        data = mgr.serialize_for_session("sess-1")
+        assert "offered_bps" in data
+        assert set(data["offered_bps"]) == {"test-bp", "other-bp"}
+
+        mgr2 = BPStateManager()
+        mgr2.restore_from_dict("sess-1", data, config_map={"test-bp": bp_config})
+        assert mgr2.is_bp_offered("sess-1", "test-bp")
+        assert mgr2.is_bp_offered("sess-1", "other-bp")
+        assert not mgr2.is_bp_offered("sess-1", "unknown-bp")
+
+    def test_restore_without_offered_bps_backcompatTest(self, mgr, bp_config):
+        """Old serialized data without offered_bps should not break restore."""
+        data = {
+            "version": 1,
+            "instances": [],
+            "cooldown": 0,
+        }
+        count = mgr.restore_from_dict("sess-1", data)
+        assert count == 0
+        assert not mgr.is_bp_offered("sess-1", "any")
+
+
+class TestStatusTableEnhanced:
+    def test_status_table_has_current_stepTest(self, mgr, bp_config):
+        """Status table should include Current Step column."""
+        inst_id = mgr.create_instance(bp_config, "sess-1")
+        snap = mgr.get(inst_id)
+        snap.bp_config = bp_config  # ensure config is attached
+        table = mgr.get_status_table("sess-1")
+        assert "Current Step" in table
+        assert "调研" in table  # first subtask name (s1="调研")

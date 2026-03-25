@@ -25,7 +25,7 @@ from seeagent.api.adapters.step_filter import StepFilter
 from seeagent.api.adapters.timer_tracker import TimerTracker
 from seeagent.api.adapters.title_generator import TitleGenerator
 
-from .models import RunMode, SubtaskStatus
+from .models import BPStatus, RunMode, SubtaskStatus
 
 if TYPE_CHECKING:
     from .models import BestPracticeConfig, SubtaskConfig
@@ -106,6 +106,15 @@ class BPEngine:
         yield self._build_progress_event(instance_id, snap, bp_config)
 
         while True:
+            # Check if instance was suspended (e.g. user started a new BP)
+            snap = self.state_manager.get(instance_id)
+            if not snap or snap.status == BPStatus.SUSPENDED:
+                yield {
+                    "type": "bp_suspended",
+                    "instance_id": instance_id,
+                }
+                return
+
             ready = scheduler.get_ready_tasks()
             if not ready:
                 # No tasks ready — might already be done
@@ -172,6 +181,9 @@ class BPEngine:
                         else:
                             # Passthrough other events to the caller
                             yield event
+                except asyncio.CancelledError:
+                    logger.info(f"[BP] Subtask {subtask.id} cancelled (instance suspended)")
+                    return
                 except Exception as exc:
                     logger.error(
                         f"[BP] Subtask {subtask.id} failed: {exc}", exc_info=True,
@@ -398,6 +410,22 @@ class BPEngine:
                 except asyncio.TimeoutError:
                     if delegate_task.done():
                         break
+                    # Check session-level cancellation signal (fastest path)
+                    _cancelled_id = getattr(
+                        getattr(session, "context", None),
+                        "_bp_cancelled_instance", None,
+                    )
+                    if _cancelled_id == instance_id:
+                        logger.info(f"[BP] Detected cancel signal for {instance_id}")
+                        if not delegate_task.done():
+                            delegate_task.cancel()
+                        break
+                    # Check state_manager suspended status (fallback)
+                    _snap = self.state_manager.get(instance_id)
+                    if _snap and _snap.status == BPStatus.SUSPENDED:
+                        if not delegate_task.done():
+                            delegate_task.cancel()
+                        break
                     continue
 
                 etype = event.get("type")
@@ -486,8 +514,12 @@ class BPEngine:
                 except asyncio.QueueEmpty:
                     break
 
-            # Get final result
-            raw_result = await delegate_task
+            # Get final result (may have been cancelled due to suspend)
+            try:
+                raw_result = await delegate_task
+            except asyncio.CancelledError:
+                logger.info(f"[BP] Delegate task cancelled for {subtask.id}")
+                return
             output = self._parse_output(raw_result)
             yield {
                 "type": "_internal_output",

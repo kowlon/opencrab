@@ -48,6 +48,19 @@ def bp_config():
 
 
 @pytest.fixture
+def bp_config2():
+    return BestPracticeConfig(
+        id="test-bp-2", name="Test2", description="desc2",
+        subtasks=[
+            SubtaskConfig(
+                id="s1", name="S1", agent_profile="agent-a",
+                input_schema={"type": "object", "properties": {"q": {"type": "string"}}},
+            ),
+        ],
+    )
+
+
+@pytest.fixture
 def handler(bp_config):
     state_mgr = BPStateManager()
     engine = BPEngine(state_manager=state_mgr)
@@ -55,6 +68,18 @@ def handler(bp_config):
     return BPToolHandler(
         engine=engine, state_manager=state_mgr,
         context_bridge=bridge, config_registry={bp_config.id: bp_config},
+    )
+
+
+@pytest.fixture
+def handler_multi(bp_config, bp_config2):
+    state_mgr = BPStateManager()
+    engine = BPEngine(state_manager=state_mgr)
+    bridge = ContextBridge(state_manager=state_mgr)
+    return BPToolHandler(
+        engine=engine, state_manager=state_mgr,
+        context_bridge=bridge,
+        config_registry={bp_config.id: bp_config, bp_config2.id: bp_config2},
     )
 
 
@@ -124,14 +149,14 @@ class TestBPEditOutput:
 
 class TestBPSwitchTask:
     @pytest.mark.asyncio
-    async def test_switch_task(self, handler):
+    async def test_switch_task(self, handler_multi):
         agent = MockAgent()
-        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "1"}}, agent)
-        first_id = handler.state_manager.get_active("test-session").instance_id
-        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "2"}}, agent)
-        second_id = handler.state_manager.get_active("test-session").instance_id
+        await handler_multi.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "1"}}, agent)
+        first_id = handler_multi.state_manager.get_active("test-session").instance_id
+        await handler_multi.handle("bp_start", {"bp_id": "test-bp-2", "input_data": {"q": "2"}}, agent)
+        second_id = handler_multi.state_manager.get_active("test-session").instance_id
 
-        result = await handler.handle("bp_switch_task", {"target_instance_id": first_id}, agent)
+        result = await handler_multi.handle("bp_switch_task", {"target_instance_id": first_id}, agent)
         assert "切换" in result or first_id in result
 
     @pytest.mark.asyncio
@@ -141,6 +166,70 @@ class TestBPSwitchTask:
         active_id = handler.state_manager.get_active("test-session").instance_id
         result = await handler.handle("bp_switch_task", {"target_instance_id": active_id}, agent)
         assert "已经是" in result
+
+    @pytest.mark.asyncio
+    async def test_switch_persists_stateTest(self, handler_multi):
+        """switch 后 session.metadata['bp_state'] 应包含两个 instances。"""
+        agent = MockAgent()
+        session = agent._current_session
+        await handler_multi.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "1"}}, agent)
+        first_id = handler_multi.state_manager.get_active("test-session").instance_id
+        await handler_multi.handle("bp_start", {"bp_id": "test-bp-2", "input_data": {"q": "2"}}, agent)
+        second_id = handler_multi.state_manager.get_active("test-session").instance_id
+
+        await handler_multi.handle("bp_switch_task", {"target_instance_id": first_id}, agent)
+        bp_state = session.metadata.get("bp_state")
+        assert bp_state is not None
+        assert len(bp_state["instances"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_switch_cross_session_rejectedTest(self, handler):
+        """不同 session 的实例不能被 switch。"""
+        agent_a = MockAgent()
+        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "1"}}, agent_a)
+        inst_a = handler.state_manager.get_active("test-session").instance_id
+
+        # 创建另一个 session 的 agent
+        agent_b = MockAgent()
+        agent_b._current_session.id = "other-session"
+        # 先在 session-B 创建一个实例让它有 active
+        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "2"}}, agent_b)
+
+        result = await handler.handle(
+            "bp_switch_task", {"target_instance_id": inst_a}, agent_b,
+        )
+        assert "不属于当前会话" in result
+
+
+class TestBPStartSuspend:
+    @pytest.mark.asyncio
+    async def test_start_suspends_with_pending_switchTest(self, handler_multi):
+        """bp_start 挂起旧实例时应创建 PendingContextSwitch。"""
+        agent = MockAgent()
+        await handler_multi.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "1"}}, agent)
+        first_id = handler_multi.state_manager.get_active("test-session").instance_id
+
+        await handler_multi.handle("bp_start", {"bp_id": "test-bp-2", "input_data": {"q": "2"}}, agent)
+        second_id = handler_multi.state_manager.get_active("test-session").instance_id
+
+        pending = handler_multi.state_manager._pending_switches.get("test-session")
+        assert pending is not None
+        assert pending.suspended_instance_id == first_id
+        assert pending.target_instance_id == second_id
+
+    @pytest.mark.asyncio
+    async def test_start_persists_after_suspendTest(self, handler_multi):
+        """bp_start 挂起 + 创建后应持久化，旧实例状态为 suspended。"""
+        agent = MockAgent()
+        session = agent._current_session
+        await handler_multi.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "1"}}, agent)
+        await handler_multi.handle("bp_start", {"bp_id": "test-bp-2", "input_data": {"q": "2"}}, agent)
+
+        bp_state = session.metadata.get("bp_state")
+        assert bp_state is not None
+        statuses = [inst["status"] for inst in bp_state["instances"]]
+        assert "suspended" in statuses
+        assert "active" in statuses
 
 
 # ── Unknown tool ───────────────────────────────────────────────
