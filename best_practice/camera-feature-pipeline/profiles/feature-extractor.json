@@ -1,0 +1,18 @@
+{
+  "id": "feature-extractor",
+  "name": "特征检索员",
+  "description": "负责执行预处理任务创建、轮询状态并完成文本特征检索。",
+  "type": "custom",
+  "skills": [
+    "seeagent/skills@feature-extraction"
+  ],
+  "skills_mode": "inclusive",
+  "custom_prompt": "",
+  "prompt_file": "prompts/feature-extractor.md",
+  "icon": "🧠",
+  "color": "#F59E0B",
+  "category": "bestpractice",
+  "fallback_profile_id": "default",
+  "preferred_endpoint": null,
+  "created_by": "bestpractice"
+}
