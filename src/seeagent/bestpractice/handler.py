@@ -16,7 +16,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .models import PendingContextSwitch, RunMode
+from .models import RunMode
 
 if TYPE_CHECKING:
     from .context_bridge import ContextBridge
@@ -78,73 +78,23 @@ class BPToolHandler:
             available = ", ".join(self.config_registry.keys())
             return f"❌ Best Practice '{bp_id}' 不存在。可用: {available}"
 
-        # Prevent duplicate: check for existing active instance
+        # Prevent duplicate: same BP already active
         existing = self.state_manager.get_active(session.id)
-        if existing:
-            if existing.bp_id == bp_id:
-                # Same BP already active — guide LLM to continue
-                return (
-                    f"✅ 「{bp_config.name}」已在运行中 (instance={existing.instance_id})。"
-                    f"该实例已在运行中，前端会自动接管执行。"
-                    f"无需重复启动。"
-                )
-            else:
-                # Different BP — suspend old, proceed to create new
-                old_name = existing.bp_config.name if existing.bp_config else existing.bp_id
-                self.state_manager.suspend(existing.instance_id)
-                # Queue context compression for the suspended instance
-                self.state_manager.set_pending_switch(
-                    session.id,
-                    PendingContextSwitch(
-                        suspended_instance_id=existing.instance_id,
-                        target_instance_id="",  # will be filled after create
-                    ),
-                )
-                logger.info(f"[BP] Suspended existing instance {existing.instance_id} "
-                            f"({old_name}) to start {bp_id}")
+        if existing and existing.bp_id == bp_id:
+            return (
+                f"✅ 「{bp_config.name}」已在运行中 (instance={existing.instance_id})。"
+                f"该实例已在运行中，前端会自动接管执行。"
+                f"无需重复启动。"
+            )
 
         input_data = params.get("input_data", {})
         run_mode_str = params.get("run_mode", bp_config.default_run_mode.value)
         run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
 
-        logger.info(f"[BP-DEBUG] bp_start: bp_id={bp_id}, session_id={session.id}, "
-                     f"run_mode={run_mode.value}")
-        inst_id = self.state_manager.create_instance(
-            bp_config, session.id, initial_input=input_data, run_mode=run_mode,
+        await self._relay_events(
+            self.engine.start(bp_config, session, input_data, run_mode), session,
         )
-        logger.info(f"[BP-DEBUG] bp_start: created instance {inst_id}")
-
-        # Backfill target_instance_id on pending switch (if queued above)
-        pending = self.state_manager._pending_switches.get(session.id)
-        if pending and not pending.target_instance_id:
-            pending.target_instance_id = inst_id
-
-        # Persist state (including suspended old instance) to survive restart
-        self.engine._persist(inst_id, session)
-
-        # Push event to SSE event_bus for frontend to take over (R6, R14)
-        bus = getattr(session.context, "_sse_event_bus", None) if hasattr(session, "context") else None
-        if bus:
-            await bus.put({
-                "type": "bp_instance_created",
-                "instance_id": inst_id,
-                "bp_id": bp_id,
-                "bp_name": bp_config.name,
-                "run_mode": run_mode.value,
-                "subtasks": [
-                    {"id": s.id, "name": s.name} for s in bp_config.subtasks
-                ],
-            })
-
-        # Execute first subtask
-        async for event in self.engine.advance(inst_id, session):
-            if bus:
-                await bus.put(event)
-        self._persist_to_session(inst_id, session)
-
-        return (
-            f"✅ 已创建并执行 BP 实例「{bp_config.name}」(id={inst_id})。"
-        )
+        return f"✅ 已创建并执行 BP 实例「{bp_config.name}」。"
 
     # ── bp_edit_output ─────────────────────────────────────────
 
@@ -208,27 +158,11 @@ class BPToolHandler:
         if target.session_id != session.id:
             return f"❌ BP instance {target_id} 不属于当前会话"
 
-        current_active = self.state_manager.get_active(session.id)
-        current_id = current_active.instance_id if current_active else ""
-
-        if current_id == target_id:
-            return f"ℹ️ {target_id} 已经是当前活跃任务"
-
-        if current_id:
-            self.state_manager.suspend(current_id)
-        self.state_manager.resume(target_id)
-
-        # C-3: PendingContextSwitch
-        self.state_manager.set_pending_switch(
-            session.id,
-            PendingContextSwitch(
-                suspended_instance_id=current_id,
-                target_instance_id=target_id,
-            ),
-        )
-
-        # Persist state change so it survives server restart
-        self.engine._persist(target_id, session)
+        result = self.engine.switch(target_id, session)
+        if not result.get("success"):
+            if result.get("already_active"):
+                return f"ℹ️ {target_id} 已经是当前活跃任务"
+            return f"❌ {result.get('error', 'Unknown error')}"
 
         bp_config = self._get_config_for_instance(target)
         bp_name = bp_config.name if bp_config else target.bp_id
@@ -247,11 +181,8 @@ class BPToolHandler:
         snap = self.state_manager.get(instance_id)
         if not snap:
             return "❌ BP 实例不存在"
-        bus = getattr(session.context, "_sse_event_bus", None) if hasattr(session, "context") else None
-        async for event in self.engine.advance(instance_id, session):
-            if bus:
-                await bus.put(event)
-        self._persist_to_session(instance_id, session)
+        await self._relay_events(self.engine.advance(instance_id, session), session)
+        self.state_manager.persist_to_session(instance_id, session)
         return "✅ 子任务执行完成"
 
     # ── bp_answer ─────────────────────────────────────────────
@@ -262,11 +193,10 @@ class BPToolHandler:
         data = params.get("data", {})
         if not instance_id or not subtask_id or not data:
             return "❌ 需要 subtask_id 和 data 参数"
-        bus = getattr(session.context, "_sse_event_bus", None) if hasattr(session, "context") else None
-        async for event in self.engine.answer(instance_id, subtask_id, data, session):
-            if bus:
-                await bus.put(event)
-        self._persist_to_session(instance_id, session)
+        await self._relay_events(
+            self.engine.answer(instance_id, subtask_id, data, session), session,
+        )
+        self.state_manager.persist_to_session(instance_id, session)
         return "✅ 参数已补充，子任务执行中"
 
     # ── bp_cancel ─────────────────────────────────────────────
@@ -279,24 +209,21 @@ class BPToolHandler:
         if not snap:
             return "❌ BP 实例不存在"
         bp_name = snap.bp_config.name if snap.bp_config else snap.bp_id
-        self.state_manager.cancel(instance_id)
-        self.state_manager.set_cooldown(snap.session_id)
-        # Cancel running delegate task if any
-        if session and hasattr(session, "context"):
-            dt = getattr(session.context, "_bp_delegate_task", None)
-            if dt and not dt.done():
-                dt.cancel()
-        bus = getattr(session.context, "_sse_event_bus", None) if hasattr(session, "context") else None
-        if bus:
-            await bus.put({
-                "type": "bp_cancelled",
-                "instance_id": instance_id,
-                "bp_name": bp_name,
-            })
-        self._persist_to_session(instance_id, session)
+        await self._relay_events(self.engine.cancel(instance_id, session), session)
         return f"✅ 已取消最佳实践任务「{bp_name}」(id={instance_id})"
 
     # ── Helpers ────────────────────────────────────────────────
+
+    @staticmethod
+    async def _relay_events(event_gen, session: Any) -> None:
+        """Forward events from an async generator to the SSE event_bus."""
+        bus = (
+            getattr(session.context, "_sse_event_bus", None)
+            if hasattr(session, "context") else None
+        )
+        async for event in event_gen:
+            if bus:
+                await bus.put(event)
 
     def _resolve_instance_id(self, params: dict, session: Any) -> str | None:
         instance_id = (params.get("instance_id") or "").strip()
@@ -310,13 +237,3 @@ class BPToolHandler:
         if snap.bp_config:
             return snap.bp_config
         return self.config_registry.get(snap.bp_id)
-
-    def _persist_to_session(self, instance_id: str, session: Any) -> None:
-        """Persist BP state to session metadata."""
-        snap = self.state_manager.get(instance_id)
-        if not snap or not session:
-            return
-        try:
-            session.metadata["bp_state"] = self.state_manager.serialize_for_session(snap.session_id)
-        except Exception:
-            pass

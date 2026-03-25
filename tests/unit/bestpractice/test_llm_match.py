@@ -22,8 +22,12 @@ def reset_facade():
     facade._bp_config_loader = None
     facade._bp_context_bridge = None
     facade._bp_prompt_loader = None
+    facade._bp_matcher = None
+    facade._bp_prompt_builder = None
     yield
     facade._initialized = False
+    facade._bp_matcher = None
+    facade._bp_prompt_builder = None
 
 
 @pytest.fixture
@@ -57,10 +61,17 @@ def setup_llm_match():
 
     state_mgr = BPStateManager()
 
+    from seeagent.bestpractice.matcher import BPMatcher
+
     facade._initialized = True
     facade._bp_config_loader = mock_loader
     facade._bp_state_manager = state_mgr
     facade._bp_prompt_loader = mock_prompt_loader
+    facade._bp_matcher = BPMatcher(
+        config_loader=mock_loader,
+        state_manager=state_mgr,
+        prompt_loader=mock_prompt_loader,
+    )
     return state_mgr, config
 
 

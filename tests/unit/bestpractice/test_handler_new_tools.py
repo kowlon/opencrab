@@ -149,5 +149,5 @@ class TestPersistToSession:
         agent = MockAgent()
         await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
         active = handler.state_manager.get_active("test-session")
-        handler._persist_to_session(active.instance_id, agent._current_session)
+        handler.state_manager.persist_to_session(active.instance_id, agent._current_session)
         assert "bp_state" in agent._current_session.metadata

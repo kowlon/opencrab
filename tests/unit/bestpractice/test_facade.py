@@ -34,6 +34,8 @@ def reset_facade():
     facade._bp_config_loader = None
     facade._bp_context_bridge = None
     facade._bp_prompt_loader = None
+    facade._bp_matcher = None
+    facade._bp_prompt_builder = None
     yield
     facade._initialized = False
     facade._bp_engine = None
@@ -42,6 +44,8 @@ def reset_facade():
     facade._bp_config_loader = None
     facade._bp_context_bridge = None
     facade._bp_prompt_loader = None
+    facade._bp_matcher = None
+    facade._bp_prompt_builder = None
 
 
 @pytest.fixture
@@ -168,14 +172,24 @@ class TestMatchBPFromMessage:
     @pytest.fixture
     def setup_facade_with_config(self, sample_bp_config):
         """Wire up facade globals with a mock config loader and real state manager."""
+        from seeagent.bestpractice.matcher import BPMatcher
+        from seeagent.bestpractice.prompt_loader import PromptTemplateLoader
+
         mock_loader = MagicMock()
         mock_loader.configs = {sample_bp_config.id: sample_bp_config}
 
         state_mgr = BPStateManager()
+        prompt_loader = PromptTemplateLoader()
 
         facade._initialized = True
         facade._bp_config_loader = mock_loader
         facade._bp_state_manager = state_mgr
+        facade._bp_prompt_loader = prompt_loader
+        facade._bp_matcher = BPMatcher(
+            config_loader=mock_loader,
+            state_manager=state_mgr,
+            prompt_loader=prompt_loader,
+        )
         return state_mgr
 
     def test_keyword_match_returns_metadata(

@@ -19,12 +19,7 @@ import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
-from seeagent.api.adapters.card_builder import CardBuilder
-from seeagent.api.adapters.step_aggregator import StepAggregator
-from seeagent.api.adapters.step_filter import StepFilter
-from seeagent.api.adapters.timer_tracker import TimerTracker
-from seeagent.api.adapters.title_generator import TitleGenerator
-
+from .event_formatter import BPEventFormatter
 from .models import BPStatus, RunMode, SubtaskStatus
 
 if TYPE_CHECKING:
@@ -77,6 +72,127 @@ class BPEngine:
             return None
 
     # ── Core execution (new: async generator) ────────────────────
+
+    # ── High-level operations (called by handler) ───────────────
+
+    async def start(
+        self,
+        bp_config: Any,
+        session: Any,
+        input_data: dict[str, Any] | None = None,
+        run_mode: RunMode = RunMode.MANUAL,
+    ) -> AsyncIterator[dict]:
+        """Create a BP instance, handle suspension of old, emit events, advance first subtask.
+
+        Yields: bp_instance_created, then all events from advance().
+        """
+        from .models import PendingContextSwitch
+
+        existing = self.state_manager.get_active(session.id)
+        if existing and existing.bp_id == bp_config.id:
+            return
+
+        if existing:
+            self.state_manager.suspend(existing.instance_id)
+            self.state_manager.set_pending_switch(
+                session.id,
+                PendingContextSwitch(
+                    suspended_instance_id=existing.instance_id,
+                    target_instance_id="",
+                ),
+            )
+            old_name = existing.bp_config.name if existing.bp_config else existing.bp_id
+            logger.info(
+                f"[BP] Suspended existing instance {existing.instance_id} "
+                f"({old_name}) to start {bp_config.id}"
+            )
+
+        logger.info(
+            f"[BP-DEBUG] bp_start: bp_id={bp_config.id}, "
+            f"session_id={session.id}, run_mode={run_mode.value}"
+        )
+        inst_id = self.state_manager.create_instance(
+            bp_config, session.id, initial_input=input_data or {}, run_mode=run_mode,
+        )
+        logger.info(f"[BP-DEBUG] bp_start: created instance {inst_id}")
+
+        # Backfill target_instance_id on pending switch
+        pending = self.state_manager._pending_switches.get(session.id)
+        if pending and not pending.target_instance_id:
+            pending.target_instance_id = inst_id
+
+        self.state_manager.persist_to_session(inst_id, session)
+
+        yield {
+            "type": "bp_instance_created",
+            "instance_id": inst_id,
+            "bp_id": bp_config.id,
+            "bp_name": bp_config.name,
+            "run_mode": run_mode.value,
+            "subtasks": [
+                {"id": s.id, "name": s.name} for s in bp_config.subtasks
+            ],
+        }
+
+        async for event in self.advance(inst_id, session):
+            yield event
+
+        self.state_manager.persist_to_session(inst_id, session)
+
+    def switch(self, target_id: str, session: Any) -> dict[str, Any]:
+        """Switch active instance. Returns result metadata dict."""
+        from .models import PendingContextSwitch
+
+        target = self.state_manager.get(target_id)
+        if not target:
+            return {"success": False, "error": f"BP instance {target_id} not found"}
+
+        current_active = self.state_manager.get_active(session.id)
+        current_id = current_active.instance_id if current_active else ""
+
+        if current_id == target_id:
+            return {"success": False, "already_active": True}
+
+        if current_id:
+            self.state_manager.suspend(current_id)
+        self.state_manager.resume(target_id)
+
+        self.state_manager.set_pending_switch(
+            session.id,
+            PendingContextSwitch(
+                suspended_instance_id=current_id,
+                target_instance_id=target_id,
+            ),
+        )
+        self.state_manager.persist_to_session(target_id, session)
+        return {"success": True, "target_id": target_id}
+
+    async def cancel(
+        self, instance_id: str, session: Any,
+    ) -> AsyncIterator[dict]:
+        """Cancel instance, clean up delegate task, yield bp_cancelled."""
+        snap = self.state_manager.get(instance_id)
+        if not snap:
+            return
+
+        bp_name = snap.bp_config.name if snap.bp_config else snap.bp_id
+        self.state_manager.cancel(instance_id)
+        self.state_manager.set_cooldown(snap.session_id)
+
+        # Cancel running delegate task if any
+        if session and hasattr(session, "context"):
+            dt = getattr(session.context, "_bp_delegate_task", None)
+            if dt and not dt.done():
+                dt.cancel()
+
+        yield {
+            "type": "bp_cancelled",
+            "instance_id": instance_id,
+            "bp_name": bp_name,
+        }
+        self.state_manager.persist_to_session(instance_id, session)
+
+    # ── Core execution ─────────────────────────────────────────
 
     async def advance(
         self, instance_id: str, session: Any,
@@ -291,8 +407,8 @@ class BPEngine:
         }
 
     def _persist_state(self, instance_id: str, session: Any) -> None:
-        """Persist BP state to session metadata (delegates to _persist)."""
-        self._persist(instance_id, session)
+        """Persist BP state to session metadata."""
+        self.state_manager.persist_to_session(instance_id, session)
 
     @staticmethod
     def _extract_summary(output: dict) -> str:
@@ -368,41 +484,17 @@ class BPEngine:
             if hasattr(session, "context"):
                 session.context._bp_delegate_task = delegate_task
 
-            # Initialize step card processing pipeline (reuse adapter components)
-            step_filter = StepFilter()
-            card_builder = CardBuilder()
-            timer = TimerTracker()
-            timer.start(f"bp_{instance_id}_{subtask.id}")
-            title_gen = TitleGenerator(brain=None, user_messages=[])
-            title_queue: asyncio.Queue = asyncio.Queue()
-            sub_agent_id = subtask.agent_profile
-            aggregator = StepAggregator(
-                title_gen=title_gen,
-                card_builder=card_builder,
-                timer=timer,
-                title_update_queue=title_queue,
-                agent_id=sub_agent_id,
+            # Initialize event formatter (encapsulates step card pipeline)
+            fmt = BPEventFormatter(
+                agent_profile=subtask.agent_profile,
+                subtask_name=subtask.name,
+                instance_id=instance_id,
+                subtask_id=subtask.id,
+                delegate_step_id=delegate_step_id,
             )
 
             # Accumulate tool call results for richer output extraction
             tool_results: list[str] = []
-
-            # Deferred delegate card: yield thinking first, then delegate card
-            # before the first non-thinking event arrives.
-            delegate_card_yielded = False
-
-            def _make_delegate_card(status: str, duration=None):
-                return {
-                    "type": "step_card",
-                    "step_id": delegate_step_id,
-                    "title": f"委派 {subtask.agent_profile}: {subtask.name}",
-                    "status": status,
-                    "source_type": "tool",
-                    "card_type": "delegate",
-                    "agent_id": "main",
-                    "delegate_agent_id": sub_agent_id,
-                    "duration": duration,
-                }
 
             while True:
                 try:
@@ -434,65 +526,40 @@ class BPEngine:
 
                 # Track sub-agent identity
                 if etype == "agent_header":
-                    aid = event.get("agent_id")
-                    if aid and aid != "main":
-                        sub_agent_id = aid
-                        aggregator._agent_id = aid
+                    fmt.on_agent_header(event)
                     continue
 
                 # Forward thinking content BEFORE delegate card
                 if etype == "thinking_delta":
-                    yield {
-                        "type": "thinking",
-                        "content": event.get("content", ""),
-                        "agent_id": sub_agent_id,
-                    }
+                    yield fmt.make_thinking_event(event)
                     continue
 
                 if etype in ("thinking_start", "thinking_end"):
                     continue
 
                 # For any non-thinking event, ensure delegate card is yielded first
-                if not delegate_card_yielded:
-                    yield _make_delegate_card("running")
-                    delegate_card_yielded = True
+                for ev in fmt.ensure_delegate_card():
+                    yield ev
 
                 # Tool call start → filter + aggregate
                 if etype == "tool_call_start":
-                    tool_name = event.get("tool", "")
-                    args = event.get("args", {})
-                    tool_id = event.get("id", f"bp_tool_{id(event)}")
-                    fr = step_filter.classify(tool_name, args)
-                    for ev in await aggregator.on_tool_call_start(
-                        tool_name, args, tool_id, fr
-                    ):
+                    for ev in await fmt.on_tool_call_start(event):
                         yield ev
-                    # Drain title updates
-                    while not title_queue.empty():
-                        try:
-                            yield title_queue.get_nowait()
-                        except asyncio.QueueEmpty:
-                            break
                     continue
 
                 # Tool call end → update aggregated card
                 if etype == "tool_call_end":
-                    tool_name = event.get("tool", "")
-                    tool_id = event.get("id", "")
                     result = event.get("result", "")
                     is_error = event.get("is_error", False)
-                    # Capture non-error tool results for output extraction
                     if not is_error and result:
                         tool_results.append(str(result))
-                    for ev in await aggregator.on_tool_call_end(
-                        tool_name, tool_id, result, is_error
-                    ):
+                    for ev in await fmt.on_tool_call_end(event):
                         yield ev
                     continue
 
                 # Text delta → close any active aggregation
                 if etype == "text_delta":
-                    for ev in await aggregator.on_text_delta():
+                    for ev in await fmt.on_text_delta():
                         yield ev
                     continue
 
@@ -502,17 +569,12 @@ class BPEngine:
                     continue
 
             # Ensure delegate card was yielded (edge case: only thinking events)
-            if not delegate_card_yielded:
-                yield _make_delegate_card("running")
+            for ev in fmt.ensure_delegate_card():
+                yield ev
 
             # Flush any pending aggregation
-            for ev in await aggregator.flush():
+            for ev in await fmt.flush():
                 yield ev
-            while not title_queue.empty():
-                try:
-                    yield title_queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
 
             # Get final result (may have been cancelled due to suspend)
             try:
@@ -893,84 +955,7 @@ class BPEngine:
                 return f"输出缺少字段: {missing}"
         return None
 
-    # ── Persistence ────────────────────────────────────────────
-
-    def _persist(self, instance_id: str, session: Any) -> None:
-        """持久化 BP 状态到 Session.metadata["bp_state"]。"""
-        snap = self.state_manager.get(instance_id)
-        if not snap:
-            return
-        try:
-            data = self.state_manager.serialize_for_session(snap.session_id)
-            if hasattr(session, "metadata"):
-                session.metadata["bp_state"] = data
-        except Exception as e:
-            logger.warning(f"[BP] Persist failed: {e}")
-
     # ── SSE Events ─────────────────────────────────────────────
-
-    async def _emit_progress(self, instance_id: str, session: Any) -> None:
-        bus = getattr(getattr(session, "context", None), "_sse_event_bus", None)
-        if not bus:
-            return
-        try:
-            snap = self.state_manager.get(instance_id)
-            if snap:
-                bp_name = snap.bp_config.name if snap.bp_config else snap.bp_id
-                await bus.put({
-                    "type": "bp_progress",
-                    "data": {
-                        "instance_id": instance_id,
-                        "bp_name": bp_name,
-                        "statuses": dict(snap.subtask_statuses),
-                        "subtasks": [
-                            {"id": st.id, "name": st.name}
-                            for st in snap.bp_config.subtasks
-                        ] if snap.bp_config else [],
-                        "current_subtask_index": snap.current_subtask_index,
-                        "run_mode": snap.run_mode.value,
-                        "status": snap.status.value,
-                    },
-                })
-        except Exception:
-            pass
-
-    async def _emit_subtask_output(
-        self, instance_id: str, subtask_id: str, output: dict, session: Any,
-        *, bp_config: BestPracticeConfig | None = None, summary: str | None = None,
-    ) -> None:
-        bus = getattr(getattr(session, "context", None), "_sse_event_bus", None)
-        if not bus:
-            return
-        try:
-            snap = self.state_manager.get(instance_id)
-            subtask_name = subtask_id
-            output_schema: dict | None = None
-            cfg = bp_config or (snap.bp_config if snap else None)
-            if cfg:
-                for i, st in enumerate(cfg.subtasks):
-                    if st.id == subtask_id:
-                        subtask_name = st.name
-                        if i + 1 < len(cfg.subtasks):
-                            output_schema = cfg.subtasks[i + 1].input_schema
-                        else:
-                            # Last subtask: use the overall BP's final_output_schema
-                            output_schema = getattr(cfg, "final_output_schema", None)
-                        break
-
-            await bus.put({
-                "type": "bp_subtask_output",
-                "data": {
-                    "instance_id": instance_id,
-                    "subtask_id": subtask_id,
-                    "subtask_name": subtask_name,
-                    "output": output,
-                    "output_schema": output_schema,
-                    "summary": summary or self._build_summary(output),
-                },
-            })
-        except Exception:
-            pass
 
     @staticmethod
     def _extract_summary_from_result(raw_result: str, output: dict) -> str | None:
@@ -993,41 +978,6 @@ class BPEngine:
                 if lines:
                     return " ".join(lines)[:300]
         return None
-
-    @staticmethod
-    def _build_summary(output: dict) -> str:
-        """构建输出摘要：key 列表 + 前 200 字符预览。"""
-        if not output:
-            return ""
-        keys = list(output.keys())
-        preview = json.dumps(output, ensure_ascii=False)[:200]
-        return f"字段: {', '.join(keys)} | {preview}"
-
-    async def _emit_delegate_card(
-        self, step_id: str, subtask: SubtaskConfig, session: Any,
-        status: str = "running", duration: float | None = None,
-    ) -> None:
-        """Emit a step_card for the delegation action itself (parent-level card)."""
-        bus = getattr(getattr(session, "context", None), "_sse_event_bus", None)
-        if not bus:
-            return
-        try:
-            await bus.put({
-                "type": "step_card",
-                "step_id": step_id,
-                "title": f"委派 {subtask.agent_profile}: {subtask.name}子任务",
-                "status": status,
-                "source_type": "tool",
-                "card_type": "delegate",
-                "agent_id": "main",
-                "duration": duration,
-                "plan_step_index": None,
-                "input": None,
-                "output": None,
-                "absorbed_calls": [],
-            })
-        except Exception:
-            pass
 
     async def _emit_stale(
         self, instance_id: str, stale_ids: list[str], reason: str, session: Any,

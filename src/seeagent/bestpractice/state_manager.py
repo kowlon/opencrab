@@ -231,6 +231,18 @@ class BPStateManager:
 
     # ── Persistence ────────────────────────────────────────────
 
+    def persist_to_session(self, instance_id: str, session: Any) -> None:
+        """Persist BP state to session metadata (unified entry point)."""
+        snap = self.get(instance_id)
+        if not snap or not session:
+            return
+        try:
+            data = self.serialize_for_session(snap.session_id)
+            if hasattr(session, "metadata"):
+                session.metadata["bp_state"] = data
+        except Exception as e:
+            logger.warning(f"[BP] Persist failed: {e}")
+
     def serialize_for_session(self, session_id: str) -> dict[str, Any]:
         """序列化 session 的所有实例 → 可存入 Session.metadata["bp_state"]。"""
         instances = self.get_all_for_session(session_id)
