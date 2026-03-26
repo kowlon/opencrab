@@ -311,8 +311,21 @@ class BPStateManager:
         for inst_data in data.get("instances", []):
             snap = BPInstanceSnapshot.deserialize(inst_data)
             snap.bp_config = config_map.get(snap.bp_id)
+            # Safety: never overwrite an existing in-memory instance.
+            # Overwrites can roll back progress if the persisted metadata is stale
+            # (e.g. advance() updated index but _persist_bp_to_session hasn't run yet).
+            existing = self._instances.get(snap.instance_id)
+            if existing:
+                if existing.bp_config is None and snap.bp_config is not None:
+                    existing.bp_config = snap.bp_config
+                logger.debug(
+                    f"[BP] restore_from_dict: skipped {snap.instance_id} "
+                    f"(already in memory, idx={existing.current_subtask_index})"
+                )
+                continue
+
             logger.info(
-                f"[BP-DEBUG] restore_from_dict: {snap.instance_id} idx={snap.current_subtask_index}"
+                f"[BP] restore_from_dict: {snap.instance_id} idx={snap.current_subtask_index}"
             )
             self._instances[snap.instance_id] = snap
             count += 1

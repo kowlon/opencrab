@@ -216,6 +216,11 @@ class BPEngine:
             yield {"type": "error", "message": f"BP config not found for {snap.bp_id}"}
             return
 
+        logger.debug(
+            f"[BP] advance() entry: instance={instance_id} "
+            f"idx={snap.current_subtask_index} statuses={snap.subtask_statuses}"
+        )
+
         scheduler = self._get_scheduler(bp_config, snap)
 
         # Gap 1: yield initial progress so TaskProgressCard is visible immediately
@@ -230,6 +235,22 @@ class BPEngine:
                     "instance_id": instance_id,
                 }
                 return
+
+            # Keep scheduler snapshot reference in sync with state_manager.
+            # If state_manager restores/overwrites the in-memory snapshot object (e.g. after restart),
+            # a scheduler that still points to the old object would update the wrong snapshot and
+            # persistence would appear "rolled back" on the next /bp/next.
+            if getattr(scheduler, "_snap", None) is not snap:
+                logger.warning(
+                    f"[BP] scheduler snapshot drift detected; resyncing "
+                    f"instance={instance_id}"
+                )
+                scheduler._snap = snap
+
+            logger.debug(
+                f"[BP] advance() loop: instance={instance_id} "
+                f"idx={snap.current_subtask_index}"
+            )
 
             ready = scheduler.get_ready_tasks()
             if not ready:
@@ -339,6 +360,10 @@ class BPEngine:
                 )
 
                 scheduler.complete_task(subtask.id, output)
+                logger.debug(
+                    f"[BP] complete_task: subtask={subtask.id} "
+                    f"idx={snap.current_subtask_index}"
+                )
                 self._persist_state(instance_id, session)
 
                 yield {
