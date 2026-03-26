@@ -191,7 +191,11 @@ class TestRestoreStructured:
             "compressed_at": 1711353600.0,
             "compression_method": "llm",
         })
-        snap = _make_snap(context_summary=summary)
+        # Recovery now reads from snap.subtask_outputs (full data)
+        snap = _make_snap(
+            context_summary=summary,
+            subtask_outputs={"s1": {"result": "research done"}},
+        )
         messages = [{"role": "assistant", "content": "previous response"}]
 
         bridge._restore_context(messages, snap)
@@ -626,6 +630,118 @@ class TestDynamicSectionOutputsPreview:
 
         assert "已完成子任务输出" in result
         assert "key finding" in result
+
+
+# ── Full output restoration (not truncated) ──────────────────
+
+
+class TestFullOutputRestoration:
+    def test_recoveryUsesSnapOutputsNotSummaryTest(self, bridge):
+        """Recovery prompt reads snap.subtask_outputs (full) instead of summary key_outputs."""
+        full_output = {"analysis": "x" * 2000, "details": "long content here"}
+        summary = json.dumps({
+            "version": 1, "bp_name": "BP",
+            "current_subtask_index": 1, "total_subtasks": 2,
+            "subtask_progress": [
+                {"id": "s1", "name": "Research", "status": "done"},
+            ],
+            "key_outputs": {"s1": "truncated to 300 chars"},
+            "semantic_summary": "ctx",
+            "user_intent": "", "compressed_at": 0, "compression_method": "llm",
+        })
+        snap = _make_snap(
+            context_summary=summary,
+            subtask_outputs={"s1": full_output},
+        )
+
+        result = ContextBridge._build_recovery_prompt(
+            json.loads(summary), snap,
+        )
+
+        # Should contain full output content from snap, not truncated summary
+        assert "x" * 100 in result
+        assert "long content here" in result
+        assert "truncated to 300 chars" not in result
+
+
+class TestRawOutputsInRecovery:
+    def test_rawOutputsIncludedTest(self, bridge):
+        """Raw outputs from snap are included in recovery prompt."""
+        summary = json.dumps({
+            "version": 1, "bp_name": "BP",
+            "current_subtask_index": 1, "total_subtasks": 2,
+            "subtask_progress": [],
+            "key_outputs": {}, "semantic_summary": "ctx",
+            "user_intent": "", "compressed_at": 0, "compression_method": "llm",
+        })
+        snap = _make_snap(
+            context_summary=summary,
+            subtask_outputs={},
+            subtask_raw_outputs={"s1": "raw execution details here"},
+        )
+
+        result = ContextBridge._build_recovery_prompt(
+            json.loads(summary), snap,
+        )
+
+        assert "raw execution details" in result
+        assert "Execution details" in result
+
+
+class TestBudgetControl:
+    def test_outputTruncatedAtBudgetTest(self, bridge):
+        """Outputs exceeding _TOTAL_BUDGET are truncated."""
+        large_output = {"data": "x" * 20000}
+        summary = json.dumps({
+            "version": 1, "bp_name": "BP",
+            "current_subtask_index": 1, "total_subtasks": 2,
+            "subtask_progress": [],
+            "key_outputs": {}, "semantic_summary": "",
+            "user_intent": "", "compressed_at": 0, "compression_method": "llm",
+        })
+        snap = _make_snap(
+            context_summary=summary,
+            subtask_outputs={"s1": large_output},
+        )
+
+        result = ContextBridge._build_recovery_prompt(
+            json.loads(summary), snap,
+        )
+
+        # Result should not contain all 20000 chars
+        assert len(result) < 20000
+
+    def test_minimalRecoveryBudgetTest(self, bridge):
+        """_build_minimal_recovery also respects budget control."""
+        snap = _make_snap(
+            context_summary="",
+            subtask_outputs={
+                "s1": {"data": "y" * 20000},
+            },
+            initial_input={"topic": "test"},
+            bp_config=_make_bp_config(),
+        )
+
+        result = ContextBridge._build_minimal_recovery(snap)
+
+        assert len(result) < 20000
+        assert "[Task Resumed]" in result
+
+
+class TestMinimalRecoveryRawOutputs:
+    def test_minimalRecoveryIncludesRawOutputsTest(self, bridge):
+        """Minimal recovery path includes raw outputs."""
+        snap = _make_snap(
+            context_summary="",
+            subtask_outputs={"s1": {"result": "data"}},
+            subtask_raw_outputs={"s1": "raw details from execution"},
+            initial_input={"topic": "test"},
+            bp_config=_make_bp_config(),
+        )
+
+        result = ContextBridge._build_minimal_recovery(snap)
+
+        assert "raw details" in result
 
 
 class TestDynamicSectionUserPreferences:

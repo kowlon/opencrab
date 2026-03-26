@@ -1,7 +1,8 @@
-"""BP 数据模型 — 枚举类型与运行时快照。"""
+"""BP 数据模型 — 枚举类型、上下文抽象与运行时快照。"""
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -39,6 +40,189 @@ class TriggerType(Enum):
     CRON = "cron"
     EVENT = "event"
     UI_CLICK = "ui_click"
+
+
+class ContextLevel(Enum):
+    BP_INSTANCE = "bp_instance"
+    SUBTASK = "subtask"
+
+
+class ArtifactKind(Enum):
+    PROGRESS = "progress"
+    USER_INTENT = "user_intent"
+    SEMANTIC_SUMMARY = "semantic_summary"
+    STRUCTURED_OUTPUT = "structured_output"
+    RAW_TEXT = "raw_text"
+    TOOL_RESULT = "tool_result"
+
+
+# ── Context abstractions ──────────────────────────────────────
+
+
+_ARTIFACT_DEFAULT_PRIORITY: dict[ArtifactKind, int] = {
+    ArtifactKind.PROGRESS: 10,
+    ArtifactKind.USER_INTENT: 9,
+    ArtifactKind.SEMANTIC_SUMMARY: 8,
+    ArtifactKind.STRUCTURED_OUTPUT: 7,
+    ArtifactKind.RAW_TEXT: 3,
+    ArtifactKind.TOOL_RESULT: 2,
+}
+
+
+@dataclass
+class ContextArtifact:
+    """A single piece of captured context data."""
+    kind: ArtifactKind
+    key: str
+    content: str
+    priority: int = 0
+    size: int = 0
+
+    def __post_init__(self) -> None:
+        if isinstance(self.kind, str):
+            self.kind = ArtifactKind(self.kind)
+        if not self.priority:
+            self.priority = _ARTIFACT_DEFAULT_PRIORITY.get(self.kind, 5)
+        if not self.size:
+            self.size = len(self.content)
+
+
+@dataclass
+class ContextEnvelope:
+    """Unified container for captured context at any execution level."""
+    level: ContextLevel
+    source_id: str
+    artifacts: list[ContextArtifact] = field(default_factory=list)
+    summary: str = ""
+    compressed_at: float | None = None
+    compression_method: str = "none"
+    total_budget: int = 15000
+
+    def __post_init__(self) -> None:
+        if isinstance(self.level, str):
+            self.level = ContextLevel(self.level)
+
+    def serialize(self) -> dict[str, Any]:
+        """Serialize to JSON-compatible dict (v2 format)."""
+        return {
+            "version": 2,
+            "level": self.level.value,
+            "source_id": self.source_id,
+            "artifacts": [
+                {
+                    "kind": a.kind.value,
+                    "key": a.key,
+                    "content": a.content,
+                    "priority": a.priority,
+                }
+                for a in self.artifacts
+            ],
+            "summary": self.summary,
+            "compressed_at": self.compressed_at,
+            "compression_method": self.compression_method,
+            "total_budget": self.total_budget,
+        }
+
+    @classmethod
+    def from_v1(cls, json_str: str) -> ContextEnvelope:
+        """Parse legacy v1 context_summary JSON into ContextEnvelope."""
+        try:
+            data = json.loads(json_str)
+        except (json.JSONDecodeError, TypeError):
+            return cls(level=ContextLevel.BP_INSTANCE, source_id="")
+
+        if data.get("version", 1) >= 2:
+            return cls._from_v2(data)
+
+        artifacts: list[ContextArtifact] = []
+
+        for p in data.get("subtask_progress", []):
+            artifacts.append(ContextArtifact(
+                kind=ArtifactKind.PROGRESS,
+                key=p.get("id", ""),
+                content=json.dumps(p, ensure_ascii=False),
+            ))
+
+        for k, v in data.get("key_outputs", {}).items():
+            artifacts.append(ContextArtifact(
+                kind=ArtifactKind.STRUCTURED_OUTPUT,
+                key=k,
+                content=v if isinstance(v, str) else json.dumps(
+                    v, ensure_ascii=False,
+                ),
+            ))
+
+        semantic = data.get("semantic_summary", "")
+        if semantic:
+            artifacts.append(ContextArtifact(
+                kind=ArtifactKind.SEMANTIC_SUMMARY,
+                key="semantic",
+                content=semantic,
+            ))
+
+        intent = data.get("user_intent", "")
+        if intent:
+            artifacts.append(ContextArtifact(
+                kind=ArtifactKind.USER_INTENT,
+                key="intent",
+                content=intent,
+            ))
+
+        return cls(
+            level=ContextLevel.BP_INSTANCE,
+            source_id=data.get("bp_name", ""),
+            artifacts=artifacts,
+            summary=semantic,
+            compressed_at=data.get("compressed_at"),
+            compression_method=data.get("compression_method", "none"),
+        )
+
+    @classmethod
+    def _from_v2(cls, data: dict[str, Any]) -> ContextEnvelope:
+        """Deserialize from v2 format."""
+        artifacts = [
+            ContextArtifact(
+                kind=ArtifactKind(a["kind"]),
+                key=a["key"],
+                content=a["content"],
+                priority=a.get("priority", 0),
+            )
+            for a in data.get("artifacts", [])
+        ]
+        return cls(
+            level=ContextLevel(data.get("level", "bp_instance")),
+            source_id=data.get("source_id", ""),
+            artifacts=artifacts,
+            summary=data.get("summary", ""),
+            compressed_at=data.get("compressed_at"),
+            compression_method=data.get("compression_method", "none"),
+            total_budget=data.get("total_budget", 15000),
+        )
+
+    def get_artifacts(self, kind: ArtifactKind) -> list[ContextArtifact]:
+        """Filter artifacts by kind."""
+        return [a for a in self.artifacts if a.kind == kind]
+
+    def trim_to_budget(self) -> None:
+        """Trim artifacts by priority to fit within total_budget."""
+        self.artifacts.sort(key=lambda a: a.priority, reverse=True)
+        total = 0
+        kept: list[ContextArtifact] = []
+        for a in self.artifacts:
+            if total + a.size <= self.total_budget:
+                kept.append(a)
+                total += a.size
+            else:
+                remaining = self.total_budget - total
+                if remaining > 100:
+                    kept.append(ContextArtifact(
+                        kind=a.kind,
+                        key=a.key,
+                        content=a.content[:remaining],
+                        priority=a.priority,
+                    ))
+                break
+        self.artifacts = kept
 
 
 # ── Config dataclasses ─────────────────────────────────────────
@@ -110,6 +294,8 @@ class BPInstanceSnapshot:
     subtask_statuses: dict[str, str] = field(default_factory=dict)
     initial_input: dict[str, Any] = field(default_factory=dict)
     subtask_outputs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    subtask_raw_outputs: dict[str, str] = field(default_factory=dict)
+    subtask_partial_results: dict[str, list[str]] = field(default_factory=dict)
     context_summary: str = ""
     supplemented_inputs: dict[str, dict[str, Any]] = field(default_factory=dict)
     bp_config: BestPracticeConfig | None = field(default=None, repr=False)
@@ -133,6 +319,10 @@ class BPInstanceSnapshot:
             "subtask_statuses": dict(self.subtask_statuses),
             "initial_input": dict(self.initial_input),
             "subtask_outputs": {k: dict(v) for k, v in self.subtask_outputs.items()},
+            "subtask_raw_outputs": dict(self.subtask_raw_outputs),
+            "subtask_partial_results": {
+                k: list(v) for k, v in self.subtask_partial_results.items()
+            },
             "context_summary": self.context_summary,
             "supplemented_inputs": {k: dict(v) for k, v in self.supplemented_inputs.items()},
         }
@@ -153,6 +343,10 @@ class BPInstanceSnapshot:
             subtask_statuses=dict(data.get("subtask_statuses", {})),
             initial_input=dict(data.get("initial_input", {})),
             subtask_outputs={k: dict(v) for k, v in data.get("subtask_outputs", {}).items()},
+            subtask_raw_outputs=dict(data.get("subtask_raw_outputs", {})),
+            subtask_partial_results={
+                k: list(v) for k, v in data.get("subtask_partial_results", {}).items()
+            },
             context_summary=data.get("context_summary", ""),
             supplemented_inputs={
                 k: dict(v) for k, v in data.get("supplemented_inputs", {}).items()

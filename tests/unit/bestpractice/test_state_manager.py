@@ -180,7 +180,7 @@ class TestPersistence:
         mgr.set_cooldown("sess-1", 3)
 
         data = mgr.serialize_for_session("sess-1")
-        assert data["version"] == 1
+        assert data["version"] == 2
         assert len(data["instances"]) == 1
 
         mgr2 = BPStateManager()
@@ -337,3 +337,48 @@ class TestStatusTableEnhanced:
         table = mgr.get_status_table("sess-1")
         assert "Current Step" in table
         assert "调研" in table  # first subtask name (s1="调研")
+
+
+class TestResumeResetsCurrent:
+    def test_resumeResetsCurrentToPendingTest(self, mgr, bp_config):
+        """resume() should reset CURRENT subtask status to PENDING."""
+        inst_id = mgr.create_instance(bp_config, "sess-1")
+        mgr.update_subtask_status(inst_id, "s1", SubtaskStatus.DONE)
+        mgr.update_subtask_status(inst_id, "s2", SubtaskStatus.CURRENT)
+
+        mgr.suspend(inst_id)
+        mgr.resume(inst_id)
+
+        snap = mgr.get(inst_id)
+        assert snap.status == BPStatus.ACTIVE
+        assert snap.subtask_statuses["s1"] == SubtaskStatus.DONE.value
+        assert snap.subtask_statuses["s2"] == SubtaskStatus.PENDING.value
+        assert snap.subtask_statuses["s3"] == SubtaskStatus.PENDING.value
+
+    def test_resumeMultipleCurrentResetTest(self, mgr, bp_config):
+        """All CURRENT subtasks are reset to PENDING on resume."""
+        inst_id = mgr.create_instance(bp_config, "sess-1")
+        mgr.update_subtask_status(inst_id, "s1", SubtaskStatus.CURRENT)
+        mgr.update_subtask_status(inst_id, "s2", SubtaskStatus.CURRENT)
+
+        mgr.suspend(inst_id)
+        mgr.resume(inst_id)
+
+        snap = mgr.get(inst_id)
+        assert snap.subtask_statuses["s1"] == SubtaskStatus.PENDING.value
+        assert snap.subtask_statuses["s2"] == SubtaskStatus.PENDING.value
+
+    def test_resumePreservesDoneStatusTest(self, mgr, bp_config):
+        """DONE subtasks stay DONE after resume."""
+        inst_id = mgr.create_instance(bp_config, "sess-1")
+        mgr.update_subtask_status(inst_id, "s1", SubtaskStatus.DONE)
+        mgr.update_subtask_status(inst_id, "s2", SubtaskStatus.DONE)
+        mgr.update_subtask_status(inst_id, "s3", SubtaskStatus.CURRENT)
+
+        mgr.suspend(inst_id)
+        mgr.resume(inst_id)
+
+        snap = mgr.get(inst_id)
+        assert snap.subtask_statuses["s1"] == SubtaskStatus.DONE.value
+        assert snap.subtask_statuses["s2"] == SubtaskStatus.DONE.value
+        assert snap.subtask_statuses["s3"] == SubtaskStatus.PENDING.value

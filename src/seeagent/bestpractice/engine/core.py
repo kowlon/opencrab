@@ -107,15 +107,13 @@ class BPEngine:
                 f"({old_name}) to start {bp_config.id}"
             )
 
-        logger.info(
-            f"[BP-DEBUG] bp_start: bp_id={bp_config.id}, "
+        logger.debug(
+            f"[BP] bp_start: bp_id={bp_config.id}, "
             f"session_id={session.id}, run_mode={run_mode.value}"
         )
         inst_id = self.state_manager.create_instance(
             bp_config, session.id, initial_input=input_data or {}, run_mode=run_mode,
         )
-        logger.info(f"[BP-DEBUG] bp_start: created instance {inst_id}")
-
         # Backfill target_instance_id on pending switch
         pending = self.state_manager._pending_switches.get(session.id)
         if pending and not pending.target_instance_id:
@@ -360,10 +358,13 @@ class BPEngine:
                 )
 
                 scheduler.complete_task(subtask.id, output)
-                logger.debug(
-                    f"[BP] complete_task: subtask={subtask.id} "
-                    f"idx={snap.current_subtask_index}"
-                )
+
+                # Save raw result for precise context restoration on resume
+                if raw_result_text:
+                    snap.subtask_raw_outputs[subtask.id] = raw_result_text[:8000]
+                # Clear partial results (subtask completed successfully)
+                snap.subtask_partial_results.pop(subtask.id, None)
+
                 self._persist_state(instance_id, session)
 
                 yield {
@@ -478,8 +479,10 @@ class BPEngine:
         scheduler = self._get_scheduler(bp_config, snap)
         output_schema = scheduler.derive_output_schema(subtask.id)
 
-        # Build delegation message
-        message = self._build_delegation_message(bp_config, subtask, input_data, output_schema)
+        # Build delegation message (pass snap for partial results injection)
+        message = self._build_delegation_message(
+            bp_config, subtask, input_data, output_schema, snap=snap,
+        )
 
         # Temporary event_bus to capture SubAgent streaming events
         event_bus: asyncio.Queue = asyncio.Queue()
@@ -532,14 +535,19 @@ class BPEngine:
                         getattr(session, "context", None),
                         "_bp_cancelled_instance", None,
                     )
-                    if _cancelled_id == instance_id:
-                        logger.info(f"[BP] Detected cancel signal for {instance_id}")
-                        if not delegate_task.done():
-                            delegate_task.cancel()
-                        break
                     # Check state_manager suspended status (fallback)
                     _snap = self.state_manager.get(instance_id)
-                    if _snap and _snap.status == BPStatus.SUSPENDED:
+                    _suspended = _snap and _snap.status == BPStatus.SUSPENDED
+                    if _cancelled_id == instance_id or _suspended:
+                        if _cancelled_id == instance_id:
+                            logger.info(
+                                f"[BP] Detected cancel signal for {instance_id}"
+                            )
+                        if _snap and tool_results:
+                            _snap.subtask_partial_results[subtask.id] = list(
+                                tool_results
+                            )
+                            self._persist_state(instance_id, session)
                         if not delegate_task.done():
                             delegate_task.cancel()
                         break
@@ -669,14 +677,23 @@ class BPEngine:
         subtask: SubtaskConfig,
         input_data: dict[str, Any],
         output_schema: dict[str, Any] | None,
+        snap: Any = None,
     ) -> str:
         schema_hint = self._schema_to_example(output_schema) if output_schema else (
             "由你自行决定合适的输出格式"
         )
+
+        partial_section = ""
+        if snap:
+            partial = snap.subtask_partial_results.get(subtask.id)
+            if partial:
+                partial_section = self._format_partial_results(partial)
+
         return (
             f"## 最佳实践任务: {bp_config.name}\n"
             f"### 当前子任务: {subtask.name}\n"
             f"{subtask.description or ''}\n\n"
+            f"{partial_section}"
             f"### 输入数据\n```json\n"
             f"{json.dumps(input_data, ensure_ascii=False, indent=2)}\n```\n\n"
             f"### 输出格式要求\n\n"
@@ -689,6 +706,17 @@ class BPEngine:
             f"- **总结**行必须在 JSON 代码块之前\n"
             f"- 不要把结果写入文件，直接在回复中输出 JSON"
         )
+
+    @staticmethod
+    def _format_partial_results(partial: list[str]) -> str:
+        """Format partial tool results as a continuation section."""
+        lines = ["### 已完成进展\n"]
+        lines.append("本子任务之前被中断，以下是已完成的部分结果，请基于这些结果继续:\n")
+        for i, result in enumerate(partial, 1):
+            truncated = result[:2000]
+            lines.append(f"**结果 {i}:**\n{truncated}\n")
+        lines.append("")
+        return "\n".join(lines)
 
     @staticmethod
     def _schema_to_example(schema: dict[str, Any]) -> str:
@@ -882,7 +910,7 @@ class BPEngine:
             if "_raw_output" not in conformed:
                 conformed = self._sanitize_output(conformed, output_schema)
                 conformed = self._ensure_required_fields(conformed, output_schema)
-                logger.info(
+                logger.debug(
                     f"[BP] _conform_output: mapped {list(raw_output.keys())} "
                     f"-> {list(conformed.keys())}"
                 )

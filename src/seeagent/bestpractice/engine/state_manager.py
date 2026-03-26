@@ -79,6 +79,9 @@ class BPStateManager:
         if snap and snap.status == BPStatus.SUSPENDED:
             snap.status = BPStatus.ACTIVE
             snap.suspended_at = None
+            for st_id, status in snap.subtask_statuses.items():
+                if status == SubtaskStatus.CURRENT.value:
+                    snap.subtask_statuses[st_id] = SubtaskStatus.PENDING.value
 
     def complete(self, instance_id: str) -> None:
         snap = self._instances.get(instance_id)
@@ -99,8 +102,8 @@ class BPStateManager:
         if snap:
             old_idx = snap.current_subtask_index
             snap.current_subtask_index += 1
-            logger.info(
-                f"[BP-DEBUG] advance_subtask: {instance_id} idx {old_idx} → {snap.current_subtask_index}"
+            logger.debug(
+                f"[BP] advance_subtask: {instance_id} idx {old_idx} -> {snap.current_subtask_index}"
             )
 
     def update_subtask_status(self, instance_id: str, subtask_id: str, status: SubtaskStatus) -> None:

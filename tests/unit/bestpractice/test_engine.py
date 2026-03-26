@@ -98,6 +98,73 @@ class TestParseOutput:
         assert result["_raw_output"] == "plain text response"
 
 
+# ── Delegation message with partial results ──────────────────
+
+
+class TestDelegationWithPartialResults:
+    def test_delegationIncludesPartialResultsTest(self, engine, bp_config):
+        """Delegation message includes partial results when snap has them."""
+        from seeagent.bestpractice.models import BPInstanceSnapshot
+
+        snap = BPInstanceSnapshot(
+            bp_id="test-bp", instance_id="bp-test", session_id="sess-1",
+            subtask_statuses={"s1": "pending"},
+            subtask_partial_results={"s1": ["search result 1", "search result 2"]},
+        )
+        subtask = bp_config.subtasks[0]
+        msg = engine._build_delegation_message(
+            bp_config, subtask, {"topic": "AI"}, None, snap=snap,
+        )
+
+        assert "已完成进展" in msg
+        assert "search result 1" in msg
+        assert "search result 2" in msg
+        assert "被中断" in msg
+
+    def test_delegationNoPartialResultsTest(self, engine, bp_config):
+        """No partial results section when snap has no partial data."""
+        from seeagent.bestpractice.models import BPInstanceSnapshot
+
+        snap = BPInstanceSnapshot(
+            bp_id="test-bp", instance_id="bp-test", session_id="sess-1",
+            subtask_statuses={"s1": "pending"},
+        )
+        subtask = bp_config.subtasks[0]
+        msg = engine._build_delegation_message(
+            bp_config, subtask, {"topic": "AI"}, None, snap=snap,
+        )
+
+        assert "已完成进展" not in msg
+
+    def test_delegationWithoutSnapTest(self, engine, bp_config):
+        """Delegation message works when snap is None."""
+        subtask = bp_config.subtasks[0]
+        msg = engine._build_delegation_message(
+            bp_config, subtask, {"topic": "AI"}, None, snap=None,
+        )
+
+        assert "已完成进展" not in msg
+        assert "当前子任务" in msg
+
+
+class TestFormatPartialResults:
+    def test_formatPartialResultsTest(self, engine):
+        partial = ["result A", "result B"]
+        result = engine._format_partial_results(partial)
+
+        assert "已完成进展" in result
+        assert "结果 1" in result
+        assert "result A" in result
+        assert "结果 2" in result
+        assert "result B" in result
+
+    def test_formatPartialResultsTruncatesLongResultsTest(self, engine):
+        partial = ["x" * 5000]
+        result = engine._format_partial_results(partial)
+
+        assert len(result) < 5000
+
+
 class TestConformOutputFallback:
     @pytest.mark.asyncio
     async def test_fills_required_fields_when_brain_unavailable(self, engine):

@@ -81,14 +81,14 @@ class BPPromptBuilder:
         all_instances = list(self._state_manager._instances.keys())
         if all_instances:
             for iid, snap in self._state_manager._instances.items():
-                logger.info(
-                    f"[BP-DEBUG] dynamic_prompt: instance={iid}, "
+                logger.debug(
+                    f"[BP] dynamic_prompt: instance={iid}, "
                     f"session_id={snap.session_id}, "
                     f"idx={snap.current_subtask_index}, "
                     f"status={snap.status.value}"
                 )
-        logger.info(
-            f"[BP-DEBUG] dynamic_prompt: querying session_id={session_id}, "
+        logger.debug(
+            f"[BP] dynamic_prompt: querying session_id={session_id}, "
             f"total_instances={len(all_instances)}"
         )
 
