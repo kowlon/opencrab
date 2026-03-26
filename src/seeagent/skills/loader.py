@@ -230,7 +230,7 @@ class SkillLoader:
                         loaded += 1
                 except Exception as e:
                     logger.error(f"Failed to load skill from {item}: {e}")
-            elif item.name in ("system", "external", "custom", "community", "builtin"):
+            elif item.name in ("system", "external", "custom", "community", "builtin", "0seetime"):
                 loaded += self.load_from_directory(item)
 
         logger.info(f"Loaded {loaded} skills from {directory}")
