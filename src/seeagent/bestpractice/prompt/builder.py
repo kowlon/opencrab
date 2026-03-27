@@ -6,7 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
-from ..models import TriggerType
+from ..models import ArtifactKind, ContextEnvelope, TriggerType
 
 _DYNAMIC_OUTPUTS_BUDGET = 1000  # max chars for outputs_preview (~250-300 tokens)
 
@@ -127,17 +127,22 @@ class BPPromptBuilder:
                         "### 已完成子任务输出\n" + "\n".join(preview_lines)
                     )
 
-            # User preferences: extract from context_summary (v1 JSON)
+            # User preferences: support both new plain-text and old JSON formats
             if active.context_summary:
-                try:
-                    parsed = json.loads(active.context_summary)
-                    semantic = parsed.get("semantic_summary", "")
-                    if semantic:
-                        user_preferences = (
-                            f"### 用户偏好/上下文\n{semantic}"
-                        )
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                cs = active.context_summary
+                if cs.strip().startswith("{"):
+                    envelope = ContextEnvelope.from_v1(cs)
+                    semantic = envelope.summary
+                    if not semantic:
+                        artifacts = envelope.get_artifacts(ArtifactKind.SEMANTIC_SUMMARY)
+                        if artifacts:
+                            semantic = artifacts[0].content
+                else:
+                    semantic = cs
+                if semantic:
+                    user_preferences = (
+                        f"### 用户偏好/上下文\n{semantic}"
+                    )
 
             if active.bp_config:
                 statuses = list(active.subtask_statuses.values())
@@ -170,6 +175,21 @@ class BPPromptBuilder:
                         "C) 取消当前任务 (bp_cancel)\n"
                         "D) 询问相关问题\n"
                     )
+
+        # When no active instance but suspended ones exist, guide the LLM
+        if not active and not intent_routing:
+            suspended = [
+                s for s in self._state_manager.get_all_for_session(session_id)
+                if hasattr(s.status, "value") and s.status.value == "suspended"
+                or (not hasattr(s.status, "value") and str(s.status) == "suspended")
+            ]
+            if suspended:
+                intent_routing = (
+                    "当前有暂停的任务。用户可能想要:\n"
+                    "A) 开始新的最佳实践任务 → 调用 bp_start\n"
+                    "B) 恢复已暂停的任务 → 调用 bp_switch_task\n"
+                    "C) 询问相关问题\n"
+                )
 
         cooldown = self._state_manager.get_cooldown(session_id)
         if cooldown > 0:

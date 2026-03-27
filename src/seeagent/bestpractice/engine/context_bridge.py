@@ -58,6 +58,7 @@ class ContextBridge:
         session_id: str,
         brain: Any = None,
         messages: list[dict] | None = None,
+        session: Any = None,
     ) -> bool:
         """Consume PendingContextSwitch and execute context handover.
 
@@ -89,22 +90,19 @@ class ContextBridge:
         if target and messages is not None:
             self._restore_context(messages, target)
 
+        self._persist_session_state(session_id, session)
+
         return True
 
     def build_recovery_message(self, snap: Any) -> str:
         """Generate recovery message for frontend display or prompt injection."""
         if snap.context_summary:
-            try:
-                summary = json.loads(snap.context_summary)
-                return self._build_recovery_prompt(summary, snap)
-            except (json.JSONDecodeError, KeyError, TypeError):
-                pass
-        bp_name = snap.bp_config.name if snap.bp_config else snap.bp_id
-        return (
-            f"[Task Resumed] Best Practice: {bp_name}\n"
-            f"Progress: step {snap.current_subtask_index + 1}\n"
-            f"Context: {snap.context_summary or '(none)'}"
-        )
+            if snap.context_summary.strip().startswith("{"):
+                envelope = self._load_envelope(snap.context_summary)
+                if self._has_recovery_data(envelope):
+                    return self._build_recovery_prompt(envelope, snap)
+            return self._build_snapshot_recovery_prompt(snap)
+        return self._build_minimal_recovery(snap) or self._build_snapshot_recovery_prompt(snap)
 
     # ── Compression ───────────────────────────────────────────
 
@@ -163,101 +161,38 @@ class ContextBridge:
                     )[:500],
                 ))
 
-            # Section 4: Semantic summary via CompressionStrategy chain
-            semantic_summary = ""
-            compression_method = "none"
+            idx = snap.current_subtask_index if snap else 0
+            total = len(bp_config.subtasks) if bp_config else 0
+            current_step = ""
+            completed_lines = []
+            if bp_config:
+                if idx < total:
+                    current_step = bp_config.subtasks[idx].name
+                for st in bp_config.subtasks[:idx]:
+                    completed_lines.append(f"- {st.name}")
 
-            if messages:
-                idx = snap.current_subtask_index if snap else 0
-                total = len(bp_config.subtasks) if bp_config else 0
-                current_step = ""
-                completed_lines = []
-                if bp_config:
-                    if idx < total:
-                        current_step = bp_config.subtasks[idx].name
-                    for st in bp_config.subtasks[:idx]:
-                        completed_lines.append(f"- {st.name}")
-
-                compress_kwargs = {
-                    "bp_name": bp_name,
-                    "current_step": current_step,
-                    "current_index": idx + 1,
-                    "total": total,
-                    "completed_steps": (
-                        "\n".join(completed_lines)
-                        if completed_lines else "(none)"
-                    ),
-                    "messages": messages,
-                }
-
-                if brain and hasattr(brain, "think_lightweight"):
-                    try:
-                        strategy = LLMCompression(brain)
-                        semantic_summary = await strategy.compress(
-                            artifacts, 1000, **compress_kwargs,
-                        )
-                        compression_method = "llm"
-                    except Exception as e:
-                        logger.warning(
-                            f"[BP] LLM compression failed: {e}, "
-                            f"falling back to mechanical"
-                        )
-                        strategy = MechanicalCompression()
-                        semantic_summary = await strategy.compress(
-                            artifacts, 1000, **compress_kwargs,
-                        )
-                        compression_method = "mechanical"
-                else:
-                    strategy = MechanicalCompression()
-                    semantic_summary = await strategy.compress(
-                        artifacts, 1000, **compress_kwargs,
-                    )
-                    compression_method = "mechanical"
-
-            # Build envelope
-            envelope = ContextEnvelope(
-                level=ContextLevel.BP_INSTANCE,
-                source_id=bp_name,
-                artifacts=artifacts,
-                summary=semantic_summary,
-                compressed_at=time.time(),
-                compression_method=compression_method,
-            )
-
-            # Serialize as v1-compatible JSON for backward compat
-            subtask_progress = []
-            for a in envelope.get_artifacts(ArtifactKind.PROGRESS):
-                try:
-                    subtask_progress.append(json.loads(a.content))
-                except json.JSONDecodeError:
-                    pass
-
-            key_outputs = {}
-            for a in envelope.get_artifacts(ArtifactKind.STRUCTURED_OUTPUT):
-                key_outputs[a.key] = a.content
-
-            user_intent = ""
-            intent_arts = envelope.get_artifacts(ArtifactKind.USER_INTENT)
-            if intent_arts:
-                user_intent = intent_arts[0].content
-
-            v1_summary = {
-                "version": 1,
+            compress_kwargs = {
                 "bp_name": bp_name,
-                "current_subtask_index": (
-                    snap.current_subtask_index if snap else 0
+                "current_step": current_step,
+                "current_index": idx + 1,
+                "total": total,
+                "completed_steps": (
+                    "\n".join(completed_lines)
+                    if completed_lines else "(none)"
                 ),
-                "total_subtasks": (
-                    len(bp_config.subtasks) if bp_config else 0
-                ),
-                "subtask_progress": subtask_progress,
-                "key_outputs": key_outputs,
-                "semantic_summary": semantic_summary,
-                "user_intent": user_intent,
-                "compressed_at": envelope.compressed_at,
-                "compression_method": compression_method,
+                "messages": messages or [],
             }
-            return json.dumps(v1_summary, ensure_ascii=False)
+            semantic_summary, compression_method = await self._run_compression_chain(
+                artifacts, brain=brain, compress_kwargs=compress_kwargs,
+            )
+            if semantic_summary:
+                artifacts.append(ContextArtifact(
+                    kind=ArtifactKind.SEMANTIC_SUMMARY,
+                    key="semantic",
+                    content=semantic_summary,
+                ))
+
+            return semantic_summary
         except Exception as e:
             logger.warning(f"[BP] Context compression failed: {e}")
             return ""
@@ -267,21 +202,22 @@ class ContextBridge:
     def _restore_context(self, messages: list[dict], snap: Any) -> None:
         """Inject structured recovery message from context_summary.
 
-        Uses full snap.subtask_outputs and snap.subtask_raw_outputs
-        for precise restoration instead of truncated summary data.
-        Falls back to minimal recovery when context_summary is empty.
+        Routes by format: old JSON (starts with '{') uses ContextEnvelope path
+        for backward compatibility; new plain-text format uses snapshot fields
+        directly. Falls back to minimal recovery when context_summary is empty.
         """
         try:
             if snap.context_summary:
-                try:
-                    summary = json.loads(snap.context_summary)
-                    recovery_msg = self._build_recovery_prompt(summary, snap)
-                except (json.JSONDecodeError, KeyError, TypeError):
-                    recovery_msg = (
-                        f"[Task Resumed] Continuing a Best Practice task.\n"
-                        f"Previous context: {snap.context_summary}\n"
-                        f"Please continue the current subtask."
-                    )
+                if snap.context_summary.strip().startswith("{"):
+                    # Backward compat: old JSON ContextEnvelope format
+                    envelope = self._load_envelope(snap.context_summary)
+                    if self._has_recovery_data(envelope):
+                        recovery_msg = self._build_recovery_prompt(envelope, snap)
+                    else:
+                        recovery_msg = self._build_snapshot_recovery_prompt(snap)
+                else:
+                    # New format: plain-text semantic summary, restore from snapshot
+                    recovery_msg = self._build_snapshot_recovery_prompt(snap)
             else:
                 recovery_msg = self._build_minimal_recovery(snap)
                 if not recovery_msg:
@@ -299,25 +235,28 @@ class ContextBridge:
             logger.warning(f"[BP] Context restore failed: {e}")
 
     @staticmethod
-    def _build_recovery_prompt(summary: dict, snap: Any) -> str:
+    def _build_recovery_prompt(envelope: ContextEnvelope, snap: Any) -> str:
         """Build recovery prompt using full snapshot data with budget control.
 
-        Key improvement: reads snap.subtask_outputs (full data) instead of
-        summary["key_outputs"] (truncated to 300 chars).
+        Uses envelope artifacts for progress/summary/intent and snapshot
+        outputs for full execution details.
         """
         parts = []
 
-        bp_name = summary.get("bp_name", getattr(snap, "bp_id", "unknown"))
-        idx = summary.get(
-            "current_subtask_index",
-            getattr(snap, "current_subtask_index", 0),
+        bp_name = (
+            envelope.source_id
+            or (snap.bp_config.name if getattr(snap, "bp_config", None) else "")
+            or getattr(snap, "bp_id", "unknown")
         )
-        total = summary.get("total_subtasks", 0)
+        progress = ContextBridge._progress_records(envelope)
+        idx = ContextBridge._infer_progress_index(
+            progress, getattr(snap, "current_subtask_index", 0),
+        )
+        total = len(progress) or len(getattr(snap, "subtask_statuses", {}) or {})
         parts.append(f"[Task Resumed] Best Practice: {bp_name}")
         parts.append(f"Progress: step {idx + 1}/{total}")
 
         # Subtask progress table
-        progress = summary.get("subtask_progress", [])
         if progress:
             lines = []
             for p in progress:
@@ -330,14 +269,67 @@ class ContextBridge:
         parts.extend(output_parts)
 
         # Semantic summary
-        semantic = summary.get("semantic_summary", "")
+        semantic = envelope.summary or ContextBridge._artifact_content(
+            envelope, ArtifactKind.SEMANTIC_SUMMARY,
+        )
         if semantic:
             parts.append(f"Context summary:\n{semantic}")
 
         # User intent
-        intent = summary.get("user_intent", "")
+        intent = ContextBridge._artifact_content(
+            envelope, ArtifactKind.USER_INTENT,
+        )
         if intent:
             parts.append(f"Original input: {intent}")
+
+        parts.append("Please continue from where this task was suspended.")
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _build_snapshot_recovery_prompt(snap: Any) -> str:
+        """Build recovery prompt directly from snapshot fields without JSON parsing.
+
+        Used for new plain-text context_summary format and as fallback when
+        the old ContextEnvelope JSON has no recovery data.
+        """
+        parts: list[str] = []
+
+        bp_config = getattr(snap, "bp_config", None)
+        bp_name = (
+            bp_config.name if bp_config else getattr(snap, "bp_id", "")
+        )
+        idx = getattr(snap, "current_subtask_index", 0)
+
+        header = "[Task Resumed]"
+        if bp_name:
+            header += f" Best Practice: {bp_name}"
+        parts.append(header)
+
+        if bp_config and bp_config.subtasks:
+            total = len(bp_config.subtasks)
+            parts.append(f"Progress: step {idx + 1}/{total}")
+            statuses = getattr(snap, "subtask_statuses", {}) or {}
+            lines = []
+            for st in bp_config.subtasks:
+                status = statuses.get(st.id, "pending")
+                icon = _STATUS_ICONS.get(status, "?")
+                lines.append(f"  [{icon}] {st.name}")
+            if lines:
+                parts.append("Steps:\n" + "\n".join(lines))
+
+        output_parts, _ = ContextBridge._format_snap_outputs(snap)
+        parts.extend(output_parts)
+
+        context_summary = getattr(snap, "context_summary", "")
+        if context_summary and not context_summary.strip().startswith("{"):
+            parts.append(f"Context summary:\n{context_summary}")
+
+        initial_input = getattr(snap, "initial_input", None)
+        if initial_input:
+            parts.append(
+                f"Original input: "
+                f"{json.dumps(initial_input, ensure_ascii=False)[:500]}"
+            )
 
         parts.append("Please continue from where this task was suspended.")
         return "\n\n".join(parts)
@@ -348,6 +340,93 @@ class ContextBridge:
     def _extract_text(content: Any) -> str:
         """Extract text from message content (str or list of content blocks)."""
         return extract_text(content)
+
+    @staticmethod
+    async def _run_compression_chain(
+        artifacts: list[ContextArtifact],
+        *,
+        brain: Any = None,
+        compress_kwargs: dict[str, Any],
+    ) -> tuple[str, str]:
+        budget = 1000
+        attempts: list[tuple[str, Any]] = []
+        if brain and hasattr(brain, "think_lightweight"):
+            attempts.append(("llm", LLMCompression(brain)))
+        attempts.append(("mechanical", MechanicalCompression()))
+        attempts.append(("truncation", TruncationCompression()))
+
+        if not compress_kwargs.get("messages") and not artifacts:
+            return "", "none"
+
+        for name, strategy in attempts:
+            try:
+                summary = (await strategy.compress(
+                    artifacts, budget, **compress_kwargs,
+                )).strip()
+            except Exception as e:
+                logger.warning(
+                    f"[BP] {name} compression failed: {e}; "
+                    f"falling back to next strategy"
+                )
+                continue
+            if summary:
+                return summary[:budget], name
+
+        return "", "none"
+
+    @staticmethod
+    def _load_envelope(raw: str) -> ContextEnvelope:
+        return ContextEnvelope.from_v1(raw)
+
+    @staticmethod
+    def _has_recovery_data(envelope: ContextEnvelope) -> bool:
+        return bool(envelope.source_id or envelope.summary or envelope.artifacts)
+
+    @staticmethod
+    def _artifact_content(
+        envelope: ContextEnvelope, kind: ArtifactKind,
+    ) -> str:
+        arts = envelope.get_artifacts(kind)
+        if not arts:
+            return ""
+        return arts[0].content
+
+    @staticmethod
+    def _progress_records(envelope: ContextEnvelope) -> list[dict[str, Any]]:
+        progress: list[dict[str, Any]] = []
+        for art in envelope.get_artifacts(ArtifactKind.PROGRESS):
+            try:
+                parsed = json.loads(art.content)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(parsed, dict):
+                progress.append(parsed)
+        return progress
+
+    @staticmethod
+    def _infer_progress_index(progress: list[dict[str, Any]], fallback: int) -> int:
+        for idx, item in enumerate(progress):
+            if item.get("status") == SubtaskStatus.CURRENT.value:
+                return idx
+        for idx, item in enumerate(progress):
+            if item.get("status") == SubtaskStatus.WAITING_INPUT.value:
+                return idx
+        done_count = sum(
+            1 for item in progress if item.get("status") == SubtaskStatus.DONE.value
+        )
+        if progress and done_count < len(progress):
+            return done_count
+        return fallback
+
+    def _persist_session_state(self, session_id: str, session: Any) -> None:
+        if not self._state_manager or not session or not hasattr(session, "metadata"):
+            return
+        try:
+            session.metadata["bp_state"] = self._state_manager.serialize_for_session(
+                session_id,
+            )
+        except Exception as e:
+            logger.warning(f"[BP] Failed to persist session state: {e}")
 
     @staticmethod
     def _format_snap_outputs(snap: Any) -> tuple[list[str], int]:

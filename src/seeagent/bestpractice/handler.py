@@ -179,6 +179,15 @@ class BPToolHandler:
         snap = self.state_manager.get(instance_id)
         if not snap:
             return "❌ BP 实例不存在"
+        resume = self.engine.resume_if_needed(instance_id, session)
+        if not resume.get("success"):
+            if resume.get("code") == "conflict":
+                active_id = resume.get("active_instance_id")
+                return (
+                    "❌ 当前有其他最佳实践任务处于活跃状态，"
+                    f"请先切换任务或继续当前活跃实例 ({active_id})。"
+                )
+            return f"❌ {resume.get('error', '无法恢复 BP 实例')}"
         await self._relay_events(self.engine.advance(instance_id, session), session)
         self.state_manager.persist_to_session(instance_id, session)
         return "✅ 子任务执行完成"
@@ -191,6 +200,15 @@ class BPToolHandler:
         data = params.get("data", {})
         if not instance_id or not subtask_id or not data:
             return "❌ 需要 subtask_id 和 data 参数"
+        resume = self.engine.resume_if_needed(instance_id, session)
+        if not resume.get("success"):
+            if resume.get("code") == "conflict":
+                active_id = resume.get("active_instance_id")
+                return (
+                    "❌ 当前有其他最佳实践任务处于活跃状态，"
+                    f"请先切换任务或继续当前活跃实例 ({active_id})。"
+                )
+            return f"❌ {resume.get('error', '无法恢复 BP 实例')}"
         await self._relay_events(
             self.engine.answer(instance_id, subtask_id, data, session), session,
         )

@@ -128,6 +128,31 @@ def _has_bp_next_step(snap) -> bool:
     return int(getattr(snap, "current_subtask_index", 0) or 0) < total
 
 
+def _resolve_chat_bp_instance(sm, session_id: str):
+    if not sm:
+        return None
+    active = sm.get_active(session_id)
+    if active:
+        return active
+    try:
+        from seeagent.bestpractice.models import BPStatus
+
+        suspended = [
+            snap
+            for snap in sm.get_all_for_session(session_id)
+            if snap.status == BPStatus.SUSPENDED
+        ]
+    except Exception:
+        return None
+    if not suspended:
+        return None
+    suspended.sort(
+        key=lambda snap: (snap.suspended_at or 0.0, snap.created_at or 0.0),
+        reverse=True,
+    )
+    return suspended[0]
+
+
 async def _extract_input_from_query(
     brain: Any, user_query: str, input_schema: dict,
 ) -> dict:
@@ -231,16 +256,6 @@ async def _stream_bp_start_from_chat(
         yield {"type": "error", "message": "BP system not initialized", "code": "bp"}
         yield {"type": "done"}
         return
-    active = sm.get_active(session_id)
-    if active:
-        sm.suspend(active.instance_id)
-        ctx = getattr(session, "context", None)
-        if ctx:
-            ctx._bp_cancelled_instance = active.instance_id
-        dt = getattr(ctx, "_bp_delegate_task", None)
-        if dt and not dt.done():
-            dt.cancel()
-        logger.info(f"[BP] Suspended and cancelled {active.instance_id} to start new BP")
     loader = get_bp_config_loader()
     bp_config = loader.configs.get(bp_id) if loader and loader.configs else None
     if not bp_config:
@@ -253,40 +268,30 @@ async def _stream_bp_start_from_chat(
         return
 
     run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
-    instance_id = sm.create_instance(
-        bp_config, session_id, initial_input=input_data, run_mode=run_mode,
-    )
     reply_state = _new_reply_state()
     full_reply: list[str] = []
+    instance_id: str | None = None
     try:
-        created_event = {
-            "type": "bp_instance_created",
-            "instance_id": instance_id,
-            "bp_id": bp_id,
-            "bp_name": bp_config.name,
-            "run_mode": run_mode.value,
-            "subtasks": [
-                {"id": s.id, "name": s.name}
-                for s in bp_config.subtasks
-            ],
-        }
-        yield created_event
-        _collect_reply_state(created_event, reply_state, full_reply)
-        async for event in engine.advance(instance_id, session):
+        async for event in engine.start(bp_config, session, input_data, run_mode):
             if disconnect_event.is_set():
                 break
+            if event.get("type") == "bp_instance_created":
+                instance_id = event.get("instance_id")
             yield event
             _collect_reply_state(event, reply_state, full_reply)
             if event.get("type") in ("bp_subtask_complete", "bp_progress"):
                 _bp_renew_busy(session_id)
-        _persist_bp_to_session(
-            session,
-            instance_id,
-            sm,
-            reply_state=reply_state,
-            full_reply="".join(full_reply),
-            session_manager=session_manager,
-        )
+        snap = sm.get(instance_id) if instance_id else None
+        is_suspended = snap and getattr(snap.status, "value", snap.status) == "suspended"
+        if instance_id and not is_suspended:
+            _persist_bp_to_session(
+                session,
+                instance_id,
+                sm,
+                reply_state=reply_state,
+                full_reply="".join(full_reply),
+                session_manager=session_manager,
+            )
         sm.clear_pending_offer(session_id)
         yield {"type": "done"}
     except Exception as e:
@@ -336,6 +341,17 @@ async def _stream_bp_next_from_chat(
         yield {"type": "error", "message": "Session is busy", "code": "bp"}
         yield {"type": "done"}
         return
+    resume = engine.resume_if_needed(instance_id, session)
+    if not resume.get("success"):
+        yield {
+            "type": "error",
+            "message": resume.get("error", "Failed to resume BP instance"),
+            "code": resume.get("code", "bp_resume_failed"),
+            "active_instance_id": resume.get("active_instance_id"),
+        }
+        yield {"type": "done"}
+        _bp_clear_busy(session_id)
+        return
 
     reply_state = _new_reply_state()
     full_reply: list[str] = []
@@ -347,14 +363,17 @@ async def _stream_bp_next_from_chat(
             _collect_reply_state(event, reply_state, full_reply)
             if event.get("type") in ("bp_subtask_complete", "bp_progress"):
                 _bp_renew_busy(session_id)
-        _persist_bp_to_session(
-            session,
-            instance_id,
-            sm,
-            reply_state=reply_state,
-            full_reply="".join(full_reply),
-            session_manager=session_manager,
-        )
+        snap = sm.get(instance_id)
+        is_suspended = snap and getattr(snap.status, "value", snap.status) == "suspended"
+        if not is_suspended:
+            _persist_bp_to_session(
+                session,
+                instance_id,
+                sm,
+                reply_state=reply_state,
+                full_reply="".join(full_reply),
+                session_manager=session_manager,
+            )
         yield {"type": "done"}
     except Exception as e:
         yield {"type": "error", "message": str(e), "code": "bp"}
@@ -429,6 +448,17 @@ async def _stream_bp_answer_from_chat(
         yield {"type": "error", "message": "Session is busy", "code": "bp"}
         yield {"type": "done"}
         return
+    resume = engine.resume_if_needed(instance_id, session)
+    if not resume.get("success"):
+        yield {
+            "type": "error",
+            "message": resume.get("error", "Failed to resume BP instance"),
+            "code": resume.get("code", "bp_resume_failed"),
+            "active_instance_id": resume.get("active_instance_id"),
+        }
+        yield {"type": "done"}
+        _bp_clear_busy(session_id)
+        return
 
     reply_state = _new_reply_state()
     full_reply: list[str] = []
@@ -439,12 +469,15 @@ async def _stream_bp_answer_from_chat(
             yield event
             _collect_reply_state(event, reply_state, full_reply)
 
-        _persist_bp_to_session(
-            session, instance_id, sm,
-            reply_state=reply_state,
-            full_reply="".join(full_reply),
-            session_manager=session_manager,
-        )
+        snap = sm.get(instance_id)
+        is_suspended = snap and getattr(snap.status, "value", snap.status) == "suspended"
+        if not is_suspended:
+            _persist_bp_to_session(
+                session, instance_id, sm,
+                reply_state=reply_state,
+                full_reply="".join(full_reply),
+                session_manager=session_manager,
+            )
         yield {"type": "done"}
     except Exception as e:
         yield {"type": "error", "message": str(e), "code": "bp"}
@@ -479,11 +512,29 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
         # Disconnect watcher
         disconnect_event = asyncio.Event()
+        session = None
 
         async def _disconnect_watcher():
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     logger.info(f"[SeeCrab] Client disconnected: {conversation_id}")
+                    try:
+                        from seeagent.bestpractice.facade import (
+                            get_bp_engine as _get_bp_engine,
+                            get_bp_state_manager as _get_bp_sm,
+                        )
+
+                        _bp_engine = _get_bp_engine()
+                        _bp_sm = _get_bp_sm()
+                        _bp_active = _resolve_chat_bp_instance(
+                            _bp_sm, conversation_id,
+                        ) if _bp_sm else None
+                        if _bp_engine and _bp_active:
+                            _bp_engine.request_suspend(
+                                _bp_active.instance_id, session, "disconnect",
+                            )
+                    except Exception:
+                        pass
                     if hasattr(agent, "cancel_current_task"):
                         agent.cancel_current_task("客户端断开连接", session_id=conversation_id)
                     disconnect_event.set()
@@ -495,7 +546,6 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
         try:
             # Resolve session
-            session = None
             session_messages: list[dict] = []
             user_messages: list[str] = []
             if session_manager and conversation_id:
@@ -565,19 +615,6 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     bp_sm = get_bp_state_manager()
 
                 if bp_cmd == "start":
-                    active = bp_sm.get_active(bp_session_id) if bp_sm else None
-                    if active:
-                        bp_sm.suspend(active.instance_id)
-                        ctx = getattr(session, "context", None)
-                        if ctx:
-                            ctx._bp_cancelled_instance = active.instance_id
-                        dt = getattr(ctx, "_bp_delegate_task", None)
-                        if dt and not dt.done():
-                            dt.cancel()
-                        logger.info(
-                            f"[BP] Suspended and cancelled {active.instance_id} "
-                            f"for new BP from chat"
-                        )
                     pending_offer = bp_sm.get_pending_offer(bp_session_id) if bp_sm else None
                     if pending_offer and pending_offer.get("bp_id"):
                         # Prefer pre-extracted input, fallback to LLM extraction
@@ -631,15 +668,15 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                         return
 
                 if bp_cmd in ("next", "next_loose"):
-                    active = bp_sm.get_active(bp_session_id) if bp_sm else None
-                    # next_loose without active BP → fall through to agent
-                    if bp_cmd == "next_loose" and not active:
+                    current_bp = _resolve_chat_bp_instance(bp_sm, bp_session_id)
+                    # next_loose without resumable BP → fall through to agent
+                    if bp_cmd == "next_loose" and not current_bp:
                         pass  # fall through
-                    elif active:
+                    elif current_bp:
                         # Check waiting_input — can't advance, need params first
                         has_waiting = any(
                             s == "waiting_input"
-                            for s in active.subtask_statuses.values()
+                            for s in current_bp.subtask_statuses.values()
                         )
                         if has_waiting:
                             fallback = {
@@ -649,11 +686,11 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                             yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
                             yield 'data: {"type": "done"}\n\n'
                             return
-                        if _has_bp_next_step(active):
+                        if _has_bp_next_step(current_bp):
                             async for event in _stream_bp_next_from_chat(
                                 request,
                                 session_id=bp_session_id,
-                                instance_id=active.instance_id,
+                                instance_id=current_bp.instance_id,
                                 session=session,
                                 session_manager=session_manager,
                                 disconnect_event=disconnect_event,
@@ -674,17 +711,17 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             if not bp_sm:
                 from seeagent.bestpractice.facade import get_bp_state_manager
                 bp_sm = get_bp_state_manager()
-            active = bp_sm.get_active(bp_session_id) if bp_sm else None
-            if active:
+            current_bp = _resolve_chat_bp_instance(bp_sm, bp_session_id)
+            if current_bp:
                 waiting_subtask_id = None
-                for st_id, st_status in active.subtask_statuses.items():
+                for st_id, st_status in current_bp.subtask_statuses.items():
                     if st_status == "waiting_input":
                         waiting_subtask_id = st_id
                         break
                 if waiting_subtask_id:
                     # Determine missing fields for smart extraction
                     subtask_config = None
-                    for st in active.bp_config.subtasks:
+                    for st in current_bp.bp_config.subtasks:
                         if st.id == waiting_subtask_id:
                             subtask_config = st
                             break
@@ -694,7 +731,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     if subtask_config:
                         required = subtask_config.input_schema.get("required", [])
                         from seeagent.bestpractice.engine import LinearScheduler
-                        scheduler = LinearScheduler(active.bp_config, active)
+                        scheduler = LinearScheduler(current_bp.bp_config, current_bp)
                         resolved_input = scheduler.resolve_input(waiting_subtask_id)
                         still_missing = [f for f in required if f not in resolved_input]
 
@@ -719,7 +756,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     async for event in _stream_bp_answer_from_chat(
                         request,
                         session_id=bp_session_id,
-                        instance_id=active.instance_id,
+                        instance_id=current_bp.instance_id,
                         subtask_id=waiting_subtask_id,
                         data=data,
                         session=session,
@@ -728,6 +765,29 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     ):
                         yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                     return
+
+            # Suspend active BP before keyword/LLM match so that the matcher's
+            # active-instance guard doesn't block re-triggering when the user
+            # explicitly requests a new BP while one is already running.
+            try:
+                from seeagent.bestpractice.facade import (
+                    get_bp_engine as _get_engine_pre,
+                    get_bp_state_manager as _get_sm_pre,
+                )
+                _sm_pre = _get_sm_pre()
+                _engine_pre = _get_engine_pre()
+                if _sm_pre and _engine_pre:
+                    _active_pre = _sm_pre.get_active(bp_session_id)
+                    if _active_pre:
+                        _engine_pre.request_suspend(
+                            _active_pre.instance_id, session, "free_form_chat",
+                        )
+                        logger.info(
+                            f"[BP] Pre-match suspended {_active_pre.instance_id} "
+                            f"for free-form chat message"
+                        )
+            except Exception:
+                pass
 
             try:
                 from seeagent.bestpractice.facade import match_bp_from_message
@@ -807,28 +867,6 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     return  # Skip LLM stream — wait for user choice
             except Exception:
                 pass  # Non-critical, don't block chat
-
-            # Suspend active BP when user sends a free-form message
-            # (bp_cmd didn't match, so suspend wasn't handled above)
-            try:
-                from seeagent.bestpractice.facade import get_bp_state_manager as _get_sm
-                _sm = _get_sm()
-                if _sm:
-                    _active = _sm.get_active(bp_session_id)
-                    if _active:
-                        _sm.suspend(_active.instance_id)
-                        _ctx = getattr(session, "context", None)
-                        if _ctx:
-                            _ctx._bp_cancelled_instance = _active.instance_id
-                        _dt = getattr(_ctx, "_bp_delegate_task", None)
-                        if _dt and not _dt.done():
-                            _dt.cancel()
-                        logger.info(
-                            f"[BP] Suspended {_active.instance_id} "
-                            f"for free-form chat message"
-                        )
-            except Exception:
-                pass
 
             brain = getattr(agent, "brain", None)
             adapter = SeeCrabAdapter(brain=brain, user_messages=user_messages)

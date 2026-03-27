@@ -377,9 +377,6 @@ async def bp_start(request: Request):
         return JSONResponse({"error": "Session is busy"}, status_code=409)
 
     run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
-    instance_id = sm.create_instance(
-        bp_config, session_id, initial_input=input_data, run_mode=run_mode,
-    )
     session = _resolve_session(request, session_id, create_if_missing=True)
     session_mgr = _resolve_session_manager(request)
     _persist_user_message(session, body.get("user_message", ""), session_manager=session_mgr)
@@ -388,49 +385,39 @@ async def bp_start(request: Request):
         disconnect_event = asyncio.Event()
         reply_state = _new_reply_state()
         full_reply: list[str] = []
+        instance_id: str | None = None
 
         async def _disconnect_watcher():
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     disconnect_event.set()
-                    if session and hasattr(session, "context"):
-                        dt = getattr(session.context, "_bp_delegate_task", None)
-                        if dt and not dt.done():
-                            dt.cancel()
+                    active = sm.get_active(session_id)
+                    if active:
+                        engine.request_suspend(
+                            active.instance_id, session, "disconnect",
+                        )
                     return
                 await asyncio.sleep(2)
 
         watcher = asyncio.create_task(_disconnect_watcher())
 
         try:
-            created_event = {
-                "type": "bp_instance_created",
-                "instance_id": instance_id,
-                "bp_id": bp_id,
-                "bp_name": bp_config.name,
-                "run_mode": run_mode.value,
-                "subtasks": [
-                    {"id": s.id, "name": s.name}
-                    for s in bp_config.subtasks
-                ],
-            }
-            yield _sse(created_event)
-            _collect_reply_state(created_event, reply_state, full_reply)
-
-            async for event in engine.advance(instance_id, session):
+            async for event in engine.start(bp_config, session, input_data, run_mode):
                 if disconnect_event.is_set():
                     break
+                if event.get("type") == "bp_instance_created":
+                    instance_id = event.get("instance_id")
                 yield _sse(event)
                 _collect_reply_state(event, reply_state, full_reply)
                 if event.get("type") in ("bp_subtask_complete", "bp_progress"):
                     _bp_renew_busy(session_id)
 
             # Skip if already persisted by seecrab.py suspend logic
-            _snap = sm.get(instance_id)
+            _snap = sm.get(instance_id) if instance_id else None
             _is_suspended = _snap and (
                 getattr(_snap.status, "value", _snap.status) == "suspended"
             )
-            if not _is_suspended:
+            if instance_id and not _is_suspended:
                 _persist_bp_to_session(session, instance_id, sm,
                                        reply_state=reply_state,
                                        full_reply="".join(full_reply),
@@ -466,6 +453,18 @@ async def bp_next(request: Request):
         return JSONResponse({"error": "Session is busy"}, status_code=409)
 
     session = _resolve_session(request, session_id)
+    resume = engine.resume_if_needed(instance_id, session)
+    if not resume.get("success"):
+        _bp_clear_busy(session_id)
+        status_code = 409 if resume.get("code") == "conflict" else 404
+        return JSONResponse(
+            {
+                "error": resume.get("error", "Failed to resume BP instance"),
+                "code": resume.get("code", "bp_resume_failed"),
+                "active_instance_id": resume.get("active_instance_id"),
+            },
+            status_code=status_code,
+        )
     session_mgr = _resolve_session_manager(request)
     _persist_user_message(session, body.get("user_message", ""), session_manager=session_mgr)
 
@@ -478,10 +477,7 @@ async def bp_next(request: Request):
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     disconnect_event.set()
-                    if session and hasattr(session, "context"):
-                        dt = getattr(session.context, "_bp_delegate_task", None)
-                        if dt and not dt.done():
-                            dt.cancel()
+                    engine.request_suspend(instance_id, session, "disconnect")
                     return
                 await asyncio.sleep(2)
 
@@ -496,10 +492,15 @@ async def bp_next(request: Request):
                 if event.get("type") in ("bp_subtask_complete", "bp_progress"):
                     _bp_renew_busy(session_id)
 
-            _persist_bp_to_session(session, instance_id, sm,
-                                   reply_state=reply_state,
-                                   full_reply="".join(full_reply),
-                                   session_manager=session_mgr)
+            _snap = sm.get(instance_id)
+            _is_suspended = _snap and (
+                getattr(_snap.status, "value", _snap.status) == "suspended"
+            )
+            if not _is_suspended:
+                _persist_bp_to_session(session, instance_id, sm,
+                                       reply_state=reply_state,
+                                       full_reply="".join(full_reply),
+                                       session_manager=session_mgr)
             yield _sse({"type": "done"})
         except Exception as e:
             yield _sse({"type": "error", "message": str(e)})
@@ -533,6 +534,18 @@ async def bp_answer(request: Request):
         return JSONResponse({"error": "Session is busy"}, status_code=409)
 
     session = _resolve_session(request, session_id)
+    resume = engine.resume_if_needed(instance_id, session)
+    if not resume.get("success"):
+        _bp_clear_busy(session_id)
+        status_code = 409 if resume.get("code") == "conflict" else 404
+        return JSONResponse(
+            {
+                "error": resume.get("error", "Failed to resume BP instance"),
+                "code": resume.get("code", "bp_resume_failed"),
+                "active_instance_id": resume.get("active_instance_id"),
+            },
+            status_code=status_code,
+        )
     session_mgr = _resolve_session_manager(request)
     _persist_user_message(session, body.get("user_message", ""), session_manager=session_mgr)
 
@@ -545,10 +558,7 @@ async def bp_answer(request: Request):
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     disconnect_event.set()
-                    if session and hasattr(session, "context"):
-                        dt = getattr(session.context, "_bp_delegate_task", None)
-                        if dt and not dt.done():
-                            dt.cancel()
+                    engine.request_suspend(instance_id, session, "disconnect")
                     return
                 await asyncio.sleep(2)
 
@@ -561,10 +571,15 @@ async def bp_answer(request: Request):
                 yield _sse(event)
                 _collect_reply_state(event, reply_state, full_reply)
 
-            _persist_bp_to_session(session, instance_id, sm,
-                                   reply_state=reply_state,
-                                   full_reply="".join(full_reply),
-                                   session_manager=session_mgr)
+            _snap = sm.get(instance_id)
+            _is_suspended = _snap and (
+                getattr(_snap.status, "value", _snap.status) == "suspended"
+            )
+            if not _is_suspended:
+                _persist_bp_to_session(session, instance_id, sm,
+                                       reply_state=reply_state,
+                                       full_reply="".join(full_reply),
+                                       session_manager=session_mgr)
             yield _sse({"type": "done"})
         except Exception as e:
             yield _sse({"type": "error", "message": str(e)})

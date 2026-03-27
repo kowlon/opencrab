@@ -3904,7 +3904,7 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
             _bp_cb = get_bp_context_bridge()
             if _bp_cb and session_id:
                 switched = await _bp_cb.execute_pending_switch(
-                    session_id, brain=self.brain, messages=messages,
+                    session_id, brain=self.brain, messages=messages, session=session,
                 )
                 if switched:
                     logger.info(f"[Session:{session_id}] BP context switch executed")

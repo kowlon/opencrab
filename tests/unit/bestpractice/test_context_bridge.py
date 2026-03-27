@@ -8,9 +8,12 @@ import pytest
 
 from seeagent.bestpractice.engine import BPStateManager, ContextBridge
 from seeagent.bestpractice.models import (
+    ArtifactKind,
     BPInstanceSnapshot,
     BPStatus,
     BestPracticeConfig,
+    ContextArtifact,
+    ContextEnvelope,
     PendingContextSwitch,
     SubtaskConfig,
 )
@@ -58,7 +61,7 @@ def _make_brain(response_text="LLM summary text"):
 class TestCompressWithLlm:
     @pytest.mark.asyncio
     async def test_compressWithLlmTest(self, bridge):
-        """LLM path produces structured JSON with semantic_summary."""
+        """LLM path returns plain-text semantic summary."""
         brain = _make_brain("User prefers B2B focus, decided on ROI metrics")
         snap = _make_snap(
             bp_config=_make_bp_config(),
@@ -76,24 +79,16 @@ class TestCompressWithLlm:
             messages=messages, snap=snap, brain=brain,
         )
 
-        parsed = json.loads(result)
-        assert parsed["version"] == 1
-        assert parsed["compression_method"] == "llm"
-        assert parsed["bp_name"] == "Test BP"
-        assert parsed["current_subtask_index"] == 1
-        assert parsed["total_subtasks"] == 3
-        assert len(parsed["subtask_progress"]) == 3
-        assert parsed["subtask_progress"][0]["status"] == "done"
-        assert "research done" in parsed["key_outputs"]["s1"]
-        assert "B2B" in parsed["semantic_summary"]
-        assert "AI adoption" in parsed["user_intent"]
+        assert isinstance(result, str)
+        assert not result.strip().startswith("{")
+        assert "B2B" in result
         brain.think_lightweight.assert_awaited_once()
 
 
 class TestCompressLlmFallback:
     @pytest.mark.asyncio
     async def test_compressLlmFallbackTest(self, bridge):
-        """Brain raises exception, falls back to mechanical."""
+        """Brain raises exception, falls back to mechanical, returns plain text."""
         brain = _make_brain()
         brain.think_lightweight = AsyncMock(side_effect=RuntimeError("LLM down"))
         snap = _make_snap(bp_config=_make_bp_config())
@@ -103,15 +98,14 @@ class TestCompressLlmFallback:
             messages=messages, snap=snap, brain=brain,
         )
 
-        parsed = json.loads(result)
-        assert parsed["compression_method"] == "mechanical"
-        assert "important context" in parsed["semantic_summary"]
+        assert not result.strip().startswith("{")
+        assert "important context" in result
 
 
 class TestCompressBrainNone:
     @pytest.mark.asyncio
     async def test_compressBrainNoneTest(self, bridge):
-        """brain=None uses mechanical compression."""
+        """brain=None uses mechanical compression, returns plain text."""
         snap = _make_snap(bp_config=_make_bp_config())
         messages = [{"role": "user", "content": "some question"}]
 
@@ -119,9 +113,8 @@ class TestCompressBrainNone:
             messages=messages, snap=snap, brain=None,
         )
 
-        parsed = json.loads(result)
-        assert parsed["compression_method"] == "mechanical"
-        assert "some question" in parsed["semantic_summary"]
+        assert not result.strip().startswith("{")
+        assert "some question" in result
 
 
 class TestMechanicalFiltering:
@@ -139,20 +132,16 @@ class TestMechanicalFiltering:
             messages=messages, snap=_make_snap(), brain=None,
         )
 
-        parsed = json.loads(result)
-        summary = parsed["semantic_summary"]
-        assert "important user input" in summary
-        assert "tool result data" not in summary
-        assert "[assistant] ok" not in summary
-        assert "detailed analysis" in summary
+        assert "important user input" in result
+        assert "tool result data" not in result
+        assert "[assistant] ok" not in result
+        assert "detailed analysis" in result
 
     @pytest.mark.asyncio
-    async def test_compressEmptyReturnsJsonTest(self, bridge):
-        """Empty messages + no snap still returns valid JSON."""
+    async def test_compressEmptyReturnsEmptyTest(self, bridge):
+        """Empty messages + no snap returns empty string."""
         result = await bridge._compress_context(messages=[], snap=None)
-        parsed = json.loads(result)
-        assert parsed["compression_method"] == "none"
-        assert parsed["semantic_summary"] == ""
+        assert result == ""
 
 
 class TestCompressListContentBlocks:
@@ -165,8 +154,7 @@ class TestCompressListContentBlocks:
         result = await bridge._compress_context(
             messages=messages, snap=_make_snap(), brain=None,
         )
-        parsed = json.loads(result)
-        assert "hello world" in parsed["semantic_summary"]
+        assert "hello world" in result
 
 
 # ── Restoration ───────────────────────────────────────────────
@@ -194,6 +182,7 @@ class TestRestoreStructured:
         # Recovery now reads from snap.subtask_outputs (full data)
         snap = _make_snap(
             context_summary=summary,
+            current_subtask_index=1,
             subtask_outputs={"s1": {"result": "research done"}},
         )
         messages = [{"role": "assistant", "content": "previous response"}]
@@ -359,11 +348,10 @@ class TestFullSwitchFlow:
         )
 
         assert result is True
-        # A should have compressed context
+        # A should have compressed context as plain-text semantic summary
         assert snap_a.context_summary != ""
-        parsed_a = json.loads(snap_a.context_summary)
-        assert parsed_a["compression_method"] == "llm"
-        # B's recovery message should be injected
+        assert not snap_a.context_summary.strip().startswith("{")
+        # B's recovery message should be injected (snap_b has old JSON format → backward compat path)
         assert len(messages) == 3
         assert "[Task Resumed]" in messages[2]["content"]
         assert "Previous B context" in messages[2]["content"]
@@ -655,7 +643,7 @@ class TestFullOutputRestoration:
         )
 
         result = ContextBridge._build_recovery_prompt(
-            json.loads(summary), snap,
+            ContextEnvelope.from_v1(summary), snap,
         )
 
         # Should contain full output content from snap, not truncated summary
@@ -681,7 +669,7 @@ class TestRawOutputsInRecovery:
         )
 
         result = ContextBridge._build_recovery_prompt(
-            json.loads(summary), snap,
+            ContextEnvelope.from_v1(summary), snap,
         )
 
         assert "raw execution details" in result
@@ -705,7 +693,7 @@ class TestBudgetControl:
         )
 
         result = ContextBridge._build_recovery_prompt(
-            json.loads(summary), snap,
+            ContextEnvelope.from_v1(summary), snap,
         )
 
         # Result should not contain all 20000 chars
@@ -777,3 +765,146 @@ class TestDynamicSectionUserPreferences:
 
         assert "用户偏好" in result
         assert "B2B focus" in result
+
+    def test_dynamicSectionUserPreferencesV2Test(self):
+        """build_dynamic_section also reads v2 ContextEnvelope summaries."""
+        from unittest.mock import MagicMock
+        from seeagent.bestpractice.prompt.builder import BPPromptBuilder
+        from seeagent.bestpractice.prompt.loader import PromptTemplateLoader
+
+        sm = BPStateManager()
+        bp_config = _make_bp_config()
+
+        envelope = ContextEnvelope(
+            level="bp_instance",
+            source_id="bp1",
+            artifacts=[
+                ContextArtifact(
+                    kind=ArtifactKind.SEMANTIC_SUMMARY,
+                    key="semantic",
+                    content="User prefers concise B2B answers",
+                ),
+            ],
+            summary="User prefers concise B2B answers",
+            compression_method="mechanical",
+        )
+        active = BPInstanceSnapshot(
+            bp_id="bp1", instance_id="bp-test-v2",
+            session_id="sess1", status=BPStatus.ACTIVE,
+            subtask_statuses={"s1": "done", "s2": "current", "s3": "pending"},
+            subtask_outputs={"s1": {"data": "result"}},
+            current_subtask_index=1,
+            bp_config=bp_config,
+            context_summary=json.dumps(envelope.serialize(), ensure_ascii=False),
+        )
+        sm._instances["bp-test-v2"] = active
+
+        config_loader = MagicMock()
+        config_loader.configs = {"bp1": bp_config}
+        prompt_loader = PromptTemplateLoader()
+
+        builder = BPPromptBuilder(config_loader, sm, prompt_loader)
+        result = builder.build_dynamic_section("sess1")
+
+        assert "用户偏好" in result
+        assert "concise B2B" in result
+
+    def test_dynamicSectionUserPreferencesPlainTextTest(self):
+        """build_dynamic_section reads new plain-text context_summary directly."""
+        from unittest.mock import MagicMock
+        from seeagent.bestpractice.prompt.builder import BPPromptBuilder
+        from seeagent.bestpractice.prompt.loader import PromptTemplateLoader
+
+        sm = BPStateManager()
+        bp_config = _make_bp_config()
+
+        active = BPInstanceSnapshot(
+            bp_id="bp1", instance_id="bp-plain-text",
+            session_id="sess1", status=BPStatus.ACTIVE,
+            subtask_statuses={"s1": "done", "s2": "current", "s3": "pending"},
+            subtask_outputs={"s1": {"data": "result"}},
+            current_subtask_index=1,
+            bp_config=bp_config,
+            context_summary="User prefers plain-text format answers",
+        )
+        sm._instances["bp-plain-text"] = active
+
+        config_loader = MagicMock()
+        config_loader.configs = {"bp1": bp_config}
+        prompt_loader = PromptTemplateLoader()
+
+        builder = BPPromptBuilder(config_loader, sm, prompt_loader)
+        result = builder.build_dynamic_section("sess1")
+
+        assert "用户偏好" in result
+        assert "plain-text format" in result
+
+
+# ── _build_snapshot_recovery_prompt ─────────────────────────
+
+
+class TestSnapshotRecoveryPrompt:
+    def test_buildWithFullSnapshotTest(self, bridge):
+        """Builds complete recovery message from snapshot fields."""
+        snap = _make_snap(
+            bp_config=_make_bp_config(),
+            context_summary="User prefers B2B focus, ROI metrics",
+            current_subtask_index=1,
+            subtask_statuses={"s1": "done", "s2": "current", "s3": "pending"},
+            subtask_outputs={"s1": {"result": "research complete"}},
+            initial_input={"topic": "AI adoption"},
+        )
+
+        result = ContextBridge._build_snapshot_recovery_prompt(snap)
+
+        assert "[Task Resumed]" in result
+        assert "Test BP" in result
+        assert "step 2/3" in result
+        assert "[+] Research" in result
+        assert "[>] Outline" in result
+        assert "[ ] Writing" in result
+        assert "research complete" in result
+        assert "B2B focus" in result
+        assert "AI adoption" in result
+        assert "Please continue" in result
+
+    def test_buildWithNoBpConfigTest(self, bridge):
+        """Degrades gracefully when bp_config is None."""
+        snap = _make_snap(
+            bp_config=None,
+            bp_id="my-bp",
+            context_summary="some semantic summary",
+            subtask_outputs={"s1": {"r": "done"}},
+        )
+
+        result = ContextBridge._build_snapshot_recovery_prompt(snap)
+
+        assert "my-bp" in result
+        assert "some semantic summary" in result
+        assert "r" in result
+
+    def test_buildWithEmptySummaryTest(self, bridge):
+        """No 'Context summary' section when context_summary is empty."""
+        snap = _make_snap(
+            bp_config=_make_bp_config(),
+            context_summary="",
+            subtask_outputs={"s1": {"r": "x"}},
+        )
+
+        result = ContextBridge._build_snapshot_recovery_prompt(snap)
+
+        assert "Context summary" not in result
+        assert "[Task Resumed]" in result
+
+    def test_jsonSummaryNotIncludedTest(self, bridge):
+        """JSON-format context_summary is not included in prompt text."""
+        snap = _make_snap(
+            bp_config=_make_bp_config(),
+            context_summary='{"version": 2, "summary": "test"}',
+            subtask_outputs={},
+        )
+
+        result = ContextBridge._build_snapshot_recovery_prompt(snap)
+
+        assert '"version"' not in result
+        assert "Context summary" not in result

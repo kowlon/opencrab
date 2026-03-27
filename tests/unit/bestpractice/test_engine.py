@@ -1,10 +1,11 @@
 """BPEngine core execution tests."""
 
 import pytest
+from unittest.mock import MagicMock
 
 from seeagent.bestpractice.config import BestPracticeConfig
 from seeagent.bestpractice.engine import BPEngine
-from seeagent.bestpractice.models import SubtaskConfig, SubtaskStatus
+from seeagent.bestpractice.models import BPStatus, SubtaskConfig, SubtaskStatus
 from seeagent.bestpractice.engine import BPStateManager
 
 
@@ -15,6 +16,8 @@ class MockSession:
 
         class MockContext:
             _sse_event_bus = None
+            _bp_delegate_task = None
+            _bp_cancelled_instance = None
         self.context = MockContext()
 
 
@@ -80,6 +83,62 @@ class TestChatToEdit:
     def test_edit_nonexistent_instance(self, engine, bp_config):
         result = engine.handle_edit_output("ghost", "s1", {}, bp_config)
         assert not result["success"]
+
+
+class TestLifecycleHelpers:
+    def test_request_suspend_marks_state_and_persists(self, engine, bp_config):
+        session = MockSession()
+        inst_id = engine.state_manager.create_instance(
+            bp_config, session.id, {"topic": "AI"},
+        )
+        task = MagicMock()
+        task.done.return_value = False
+        session.context._bp_delegate_task = task
+
+        assert engine.request_suspend(
+            inst_id, session, "disconnect", pending_target_id="bp-next",
+        )
+
+        snap = engine.state_manager.get(inst_id)
+        assert snap.status == BPStatus.SUSPENDED
+        assert session.context._bp_cancelled_instance == inst_id
+        task.cancel.assert_called_once()
+        pending = engine.state_manager.consume_pending_switch(session.id)
+        assert pending is not None
+        assert pending.suspended_instance_id == inst_id
+        assert pending.target_instance_id == "bp-next"
+        assert "bp_state" in session.metadata
+
+    def test_resume_if_needed_resumes_suspended_instance(self, engine, bp_config):
+        session = MockSession()
+        inst_id = engine.state_manager.create_instance(
+            bp_config, session.id, {"topic": "AI"},
+        )
+        engine.state_manager.suspend(inst_id)
+        session.context._bp_cancelled_instance = inst_id
+
+        result = engine.resume_if_needed(inst_id, session)
+
+        assert result == {"success": True, "resumed": True}
+        snap = engine.state_manager.get(inst_id)
+        assert snap.status == BPStatus.ACTIVE
+        assert session.context._bp_cancelled_instance is None
+
+    def test_resume_if_needed_conflicts_with_other_active(self, engine, bp_config):
+        session = MockSession()
+        target_id = engine.state_manager.create_instance(
+            bp_config, session.id, {"topic": "AI"},
+        )
+        engine.state_manager.suspend(target_id)
+        other_id = engine.state_manager.create_instance(
+            bp_config, session.id, {"topic": "ML"},
+        )
+
+        result = engine.resume_if_needed(target_id, session)
+
+        assert result["success"] is False
+        assert result["code"] == "conflict"
+        assert result["active_instance_id"] == other_id
 
 
 # ── Parse output ──────────────────────────────────────────────
