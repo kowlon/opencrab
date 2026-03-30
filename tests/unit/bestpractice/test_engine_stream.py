@@ -219,7 +219,10 @@ class TestRunSubtaskStream:
         # Completed card should have absorbed_calls
         assert len(completed[0].get("absorbed_calls", [])) >= 2
         # No independent web_search or read_file cards
-        independent = [c for c in step_cards if c.get("source_type") == "tool"]
+        independent = [
+            c for c in step_cards
+            if c.get("source_type") == "tool" and c.get("card_type") != "delegate"
+        ]
         assert len(independent) == 0
 
     async def test_restores_old_event_bus(self):
@@ -248,6 +251,51 @@ class TestRunSubtaskStream:
         # Old bus should be restored
         assert session.context._sse_event_bus is old_bus
 
+    async def test_does_not_clobber_replaced_event_bus(self):
+        """Cleanup should not overwrite a newer request's event bus/task handles."""
+        cfg = _make_config()
+        sm = MagicMock()
+        engine = BPEngine(sm)
+
+        release = asyncio.Event()
+
+        async def fake_delegate(**kwargs):
+            bus = kwargs["session"].context._sse_event_bus
+            await bus.put({"type": "thinking_start"})
+            await release.wait()
+            return '{"ok": true}'
+
+        mock_orch = AsyncMock()
+        mock_orch.delegate = AsyncMock(side_effect=fake_delegate)
+        engine.set_orchestrator(mock_orch)
+
+        old_bus = asyncio.Queue()
+        session = MagicMock()
+        ctx = MagicMock()
+        ctx._sse_event_bus = old_bus
+        ctx._bp_delegate_task = None
+        session.context = ctx
+
+        async def consume():
+            async for _ in engine._run_subtask_stream(
+                "bp-test", cfg.subtasks[0], {"q": "hello"}, cfg, session
+            ):
+                pass
+
+        runner = asyncio.create_task(consume())
+        await asyncio.sleep(0.1)
+
+        replacement_bus = asyncio.Queue()
+        replacement_task = object()
+        session.context._sse_event_bus = replacement_bus
+        session.context._bp_delegate_task = replacement_task
+        release.set()
+
+        await runner
+
+        assert session.context._sse_event_bus is replacement_bus
+        assert session.context._bp_delegate_task is replacement_task
+
 
 @pytest.mark.asyncio
 class TestAnswer:
@@ -257,6 +305,7 @@ class TestAnswer:
         snap.bp_config = cfg
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.get_active.return_value = None
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)
         engine._get_config = MagicMock(return_value=cfg)
@@ -298,6 +347,7 @@ class TestAnswer:
         snap.supplemented_inputs["s1"] = {"old_field": "old_val"}
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.get_active.return_value = None
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)
         engine._get_config = MagicMock(return_value=cfg)

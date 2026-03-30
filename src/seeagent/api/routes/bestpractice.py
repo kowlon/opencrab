@@ -159,6 +159,12 @@ async def _bp_mark_busy(session_id: str, source: str) -> bool:
         for k in expired:
             del _bp_busy_locks[k]
         if session_id in _bp_busy_locks:
+            existing_source, existing_ts = _bp_busy_locks[session_id]
+            age = round(now - existing_ts, 1)
+            logger.warning(
+                f"[BP] mark_busy DENIED: session={session_id} "
+                f"held_by={existing_source} age={age}s"
+            )
             return False
         _bp_busy_locks[session_id] = (source, now)
         return True
@@ -172,7 +178,12 @@ def _bp_renew_busy(session_id: str) -> None:
 
 
 def _bp_clear_busy(session_id: str) -> None:
-    _bp_busy_locks.pop(session_id, None)
+    entry = _bp_busy_locks.pop(session_id, None)
+    if entry:
+        source, ts = entry
+        logger.info(
+            f"[BP] clear_busy: session={session_id} source={source} held={round(time.time()-ts,1)}s"
+        )
 
 
 # ── SSE Helpers ────────────────────────────────────────────────
@@ -373,64 +384,74 @@ async def bp_start(request: Request):
                 input_data = await _extract_input_from_query(brain, user_query, first_schema)
                 logger.info(f"[BP] Extracted input from pending offer query: {input_data}")
 
-    if not await _bp_mark_busy(session_id, "bp_start"):
-        return JSONResponse({"error": "Session is busy"}, status_code=409)
-
     run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
-    instance_id = sm.create_instance(
-        bp_config, session_id, initial_input=input_data, run_mode=run_mode,
-    )
     session = _resolve_session(request, session_id, create_if_missing=True)
     session_mgr = _resolve_session_manager(request)
+
+    # If session is busy (previous BP still cleaning up), preempt it and wait for lock.
+    # Race: delegate_task.cancel() was already called by pre-match, but await delegate_task
+    # in _run_subtask_stream() may take several seconds to complete.
+    if session_id in _bp_busy_locks:
+        _active_now = sm.get_active(session.id) if session else None
+        if _active_now and engine:
+            engine.request_suspend(_active_now.instance_id, session, "bp_start_preempt")
+            logger.info(f"[BP] bp_start preempting active instance {_active_now.instance_id}")
+
+    acquired = False
+    for _ in range(20):  # wait up to 10s (20 * 0.5s)
+        if await _bp_mark_busy(session_id, "bp_start"):
+            acquired = True
+            break
+        await asyncio.sleep(0.5)
+    if not acquired:
+        return JSONResponse({"error": "Session is busy"}, status_code=409)
+
     _persist_user_message(session, body.get("user_message", ""), session_manager=session_mgr)
 
     async def generate():
+        logger.info(f"[BP] generate() START: session_id={session_id} session.id={session.id if session else 'N/A'} bp_id={bp_id}")
         disconnect_event = asyncio.Event()
         reply_state = _new_reply_state()
         full_reply: list[str] = []
+        instance_id: str | None = None
 
         async def _disconnect_watcher():
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     disconnect_event.set()
-                    if session and hasattr(session, "context"):
-                        dt = getattr(session.context, "_bp_delegate_task", None)
-                        if dt and not dt.done():
-                            dt.cancel()
+                    _dis_session_id = session.id if session else session_id
+                    active = sm.get_active(_dis_session_id)
+                    logger.info(
+                        f"[BP] disconnect: session_id={session_id} "
+                        f"dis_session_id={_dis_session_id} "
+                        f"active={active.instance_id if active else None}"
+                    )
+                    if active:
+                        engine.request_suspend(
+                            active.instance_id, session, "disconnect",
+                        )
                     return
                 await asyncio.sleep(2)
 
         watcher = asyncio.create_task(_disconnect_watcher())
 
         try:
-            created_event = {
-                "type": "bp_instance_created",
-                "instance_id": instance_id,
-                "bp_id": bp_id,
-                "bp_name": bp_config.name,
-                "run_mode": run_mode.value,
-                "subtasks": [
-                    {"id": s.id, "name": s.name}
-                    for s in bp_config.subtasks
-                ],
-            }
-            yield _sse(created_event)
-            _collect_reply_state(created_event, reply_state, full_reply)
-
-            async for event in engine.advance(instance_id, session):
+            async for event in engine.start(bp_config, session, input_data, run_mode):
                 if disconnect_event.is_set():
                     break
+                if event.get("type") == "bp_instance_created":
+                    instance_id = event.get("instance_id")
                 yield _sse(event)
                 _collect_reply_state(event, reply_state, full_reply)
                 if event.get("type") in ("bp_subtask_complete", "bp_progress"):
                     _bp_renew_busy(session_id)
 
             # Skip if already persisted by seecrab.py suspend logic
-            _snap = sm.get(instance_id)
+            _snap = sm.get(instance_id) if instance_id else None
             _is_suspended = _snap and (
                 getattr(_snap.status, "value", _snap.status) == "suspended"
             )
-            if not _is_suspended:
+            if instance_id and not _is_suspended:
                 _persist_bp_to_session(session, instance_id, sm,
                                        reply_state=reply_state,
                                        full_reply="".join(full_reply),
@@ -440,6 +461,7 @@ async def bp_start(request: Request):
             yield _sse({"type": "error", "message": str(e)})
             yield _sse({"type": "done"})
         finally:
+            logger.info(f"[BP] generate() FINALLY: session_id={session_id} clearing busy")
             watcher.cancel()
             _bp_clear_busy(session_id)
 
@@ -466,6 +488,18 @@ async def bp_next(request: Request):
         return JSONResponse({"error": "Session is busy"}, status_code=409)
 
     session = _resolve_session(request, session_id)
+    resume = engine.resume_if_needed(instance_id, session)
+    if not resume.get("success"):
+        _bp_clear_busy(session_id)
+        status_code = 409 if resume.get("code") == "conflict" else 404
+        return JSONResponse(
+            {
+                "error": resume.get("error", "Failed to resume BP instance"),
+                "code": resume.get("code", "bp_resume_failed"),
+                "active_instance_id": resume.get("active_instance_id"),
+            },
+            status_code=status_code,
+        )
     session_mgr = _resolve_session_manager(request)
     _persist_user_message(session, body.get("user_message", ""), session_manager=session_mgr)
 
@@ -478,10 +512,7 @@ async def bp_next(request: Request):
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     disconnect_event.set()
-                    if session and hasattr(session, "context"):
-                        dt = getattr(session.context, "_bp_delegate_task", None)
-                        if dt and not dt.done():
-                            dt.cancel()
+                    engine.request_suspend(instance_id, session, "disconnect")
                     return
                 await asyncio.sleep(2)
 
@@ -496,10 +527,15 @@ async def bp_next(request: Request):
                 if event.get("type") in ("bp_subtask_complete", "bp_progress"):
                     _bp_renew_busy(session_id)
 
-            _persist_bp_to_session(session, instance_id, sm,
-                                   reply_state=reply_state,
-                                   full_reply="".join(full_reply),
-                                   session_manager=session_mgr)
+            _snap = sm.get(instance_id)
+            _is_suspended = _snap and (
+                getattr(_snap.status, "value", _snap.status) == "suspended"
+            )
+            if not _is_suspended:
+                _persist_bp_to_session(session, instance_id, sm,
+                                       reply_state=reply_state,
+                                       full_reply="".join(full_reply),
+                                       session_manager=session_mgr)
             yield _sse({"type": "done"})
         except Exception as e:
             yield _sse({"type": "error", "message": str(e)})
@@ -533,6 +569,18 @@ async def bp_answer(request: Request):
         return JSONResponse({"error": "Session is busy"}, status_code=409)
 
     session = _resolve_session(request, session_id)
+    resume = engine.resume_if_needed(instance_id, session)
+    if not resume.get("success"):
+        _bp_clear_busy(session_id)
+        status_code = 409 if resume.get("code") == "conflict" else 404
+        return JSONResponse(
+            {
+                "error": resume.get("error", "Failed to resume BP instance"),
+                "code": resume.get("code", "bp_resume_failed"),
+                "active_instance_id": resume.get("active_instance_id"),
+            },
+            status_code=status_code,
+        )
     session_mgr = _resolve_session_manager(request)
     _persist_user_message(session, body.get("user_message", ""), session_manager=session_mgr)
 
@@ -545,10 +593,7 @@ async def bp_answer(request: Request):
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     disconnect_event.set()
-                    if session and hasattr(session, "context"):
-                        dt = getattr(session.context, "_bp_delegate_task", None)
-                        if dt and not dt.done():
-                            dt.cancel()
+                    engine.request_suspend(instance_id, session, "disconnect")
                     return
                 await asyncio.sleep(2)
 
@@ -561,10 +606,15 @@ async def bp_answer(request: Request):
                 yield _sse(event)
                 _collect_reply_state(event, reply_state, full_reply)
 
-            _persist_bp_to_session(session, instance_id, sm,
-                                   reply_state=reply_state,
-                                   full_reply="".join(full_reply),
-                                   session_manager=session_mgr)
+            _snap = sm.get(instance_id)
+            _is_suspended = _snap and (
+                getattr(_snap.status, "value", _snap.status) == "suspended"
+            )
+            if not _is_suspended:
+                _persist_bp_to_session(session, instance_id, sm,
+                                       reply_state=reply_state,
+                                       full_reply="".join(full_reply),
+                                       session_manager=session_mgr)
             yield _sse({"type": "done"})
         except Exception as e:
             yield _sse({"type": "error", "message": str(e)})

@@ -28,6 +28,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_PARTIAL_RESULT_ITEM_LIMIT = 2000
+_PARTIAL_RESULTS_TOTAL_LIMIT = 8000
+
 
 class BPEngine:
     def __init__(
@@ -86,20 +89,10 @@ class BPEngine:
 
         Yields: bp_instance_created, then all events from advance().
         """
-        from ..models import PendingContextSwitch
-
         existing = self.state_manager.get_active(session.id)
-        if existing and existing.bp_id == bp_config.id:
-            return
-
         if existing:
-            self.state_manager.suspend(existing.instance_id)
-            self.state_manager.set_pending_switch(
-                session.id,
-                PendingContextSwitch(
-                    suspended_instance_id=existing.instance_id,
-                    target_instance_id="",
-                ),
+            self.request_suspend(
+                existing.instance_id, session, "start", pending_target_id="",
             )
             old_name = existing.bp_config.name if existing.bp_config else existing.bp_id
             logger.info(
@@ -107,15 +100,13 @@ class BPEngine:
                 f"({old_name}) to start {bp_config.id}"
             )
 
-        logger.info(
-            f"[BP-DEBUG] bp_start: bp_id={bp_config.id}, "
+        logger.debug(
+            f"[BP] bp_start: bp_id={bp_config.id}, "
             f"session_id={session.id}, run_mode={run_mode.value}"
         )
         inst_id = self.state_manager.create_instance(
             bp_config, session.id, initial_input=input_data or {}, run_mode=run_mode,
         )
-        logger.info(f"[BP-DEBUG] bp_start: created instance {inst_id}")
-
         # Backfill target_instance_id on pending switch
         pending = self.state_manager._pending_switches.get(session.id)
         if pending and not pending.target_instance_id:
@@ -139,6 +130,79 @@ class BPEngine:
 
         self.state_manager.persist_to_session(inst_id, session)
 
+    def request_suspend(
+        self,
+        instance_id: str,
+        session: Any,
+        reason: str,
+        pending_target_id: str | None = None,
+    ) -> bool:
+        """Suspend an active instance and persist the cancellation state."""
+        from ..models import PendingContextSwitch
+
+        snap = self.state_manager.get(instance_id)
+        if not snap:
+            return False
+
+        self.state_manager.suspend(instance_id)
+
+        if pending_target_id is not None:
+            self.state_manager.set_pending_switch(
+                snap.session_id,
+                PendingContextSwitch(
+                    suspended_instance_id=instance_id,
+                    target_instance_id=pending_target_id,
+                ),
+            )
+
+        ctx = getattr(session, "context", None) if session else None
+        if ctx is not None:
+            ctx._bp_cancelled_instance = instance_id
+            dt = getattr(ctx, "_bp_delegate_task", None)
+            if dt and not dt.done():
+                dt.cancel()
+
+        logger.info(
+            f"[BP] request_suspend: instance={instance_id} "
+            f"reason={reason} pending_target={pending_target_id or ''}"
+        )
+        self.state_manager.persist_to_session(instance_id, session)
+        return True
+
+    def resume_if_needed(self, instance_id: str, session: Any) -> dict[str, Any]:
+        """Resume a suspended instance when safe, or report the conflict."""
+        snap = self.state_manager.get(instance_id)
+        if not snap:
+            return {"success": False, "error": "Instance not found", "code": "not_found"}
+
+        ctx = getattr(session, "context", None) if session else None
+        current_active = self.state_manager.get_active(snap.session_id)
+        if snap.status == BPStatus.SUSPENDED:
+            if current_active and current_active.instance_id != instance_id:
+                return {
+                    "success": False,
+                    "error": "Another BP instance is already active",
+                    "code": "conflict",
+                    "active_instance_id": current_active.instance_id,
+                }
+            self.state_manager.resume(instance_id)
+            if ctx is not None and getattr(ctx, "_bp_cancelled_instance", None) == instance_id:
+                ctx._bp_cancelled_instance = None
+            self.state_manager.persist_to_session(instance_id, session)
+            return {"success": True, "resumed": True}
+
+        if current_active and current_active.instance_id != instance_id:
+            return {
+                "success": False,
+                "error": "Another BP instance is already active",
+                "code": "conflict",
+                "active_instance_id": current_active.instance_id,
+            }
+
+        if ctx is not None and getattr(ctx, "_bp_cancelled_instance", None) == instance_id:
+            ctx._bp_cancelled_instance = None
+        return {"success": True, "resumed": False}
+
     def switch(self, target_id: str, session: Any) -> dict[str, Any]:
         """Switch active instance. Returns result metadata dict."""
         from ..models import PendingContextSwitch
@@ -154,16 +218,18 @@ class BPEngine:
             return {"success": False, "already_active": True}
 
         if current_id:
-            self.state_manager.suspend(current_id)
+            self.request_suspend(
+                current_id, session, "switch", pending_target_id=target_id,
+            )
+        else:
+            self.state_manager.set_pending_switch(
+                session.id,
+                PendingContextSwitch(
+                    suspended_instance_id="",
+                    target_instance_id=target_id,
+                ),
+            )
         self.state_manager.resume(target_id)
-
-        self.state_manager.set_pending_switch(
-            session.id,
-            PendingContextSwitch(
-                suspended_instance_id=current_id,
-                target_instance_id=target_id,
-            ),
-        )
         self.state_manager.persist_to_session(target_id, session)
         return {"success": True, "target_id": target_id}
 
@@ -300,12 +366,15 @@ class BPEngine:
                 output = None
                 raw_result_text = ""
                 tool_results_list: list[str] = []
+                received_internal_output = False
+                subtask_failed = False
                 try:
                     async for event in self._run_subtask_stream(
                         instance_id, subtask, input_data, bp_config, session,
                         delegate_step_id=delegate_step_id,
                     ):
                         if event.get("type") == "_internal_output":
+                            received_internal_output = True
                             output = event.get("data", {})
                             raw_result_text = event.get("raw_result", "")
                             tool_results_list = event.get("tool_results", [])
@@ -316,6 +385,8 @@ class BPEngine:
                             yield event
                             return
                         else:
+                            if event.get("type") in ("error", "bp_error"):
+                                subtask_failed = True
                             # Passthrough other events to the caller
                             yield event
                 except asyncio.CancelledError:
@@ -334,6 +405,12 @@ class BPEngine:
                         "subtask_id": subtask.id,
                         "error": str(exc),
                     }
+                    return
+
+                if subtask_failed or not received_internal_output:
+                    self.state_manager.update_subtask_status(
+                        instance_id, subtask.id, SubtaskStatus.FAILED,
+                    )
                     return
 
                 # Gap 5: yield delegate card (completed)
@@ -360,10 +437,13 @@ class BPEngine:
                 )
 
                 scheduler.complete_task(subtask.id, output)
-                logger.debug(
-                    f"[BP] complete_task: subtask={subtask.id} "
-                    f"idx={snap.current_subtask_index}"
-                )
+
+                # Save raw result for precise context restoration on resume
+                if raw_result_text:
+                    snap.subtask_raw_outputs[subtask.id] = raw_result_text[:8000]
+                # Clear partial results (subtask completed successfully)
+                snap.subtask_partial_results.pop(subtask.id, None)
+
                 self._persist_state(instance_id, session)
 
                 yield {
@@ -478,8 +558,10 @@ class BPEngine:
         scheduler = self._get_scheduler(bp_config, snap)
         output_schema = scheduler.derive_output_schema(subtask.id)
 
-        # Build delegation message
-        message = self._build_delegation_message(bp_config, subtask, input_data, output_schema)
+        # Build delegation message (pass snap for partial results injection)
+        message = self._build_delegation_message(
+            bp_config, subtask, input_data, output_schema, snap=snap,
+        )
 
         # Temporary event_bus to capture SubAgent streaming events
         event_bus: asyncio.Queue = asyncio.Queue()
@@ -525,29 +607,50 @@ class BPEngine:
                 try:
                     event = await asyncio.wait_for(event_bus.get(), timeout=1.0)
                 except asyncio.TimeoutError:
-                    if delegate_task.done():
-                        break
                     # Check session-level cancellation signal (fastest path)
                     _cancelled_id = getattr(
                         getattr(session, "context", None),
                         "_bp_cancelled_instance", None,
                     )
-                    if _cancelled_id == instance_id:
-                        logger.info(f"[BP] Detected cancel signal for {instance_id}")
+                    # Check state_manager suspended status (fallback)
+                    _snap = self.state_manager.get(instance_id)
+                    _suspended = _snap and _snap.status == BPStatus.SUSPENDED
+                    if _cancelled_id == instance_id or _suspended:
+                        if _cancelled_id == instance_id:
+                            logger.info(
+                                f"[BP] Detected cancel signal for {instance_id}"
+                            )
+                        if _snap and tool_results:
+                            _snap.subtask_partial_results[subtask.id] = list(
+                                tool_results
+                            )
+                            self._persist_state(instance_id, session)
                         if not delegate_task.done():
                             delegate_task.cancel()
                         break
-                    # Check state_manager suspended status (fallback)
-                    _snap = self.state_manager.get(instance_id)
-                    if _snap and _snap.status == BPStatus.SUSPENDED:
-                        if not delegate_task.done():
-                            delegate_task.cancel()
+                    if delegate_task.done():
                         break
                     continue
 
                 etype = event.get("type")
                 if etype == "done":
                     continue
+
+                # Per-event suspension check: catches cancellation even when events
+                # stream so rapidly that asyncio.TimeoutError never fires.
+                _snap_chk = self.state_manager.get(instance_id)
+                _cid_chk = getattr(
+                    getattr(session, "context", None), "_bp_cancelled_instance", None,
+                )
+                if _cid_chk == instance_id or (
+                    _snap_chk and _snap_chk.status == BPStatus.SUSPENDED
+                ):
+                    logger.info(
+                        f"[BP] Detected cancel mid-stream: instance={instance_id} subtask={subtask.id}"
+                    )
+                    if not delegate_task.done():
+                        delegate_task.cancel()
+                    break
 
                 # Track sub-agent identity
                 if etype == "agent_header":
@@ -577,7 +680,9 @@ class BPEngine:
                     result = event.get("result", "")
                     is_error = event.get("is_error", False)
                     if not is_error and result:
-                        tool_results.append(str(result))
+                        tool_results = self._append_budgeted_partial_result(
+                            tool_results, result,
+                        )
                     for ev in await fmt.on_tool_call_end(event):
                         yield ev
                     continue
@@ -602,10 +707,16 @@ class BPEngine:
                 yield ev
 
             # Get final result (may have been cancelled due to suspend)
+            logger.info(f"[BP] awaiting delegate_task cancel: instance={instance_id} subtask={subtask.id}")
             try:
-                raw_result = await delegate_task
+                raw_result = await asyncio.wait_for(delegate_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"[BP] delegate_task cancel timed out: instance={instance_id} subtask={subtask.id}"
+                )
+                return
             except asyncio.CancelledError:
-                logger.info(f"[BP] Delegate task cancelled for {subtask.id}")
+                logger.info(f"[BP] delegate_task cancelled done: instance={instance_id} subtask={subtask.id}")
                 return
             output = self._parse_output(raw_result)
             yield {
@@ -620,12 +731,19 @@ class BPEngine:
             if not delegate_task.done():
                 delegate_task.cancel()
                 try:
-                    await delegate_task
-                except (asyncio.CancelledError, Exception):
+                    await asyncio.wait_for(
+                        asyncio.shield(delegate_task), timeout=3.0,
+                    )
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
                     pass
             if hasattr(session, "context"):
-                session.context._sse_event_bus = old_bus
-                session.context._bp_delegate_task = None  # Clean up reference
+                # Another request may have already attached a fresh event bus or
+                # delegate task to the same session. Only restore/clear the
+                # handles if this stream still owns them.
+                if getattr(session.context, "_sse_event_bus", None) is event_bus:
+                    session.context._sse_event_bus = old_bus
+                if getattr(session.context, "_bp_delegate_task", None) is delegate_task:
+                    session.context._bp_delegate_task = None
             if hasattr(session, "metadata"):
                 if old_thinking_mode is not None:
                     session.metadata["thinking_mode"] = old_thinking_mode
@@ -645,6 +763,16 @@ class BPEngine:
         snap = self.state_manager.get(instance_id)
         if not snap:
             yield {"type": "error", "message": "Instance not found"}
+            return
+
+        resume = self.resume_if_needed(instance_id, session)
+        if not resume.get("success"):
+            yield {
+                "type": "error",
+                "message": resume.get("error", "Failed to resume BP instance"),
+                "code": resume.get("code", "bp_resume_failed"),
+                "active_instance_id": resume.get("active_instance_id"),
+            }
             return
 
         # Merge supplemented data into dedicated field (don't pollute subtask_outputs)
@@ -669,14 +797,23 @@ class BPEngine:
         subtask: SubtaskConfig,
         input_data: dict[str, Any],
         output_schema: dict[str, Any] | None,
+        snap: Any = None,
     ) -> str:
         schema_hint = self._schema_to_example(output_schema) if output_schema else (
             "由你自行决定合适的输出格式"
         )
+
+        partial_section = ""
+        if snap:
+            partial = snap.subtask_partial_results.get(subtask.id)
+            if partial:
+                partial_section = self._format_partial_results(partial)
+
         return (
             f"## 最佳实践任务: {bp_config.name}\n"
             f"### 当前子任务: {subtask.name}\n"
             f"{subtask.description or ''}\n\n"
+            f"{partial_section}"
             f"### 输入数据\n```json\n"
             f"{json.dumps(input_data, ensure_ascii=False, indent=2)}\n```\n\n"
             f"### 输出格式要求\n\n"
@@ -689,6 +826,17 @@ class BPEngine:
             f"- **总结**行必须在 JSON 代码块之前\n"
             f"- 不要把结果写入文件，直接在回复中输出 JSON"
         )
+
+    @staticmethod
+    def _format_partial_results(partial: list[str]) -> str:
+        """Format partial tool results as a continuation section."""
+        lines = ["### 已完成进展\n"]
+        lines.append("本子任务之前被中断，以下是已完成的部分结果，请基于这些结果继续:\n")
+        for i, result in enumerate(partial, 1):
+            truncated = result[:2000]
+            lines.append(f"**结果 {i}:**\n{truncated}\n")
+        lines.append("")
+        return "\n".join(lines)
 
     @staticmethod
     def _schema_to_example(schema: dict[str, Any]) -> str:
@@ -733,6 +881,35 @@ class BPEngine:
         if required:
             lines += f"\n// 必填字段: {', '.join(required)}"
         return lines
+
+    @staticmethod
+    def _stringify_partial_result(result: Any) -> str:
+        if isinstance(result, str):
+            return result
+        try:
+            return json.dumps(result, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return str(result)
+
+    @classmethod
+    def _append_budgeted_partial_result(
+        cls, partials: list[str], result: Any,
+    ) -> list[str]:
+        text = cls._stringify_partial_result(result).strip()
+        if not text:
+            return partials
+
+        candidate = text[:_PARTIAL_RESULT_ITEM_LIMIT]
+        total = sum(len(item) for item in partials)
+        if total >= _PARTIAL_RESULTS_TOTAL_LIMIT:
+            return partials
+
+        remaining = _PARTIAL_RESULTS_TOTAL_LIMIT - total
+        if len(candidate) > remaining:
+            candidate = candidate[:remaining]
+        if not candidate:
+            return partials
+        return partials + [candidate]
 
     # ── Chat-to-Edit ───────────────────────────────────────────
 
@@ -882,7 +1059,7 @@ class BPEngine:
             if "_raw_output" not in conformed:
                 conformed = self._sanitize_output(conformed, output_schema)
                 conformed = self._ensure_required_fields(conformed, output_schema)
-                logger.info(
+                logger.debug(
                     f"[BP] _conform_output: mapped {list(raw_output.keys())} "
                     f"-> {list(conformed.keys())}"
                 )

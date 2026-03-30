@@ -1,10 +1,11 @@
 """BPEngine core execution tests."""
 
 import pytest
+from unittest.mock import MagicMock
 
 from seeagent.bestpractice.config import BestPracticeConfig
 from seeagent.bestpractice.engine import BPEngine
-from seeagent.bestpractice.models import SubtaskConfig, SubtaskStatus
+from seeagent.bestpractice.models import BPStatus, SubtaskConfig, SubtaskStatus
 from seeagent.bestpractice.engine import BPStateManager
 
 
@@ -15,6 +16,8 @@ class MockSession:
 
         class MockContext:
             _sse_event_bus = None
+            _bp_delegate_task = None
+            _bp_cancelled_instance = None
         self.context = MockContext()
 
 
@@ -82,6 +85,62 @@ class TestChatToEdit:
         assert not result["success"]
 
 
+class TestLifecycleHelpers:
+    def test_request_suspend_marks_state_and_persists(self, engine, bp_config):
+        session = MockSession()
+        inst_id = engine.state_manager.create_instance(
+            bp_config, session.id, {"topic": "AI"},
+        )
+        task = MagicMock()
+        task.done.return_value = False
+        session.context._bp_delegate_task = task
+
+        assert engine.request_suspend(
+            inst_id, session, "disconnect", pending_target_id="bp-next",
+        )
+
+        snap = engine.state_manager.get(inst_id)
+        assert snap.status == BPStatus.SUSPENDED
+        assert session.context._bp_cancelled_instance == inst_id
+        task.cancel.assert_called_once()
+        pending = engine.state_manager.consume_pending_switch(session.id)
+        assert pending is not None
+        assert pending.suspended_instance_id == inst_id
+        assert pending.target_instance_id == "bp-next"
+        assert "bp_state" in session.metadata
+
+    def test_resume_if_needed_resumes_suspended_instance(self, engine, bp_config):
+        session = MockSession()
+        inst_id = engine.state_manager.create_instance(
+            bp_config, session.id, {"topic": "AI"},
+        )
+        engine.state_manager.suspend(inst_id)
+        session.context._bp_cancelled_instance = inst_id
+
+        result = engine.resume_if_needed(inst_id, session)
+
+        assert result == {"success": True, "resumed": True}
+        snap = engine.state_manager.get(inst_id)
+        assert snap.status == BPStatus.ACTIVE
+        assert session.context._bp_cancelled_instance is None
+
+    def test_resume_if_needed_conflicts_with_other_active(self, engine, bp_config):
+        session = MockSession()
+        target_id = engine.state_manager.create_instance(
+            bp_config, session.id, {"topic": "AI"},
+        )
+        engine.state_manager.suspend(target_id)
+        other_id = engine.state_manager.create_instance(
+            bp_config, session.id, {"topic": "ML"},
+        )
+
+        result = engine.resume_if_needed(target_id, session)
+
+        assert result["success"] is False
+        assert result["code"] == "conflict"
+        assert result["active_instance_id"] == other_id
+
+
 # ── Parse output ──────────────────────────────────────────────
 
 
@@ -96,6 +155,73 @@ class TestParseOutput:
     def test_fallback_raw(self):
         result = BPEngine._parse_output("plain text response")
         assert result["_raw_output"] == "plain text response"
+
+
+# ── Delegation message with partial results ──────────────────
+
+
+class TestDelegationWithPartialResults:
+    def test_delegationIncludesPartialResultsTest(self, engine, bp_config):
+        """Delegation message includes partial results when snap has them."""
+        from seeagent.bestpractice.models import BPInstanceSnapshot
+
+        snap = BPInstanceSnapshot(
+            bp_id="test-bp", instance_id="bp-test", session_id="sess-1",
+            subtask_statuses={"s1": "pending"},
+            subtask_partial_results={"s1": ["search result 1", "search result 2"]},
+        )
+        subtask = bp_config.subtasks[0]
+        msg = engine._build_delegation_message(
+            bp_config, subtask, {"topic": "AI"}, None, snap=snap,
+        )
+
+        assert "已完成进展" in msg
+        assert "search result 1" in msg
+        assert "search result 2" in msg
+        assert "被中断" in msg
+
+    def test_delegationNoPartialResultsTest(self, engine, bp_config):
+        """No partial results section when snap has no partial data."""
+        from seeagent.bestpractice.models import BPInstanceSnapshot
+
+        snap = BPInstanceSnapshot(
+            bp_id="test-bp", instance_id="bp-test", session_id="sess-1",
+            subtask_statuses={"s1": "pending"},
+        )
+        subtask = bp_config.subtasks[0]
+        msg = engine._build_delegation_message(
+            bp_config, subtask, {"topic": "AI"}, None, snap=snap,
+        )
+
+        assert "已完成进展" not in msg
+
+    def test_delegationWithoutSnapTest(self, engine, bp_config):
+        """Delegation message works when snap is None."""
+        subtask = bp_config.subtasks[0]
+        msg = engine._build_delegation_message(
+            bp_config, subtask, {"topic": "AI"}, None, snap=None,
+        )
+
+        assert "已完成进展" not in msg
+        assert "当前子任务" in msg
+
+
+class TestFormatPartialResults:
+    def test_formatPartialResultsTest(self, engine):
+        partial = ["result A", "result B"]
+        result = engine._format_partial_results(partial)
+
+        assert "已完成进展" in result
+        assert "结果 1" in result
+        assert "result A" in result
+        assert "结果 2" in result
+        assert "result B" in result
+
+    def test_formatPartialResultsTruncatesLongResultsTest(self, engine):
+        partial = ["x" * 5000]
+        result = engine._format_partial_results(partial)
+
+        assert len(result) < 5000
 
 
 class TestConformOutputFallback:
