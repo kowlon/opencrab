@@ -473,7 +473,7 @@ SeeAgent 按「现状」(AS IS) 提供，不附带任何形式的明示或暗示
         )
         resolved_slug = get_provider_slug_from_base_url(base_url) or slug
         caps = infer_capabilities(model, provider_slug=resolved_slug)
-        capabilities = [k for k, v in caps.items() if v and k != "thinking_only"]
+        capabilities = [k for k, v in caps.items() if v]
         if not capabilities:
             capabilities = ["text", "tools"]
 
@@ -725,7 +725,7 @@ SeeAgent 按「现状」(AS IS) 提供，不附带任何形式的明示或暗示
             )
             provider_slug = get_provider_slug_from_base_url(base_url) or provider
             caps = infer_capabilities(model, provider_slug=provider_slug)
-            capabilities = [k for k, v in caps.items() if v and k != "thinking_only"]
+            capabilities = [k for k, v in caps.items() if v]
             if not capabilities:
                 capabilities = ["text", "tools"]
 
