@@ -156,10 +156,10 @@ def _add_endpoint_from_provider(endpoints: list[EndpointConfig], provider_info: 
 
     # 获取能力（自动推断 + 用户确认）
     caps = infer_capabilities(model_id, provider_slug=provider_info.slug)
-    auto_capabilities = [k for k, v in caps.items() if v and k != "thinking_only"]
+    auto_capabilities = [k for k, v in caps.items() if v]
 
     print(f"\n自动检测到的能力: {', '.join(auto_capabilities) if auto_capabilities else '无'}")
-    print("可用能力: text, vision, video, tools")
+    print("可用能力: text, vision, video, tools, thinking, thinking_only")
     print("是否修改? 输入新的能力列表 (用逗号分隔) 或直接回车保留:")
     caps_input = input("> ").strip()
 
@@ -394,7 +394,7 @@ def quick_add_endpoint(
         name = f"{provider}-{model.split('/')[-1]}"
 
     caps = infer_capabilities(model, provider_slug=provider)
-    capabilities = [k for k, v in caps.items() if v and k != "thinking_only"]
+    capabilities = [k for k, v in caps.items() if v]
 
     endpoint = EndpointConfig(
         name=name,

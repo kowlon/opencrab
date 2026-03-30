@@ -468,39 +468,15 @@ class EndpointConfig:
             self.capabilities = ["text"]
 
     def has_capability(self, capability: str) -> bool:
-        """检查是否有某种能力
+        """检查是否有某种能力（仅查询显式配置的 capabilities 列表）
 
-        优先级:
-        1. 显式配置的 capabilities 列表（用户在 JSON 中声明的，最高优先级）
-        2. 兼容推断（基于 extra_params / model 名等线索，作为兜底）
+        运行时不做任何推断。capabilities 列表在以下时机被完整写入：
+        - setup wizard / CLI 创建端点时，由 infer_capabilities() 推断
+        - 启动时 load_endpoints_config() 的自动迁移逻辑补全旧配置
         """
-        cap = (capability or "").lower().strip()
-        caps = {c.lower() for c in (self.capabilities or [])}
-        if cap in caps:
-            return True
-
-        # === 兼容/推断能力 ===
-        # 历史配置或手动编辑的 JSON 可能缺少 capabilities 标注，
-        # 但 extra_params/model 名已能反映能力。仅在显式列表未包含时才走推断。
-        model = (self.model or "").lower()
-
-        if cap == "thinking":
-            if "thinking" in model:
-                return True
-            extra = self.extra_params or {}
-            if extra.get("enable_thinking") is True:
-                return True
-
-        # 仅在 capabilities 仍为默认值 ["text"] 时才做模型名推断兜底
-        # （用户显式配置过 capabilities 的情况下不覆盖其意图）
-        if caps == {"text"} and model:
-            from .capabilities import get_provider_slug_from_base_url, infer_capabilities
-            provider_slug = get_provider_slug_from_base_url(self.base_url) if self.base_url else None
-            inferred = infer_capabilities(model, provider_slug=provider_slug)
-            if inferred.get(cap, False):
-                return True
-
-        return False
+        return (capability or "").lower().strip() in {
+            c.lower() for c in (self.capabilities or [])
+        }
 
     def get_api_key(self) -> str | None:
         """获取 API Key (优先使用直接存储的 key，然后从环境变量获取)"""
