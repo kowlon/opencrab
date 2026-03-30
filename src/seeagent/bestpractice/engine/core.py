@@ -90,9 +90,6 @@ class BPEngine:
         Yields: bp_instance_created, then all events from advance().
         """
         existing = self.state_manager.get_active(session.id)
-        if existing and existing.bp_id == bp_config.id:
-            return
-
         if existing:
             self.request_suspend(
                 existing.instance_id, session, "start", pending_target_id="",
@@ -639,6 +636,22 @@ class BPEngine:
                 if etype == "done":
                     continue
 
+                # Per-event suspension check: catches cancellation even when events
+                # stream so rapidly that asyncio.TimeoutError never fires.
+                _snap_chk = self.state_manager.get(instance_id)
+                _cid_chk = getattr(
+                    getattr(session, "context", None), "_bp_cancelled_instance", None,
+                )
+                if _cid_chk == instance_id or (
+                    _snap_chk and _snap_chk.status == BPStatus.SUSPENDED
+                ):
+                    logger.info(
+                        f"[BP] Detected cancel mid-stream: instance={instance_id} subtask={subtask.id}"
+                    )
+                    if not delegate_task.done():
+                        delegate_task.cancel()
+                    break
+
                 # Track sub-agent identity
                 if etype == "agent_header":
                     fmt.on_agent_header(event)
@@ -694,10 +707,16 @@ class BPEngine:
                 yield ev
 
             # Get final result (may have been cancelled due to suspend)
+            logger.info(f"[BP] awaiting delegate_task cancel: instance={instance_id} subtask={subtask.id}")
             try:
-                raw_result = await delegate_task
+                raw_result = await asyncio.wait_for(delegate_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"[BP] delegate_task cancel timed out: instance={instance_id} subtask={subtask.id}"
+                )
+                return
             except asyncio.CancelledError:
-                logger.info(f"[BP] Delegate task cancelled for {subtask.id}")
+                logger.info(f"[BP] delegate_task cancelled done: instance={instance_id} subtask={subtask.id}")
                 return
             output = self._parse_output(raw_result)
             yield {
@@ -712,8 +731,10 @@ class BPEngine:
             if not delegate_task.done():
                 delegate_task.cancel()
                 try:
-                    await delegate_task
-                except (asyncio.CancelledError, Exception):
+                    await asyncio.wait_for(
+                        asyncio.shield(delegate_task), timeout=3.0,
+                    )
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
                     pass
             if hasattr(session, "context"):
                 # Another request may have already attached a fresh event bus or

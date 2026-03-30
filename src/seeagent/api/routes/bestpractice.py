@@ -159,6 +159,12 @@ async def _bp_mark_busy(session_id: str, source: str) -> bool:
         for k in expired:
             del _bp_busy_locks[k]
         if session_id in _bp_busy_locks:
+            existing_source, existing_ts = _bp_busy_locks[session_id]
+            age = round(now - existing_ts, 1)
+            logger.warning(
+                f"[BP] mark_busy DENIED: session={session_id} "
+                f"held_by={existing_source} age={age}s"
+            )
             return False
         _bp_busy_locks[session_id] = (source, now)
         return True
@@ -172,7 +178,12 @@ def _bp_renew_busy(session_id: str) -> None:
 
 
 def _bp_clear_busy(session_id: str) -> None:
-    _bp_busy_locks.pop(session_id, None)
+    entry = _bp_busy_locks.pop(session_id, None)
+    if entry:
+        source, ts = entry
+        logger.info(
+            f"[BP] clear_busy: session={session_id} source={source} held={round(time.time()-ts,1)}s"
+        )
 
 
 # ── SSE Helpers ────────────────────────────────────────────────
@@ -373,15 +384,32 @@ async def bp_start(request: Request):
                 input_data = await _extract_input_from_query(brain, user_query, first_schema)
                 logger.info(f"[BP] Extracted input from pending offer query: {input_data}")
 
-    if not await _bp_mark_busy(session_id, "bp_start"):
-        return JSONResponse({"error": "Session is busy"}, status_code=409)
-
     run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
     session = _resolve_session(request, session_id, create_if_missing=True)
     session_mgr = _resolve_session_manager(request)
+
+    # If session is busy (previous BP still cleaning up), preempt it and wait for lock.
+    # Race: delegate_task.cancel() was already called by pre-match, but await delegate_task
+    # in _run_subtask_stream() may take several seconds to complete.
+    if session_id in _bp_busy_locks:
+        _active_now = sm.get_active(session.id) if session else None
+        if _active_now and engine:
+            engine.request_suspend(_active_now.instance_id, session, "bp_start_preempt")
+            logger.info(f"[BP] bp_start preempting active instance {_active_now.instance_id}")
+
+    acquired = False
+    for _ in range(20):  # wait up to 10s (20 * 0.5s)
+        if await _bp_mark_busy(session_id, "bp_start"):
+            acquired = True
+            break
+        await asyncio.sleep(0.5)
+    if not acquired:
+        return JSONResponse({"error": "Session is busy"}, status_code=409)
+
     _persist_user_message(session, body.get("user_message", ""), session_manager=session_mgr)
 
     async def generate():
+        logger.info(f"[BP] generate() START: session_id={session_id} session.id={session.id if session else 'N/A'} bp_id={bp_id}")
         disconnect_event = asyncio.Event()
         reply_state = _new_reply_state()
         full_reply: list[str] = []
@@ -391,7 +419,13 @@ async def bp_start(request: Request):
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     disconnect_event.set()
-                    active = sm.get_active(session_id)
+                    _dis_session_id = session.id if session else session_id
+                    active = sm.get_active(_dis_session_id)
+                    logger.info(
+                        f"[BP] disconnect: session_id={session_id} "
+                        f"dis_session_id={_dis_session_id} "
+                        f"active={active.instance_id if active else None}"
+                    )
                     if active:
                         engine.request_suspend(
                             active.instance_id, session, "disconnect",
@@ -427,6 +461,7 @@ async def bp_start(request: Request):
             yield _sse({"type": "error", "message": str(e)})
             yield _sse({"type": "done"})
         finally:
+            logger.info(f"[BP] generate() FINALLY: session_id={session_id} clearing busy")
             watcher.cancel()
             _bp_clear_busy(session_id)
 

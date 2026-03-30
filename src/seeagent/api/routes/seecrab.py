@@ -777,7 +777,13 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 _sm_pre = _get_sm_pre()
                 _engine_pre = _get_engine_pre()
                 if _sm_pre and _engine_pre:
-                    _active_pre = _sm_pre.get_active(bp_session_id)
+                    _pre_session_id = session.id if session else bp_session_id
+                    _active_pre = _sm_pre.get_active(_pre_session_id)
+                    logger.info(
+                        f"[BP] pre-match: bp_session_id={bp_session_id} "
+                        f"_pre_session_id={_pre_session_id} "
+                        f"found={_active_pre.instance_id if _active_pre else None}"
+                    )
                     if _active_pre:
                         _engine_pre.request_suspend(
                             _active_pre.instance_id, session, "free_form_chat",
