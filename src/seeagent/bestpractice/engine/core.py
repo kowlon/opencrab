@@ -94,6 +94,7 @@ class BPEngine:
 
         if existing:
             self.state_manager.suspend(existing.instance_id)
+            await self.state_manager.persist_status_change(existing.instance_id)
             self.state_manager.set_pending_switch(
                 session.id,
                 PendingContextSwitch(
@@ -121,6 +122,7 @@ class BPEngine:
         if pending and not pending.target_instance_id:
             pending.target_instance_id = inst_id
 
+        await self.state_manager.persist_instance(inst_id)
         self.state_manager.persist_to_session(inst_id, session)
 
         yield {
@@ -139,7 +141,7 @@ class BPEngine:
 
         self.state_manager.persist_to_session(inst_id, session)
 
-    def switch(self, target_id: str, session: Any) -> dict[str, Any]:
+    async def switch(self, target_id: str, session: Any) -> dict[str, Any]:
         """Switch active instance. Returns result metadata dict."""
         from ..models import PendingContextSwitch
 
@@ -155,7 +157,9 @@ class BPEngine:
 
         if current_id:
             self.state_manager.suspend(current_id)
+            await self.state_manager.persist_status_change(current_id)
         self.state_manager.resume(target_id)
+        await self.state_manager.persist_status_change(target_id)
 
         self.state_manager.set_pending_switch(
             session.id,
@@ -178,6 +182,7 @@ class BPEngine:
         bp_name = snap.bp_config.name if snap.bp_config else snap.bp_id
         self.state_manager.cancel(instance_id)
         self.state_manager.set_cooldown(snap.session_id)
+        await self.state_manager.persist_status_change(instance_id)
 
         # Cancel running delegate task if any
         if session and hasattr(session, "context"):
@@ -257,7 +262,8 @@ class BPEngine:
                 # No tasks ready — might already be done
                 if scheduler.is_done():
                     self.state_manager.complete(instance_id)
-                    self._persist_state(instance_id, session)
+                    await self.state_manager.persist_status_change(instance_id)
+                    await self._persist_state(instance_id, session)
                     yield self._build_bp_complete_event(instance_id, snap, bp_config)
                 return
 
@@ -284,6 +290,7 @@ class BPEngine:
                 self.state_manager.update_subtask_status(
                     instance_id, subtask.id, SubtaskStatus.CURRENT,
                 )
+                await self.state_manager.persist_subtask_progress(instance_id)
                 yield {
                     "type": "bp_subtask_start",
                     "instance_id": instance_id,
@@ -364,7 +371,9 @@ class BPEngine:
                     f"[BP] complete_task: subtask={subtask.id} "
                     f"idx={snap.current_subtask_index}"
                 )
-                self._persist_state(instance_id, session)
+                await self.state_manager.persist_subtask_output(instance_id, subtask.id)
+                await self.state_manager.persist_subtask_progress(instance_id)
+                await self._persist_state(instance_id, session)
 
                 yield {
                     "type": "bp_subtask_complete",
@@ -384,7 +393,8 @@ class BPEngine:
             # After processing ready tasks, check if done
             if scheduler.is_done():
                 self.state_manager.complete(instance_id)
-                self._persist_state(instance_id, session)
+                await self.state_manager.persist_status_change(instance_id)
+                await self._persist_state(instance_id, session)
                 yield self._build_bp_complete_event(instance_id, snap, bp_config)
                 return
 
@@ -431,7 +441,7 @@ class BPEngine:
             "status": snap.status.value if hasattr(snap.status, "value") else str(snap.status),
         }
 
-    def _persist_state(self, instance_id: str, session: Any) -> None:
+    async def _persist_state(self, instance_id: str, session: Any) -> None:
         """Persist BP state to session metadata."""
         self.state_manager.persist_to_session(instance_id, session)
 
@@ -656,6 +666,8 @@ class BPEngine:
         self.state_manager.update_subtask_status(
             instance_id, subtask_id, SubtaskStatus.PENDING,
         )
+        await self.state_manager.persist_supplemented_input(instance_id, subtask_id)
+        await self.state_manager.persist_subtask_progress(instance_id)
 
         # Reuse advance() flow
         async for event in self.advance(instance_id, session):

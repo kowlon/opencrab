@@ -234,6 +234,7 @@ async def _stream_bp_start_from_chat(
     active = sm.get_active(session_id)
     if active:
         sm.suspend(active.instance_id)
+        await sm.persist_status_change(active.instance_id)
         ctx = getattr(session, "context", None)
         if ctx:
             ctx._bp_cancelled_instance = active.instance_id
@@ -256,6 +257,7 @@ async def _stream_bp_start_from_chat(
     instance_id = sm.create_instance(
         bp_config, session_id, initial_input=input_data, run_mode=run_mode,
     )
+    await sm.persist_instance(instance_id)
     reply_state = _new_reply_state()
     full_reply: list[str] = []
     try:
@@ -322,7 +324,7 @@ async def _stream_bp_next_from_chat(
         yield {"type": "error", "message": "BP system not initialized", "code": "bp"}
         yield {"type": "done"}
         return
-    _ensure_bp_restored(request, session_id, sm)
+    await _ensure_bp_restored(request, session_id, sm)
     snap = sm.get(instance_id)
     if not snap:
         yield {"type": "ai_text", "content": "当前没有可继续的最佳实践任务。"}
@@ -552,7 +554,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             bp_sm = get_bp_state_manager()
             if bp_sm:
                 from seeagent.api.routes.bestpractice import _ensure_bp_restored
-                _ensure_bp_restored(request, bp_session_id, bp_sm)
+                await _ensure_bp_restored(request, bp_session_id, bp_sm)
                 bp_sm.tick_cooldown(bp_session_id)
 
             # Pre-fetch brain for LLM operations

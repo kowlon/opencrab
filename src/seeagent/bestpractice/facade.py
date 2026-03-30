@@ -77,6 +77,7 @@ def init_bp_system(
     from .engine import BPEngine, BPStateManager, ContextBridge
     from .handler import BPToolHandler
     from .prompt import BPMatcher, BPPromptBuilder, PromptTemplateLoader
+    from .storage import BPStorage
 
     # 搜索路径
     paths = search_paths or _find_bp_dirs()
@@ -86,7 +87,14 @@ def init_bp_system(
         return False
 
     # 初始化组件
-    _bp_state_manager = BPStateManager()
+    try:
+        from seeagent.config import settings
+        _bp_storage = BPStorage(settings.db_full_path)
+    except Exception as e:
+        logger.warning(f"[BP] BPStorage init failed, running without SQLite persistence: {e}")
+        _bp_storage = None
+
+    _bp_state_manager = BPStateManager(storage=_bp_storage)
     _bp_engine = BPEngine(state_manager=_bp_state_manager)
     _bp_context_bridge = ContextBridge(state_manager=_bp_state_manager)
     _bp_prompt_loader = PromptTemplateLoader()

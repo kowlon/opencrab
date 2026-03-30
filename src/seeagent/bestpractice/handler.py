@@ -122,13 +122,16 @@ class BPToolHandler:
 
         result = self.engine.handle_edit_output(instance_id, subtask_id, changes, bp_config)
 
-        if result.get("success") and result.get("stale_subtasks"):
-            await self.engine._emit_stale(
-                instance_id,
-                result["stale_subtasks"],
-                f"子任务 {subtask_id} 输出被编辑",
-                session,
-            )
+        if result.get("success"):
+            await self.state_manager.persist_subtask_output(instance_id, subtask_id)
+            await self.state_manager.persist_subtask_progress(instance_id)
+            if result.get("stale_subtasks"):
+                await self.engine._emit_stale(
+                    instance_id,
+                    result["stale_subtasks"],
+                    f"子任务 {subtask_id} 输出被编辑",
+                    session,
+                )
 
         if not result.get("success"):
             return f"❌ {result.get('error', 'Unknown error')}"
@@ -156,7 +159,7 @@ class BPToolHandler:
         if target.session_id != session.id:
             return f"❌ BP instance {target_id} 不属于当前会话"
 
-        result = self.engine.switch(target_id, session)
+        result = await self.engine.switch(target_id, session)
         if not result.get("success"):
             if result.get("already_active"):
                 return f"ℹ️ {target_id} 已经是当前活跃任务"

@@ -22,6 +22,7 @@ from ..models import (
 
 if TYPE_CHECKING:
     from ..models import BestPracticeConfig
+    from ..storage import BPStorage
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +32,13 @@ DEFAULT_COOLDOWN_TURNS = 3
 class BPStateManager:
     """管理所有 BP 实例的内存状态。"""
 
-    def __init__(self) -> None:
+    def __init__(self, storage: BPStorage | None = None) -> None:
         self._instances: dict[str, BPInstanceSnapshot] = {}
         self._pending_switches: dict[str, PendingContextSwitch] = {}  # session_id → switch
         self._cooldowns: dict[str, int] = {}  # session_id → remaining turns
         self._offered_bps: dict[str, set[str]] = {}  # session_id → set of offered bp_ids
         self._pending_offers: dict[str, dict[str, Any]] = {}  # session_id → offer payload
+        self._storage: BPStorage | None = storage
 
     # ── Instance lifecycle ─────────────────────────────────────
 
@@ -339,6 +341,150 @@ class BPStateManager:
                 suspended_instance_id=ps_data["suspended_id"],
                 target_instance_id=ps_data["target_id"],
             )
+        return count
+
+    # ── SQLite persist ──────────────────────────────────────────────
+
+    async def persist_instance(self, instance_id: str) -> None:
+        """全量写入，用于创建或 run_mode 变更。"""
+        if not self._storage:
+            return
+        snap = self.get(instance_id)
+        if not snap:
+            return
+        try:
+            await self._storage.save_instance(snap)
+        except Exception as e:
+            logger.warning(f"[BP] persist_instance failed: {e}")
+
+    async def persist_status_change(self, instance_id: str) -> None:
+        """更新 status / completed_at / suspended_at。"""
+        if not self._storage:
+            return
+        snap = self.get(instance_id)
+        if not snap:
+            return
+        try:
+            await self._storage.update_instance_status(
+                instance_id,
+                snap.status.value if isinstance(snap.status, BPStatus) else snap.status,
+                completed_at=snap.completed_at,
+                suspended_at=snap.suspended_at,
+            )
+        except Exception as e:
+            logger.warning(f"[BP] persist_status_change failed: {e}")
+
+    async def persist_subtask_progress(self, instance_id: str) -> None:
+        """更新 current_subtask_index + subtask_statuses。"""
+        if not self._storage:
+            return
+        snap = self.get(instance_id)
+        if not snap:
+            return
+        try:
+            await self._storage.update_subtask_progress(
+                instance_id,
+                snap.current_subtask_index,
+                dict(snap.subtask_statuses),
+            )
+        except Exception as e:
+            logger.warning(f"[BP] persist_subtask_progress failed: {e}")
+
+    async def persist_subtask_output(self, instance_id: str, subtask_id: str) -> None:
+        """更新指定 subtask 的 output。"""
+        if not self._storage:
+            return
+        snap = self.get(instance_id)
+        if not snap:
+            return
+        output = snap.subtask_outputs.get(subtask_id, {})
+        try:
+            await self._storage.update_subtask_output(instance_id, subtask_id, output)
+        except Exception as e:
+            logger.warning(f"[BP] persist_subtask_output failed: {e}")
+
+    async def persist_context_summary(self, instance_id: str) -> None:
+        """更新 context_summary（switch 后 context_bridge 调用）。"""
+        if not self._storage:
+            return
+        snap = self.get(instance_id)
+        if not snap:
+            return
+        try:
+            await self._storage.update_context_summary(instance_id, snap.context_summary)
+        except Exception as e:
+            logger.warning(f"[BP] persist_context_summary failed: {e}")
+
+    async def persist_supplemented_input(self, instance_id: str, subtask_id: str) -> None:
+        """更新用户补充参数。"""
+        if not self._storage:
+            return
+        snap = self.get(instance_id)
+        if not snap:
+            return
+        data = snap.supplemented_inputs.get(subtask_id, {})
+        try:
+            await self._storage.update_supplemented_input(instance_id, subtask_id, data)
+        except Exception as e:
+            logger.warning(f"[BP] persist_supplemented_input failed: {e}")
+
+    async def ensure_loaded(self, instance_id: str) -> BPInstanceSnapshot | None:
+        """内存优先 → SQLite 回退的统一入口。路由层统一调用此方法。"""
+        snap = self.get(instance_id)
+        if snap is not None or not self._storage:
+            return snap
+        try:
+            row = await self._storage.load_instance(instance_id)
+        except Exception as e:
+            logger.warning(f"[BP] ensure_loaded load failed: {e}")
+            return None
+        if not row:
+            return None
+        from ..facade import get_bp_config_loader
+        loader = get_bp_config_loader()
+        config_map = dict(loader.configs) if loader and loader.configs else {}
+        await self.restore_from_db(row["session_id"], config_map=config_map)
+        return self.get(instance_id)
+
+    async def restore_from_db(
+        self,
+        session_id: str,
+        config_map: dict[str, Any] | None = None,
+    ) -> int:
+        """从 SQLite 恢复 session 的所有实例。返回恢复数量。
+
+        继承 restore_from_dict() 的安全保护：不覆盖内存中已有实例。
+        """
+        if not self._storage:
+            return 0
+        config_map = config_map or {}
+        count = 0
+        try:
+            rows = await self._storage.load_instances_by_session(session_id)
+        except Exception as e:
+            logger.warning(f"[BP] restore_from_db load failed: {e}")
+            return 0
+
+        for row in rows:
+            snap = BPInstanceSnapshot.deserialize(row)
+            snap.bp_config = config_map.get(snap.bp_id)
+
+            existing = self._instances.get(snap.instance_id)
+            if existing:
+                if existing.bp_config is None and snap.bp_config is not None:
+                    existing.bp_config = snap.bp_config
+                logger.debug(
+                    f"[BP] restore_from_db: skipped {snap.instance_id} "
+                    f"(already in memory, idx={existing.current_subtask_index})"
+                )
+                continue
+
+            logger.info(
+                f"[BP] restore_from_db: {snap.instance_id} idx={snap.current_subtask_index}"
+            )
+            self._instances[snap.instance_id] = snap
+            count += 1
+
         return count
 
     # ── Helpers ─────────────────────────────────────────────────
