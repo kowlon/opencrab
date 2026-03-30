@@ -6,8 +6,11 @@ import json
 import logging
 import time
 
+import uuid
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.background import BackgroundTask
 
 from seeagent.bestpractice.facade import (
     get_bp_config_loader,
@@ -146,44 +149,50 @@ async def edit_bp_output(request: Request):
 
 
 # ── Busy-lock (R11, R16) ───────────────────────────────────────
-_bp_busy_locks: dict[str, tuple[str, float]] = {}  # session_id → (source, timestamp)
+_bp_busy_locks: dict[str, tuple[str, float, str]] = {}  # session_id → (source, timestamp, lock_id)
 _bp_busy_mutex = asyncio.Lock()
 _BP_LOCK_TTL = 600
 
 
-async def _bp_mark_busy(session_id: str, source: str) -> bool:
+async def _bp_mark_busy(session_id: str, source: str, lock_id: str) -> bool:
     """Try to acquire busy-lock. Returns False if already locked."""
     async with _bp_busy_mutex:
         now = time.time()
-        expired = [k for k, (_, ts) in _bp_busy_locks.items() if now - ts > _BP_LOCK_TTL]
+        expired = [k for k, (_, ts, _) in _bp_busy_locks.items() if now - ts > _BP_LOCK_TTL]
         for k in expired:
             del _bp_busy_locks[k]
         if session_id in _bp_busy_locks:
-            existing_source, existing_ts = _bp_busy_locks[session_id]
+            existing_source, existing_ts, _ = _bp_busy_locks[session_id]
             age = round(now - existing_ts, 1)
             logger.warning(
                 f"[BP] mark_busy DENIED: session={session_id} "
                 f"held_by={existing_source} age={age}s"
             )
             return False
-        _bp_busy_locks[session_id] = (source, now)
+        _bp_busy_locks[session_id] = (source, now, lock_id)
         return True
 
 
 def _bp_renew_busy(session_id: str) -> None:
     """Renew busy-lock timestamp to prevent TTL expiry during long auto-mode runs."""
     if session_id in _bp_busy_locks:
-        source, _ = _bp_busy_locks[session_id]
-        _bp_busy_locks[session_id] = (source, time.time())
+        source, _, lock_id = _bp_busy_locks[session_id]
+        _bp_busy_locks[session_id] = (source, time.time(), lock_id)
 
 
-def _bp_clear_busy(session_id: str) -> None:
-    entry = _bp_busy_locks.pop(session_id, None)
+def _bp_clear_busy(session_id: str, lock_id: str) -> None:
+    entry = _bp_busy_locks.get(session_id)
     if entry:
-        source, ts = entry
-        logger.info(
-            f"[BP] clear_busy: session={session_id} source={source} held={round(time.time()-ts,1)}s"
-        )
+        source, ts, existing_lock_id = entry
+        if existing_lock_id == lock_id:
+            del _bp_busy_locks[session_id]
+            logger.info(
+                f"[BP] clear_busy: session={session_id} source={source} held={round(time.time()-ts,1)}s"
+            )
+        else:
+            logger.debug(
+                f"[BP] clear_busy passed: session={session_id} (lock_id mismatch: {existing_lock_id} != {lock_id})"
+            )
 
 
 # ── SSE Helpers ────────────────────────────────────────────────
@@ -398,8 +407,9 @@ async def bp_start(request: Request):
             logger.info(f"[BP] bp_start preempting active instance {_active_now.instance_id}")
 
     acquired = False
-    for _ in range(20):  # wait up to 10s (20 * 0.5s)
-        if await _bp_mark_busy(session_id, "bp_start"):
+    lock_id = uuid.uuid4().hex
+    for _ in range(30):  # wait up to 15s (30 * 0.5s)
+        if await _bp_mark_busy(session_id, "bp_start", lock_id):
             acquired = True
             break
         await asyncio.sleep(0.5)
@@ -463,10 +473,14 @@ async def bp_start(request: Request):
         finally:
             logger.info(f"[BP] generate() FINALLY: session_id={session_id} clearing busy")
             watcher.cancel()
-            _bp_clear_busy(session_id)
+            _bp_clear_busy(session_id, lock_id)
+
+    async def _cleanup():
+        _bp_clear_busy(session_id, lock_id)
 
     return StreamingResponse(
         generate(), media_type="text/event-stream", headers=_SSE_HEADERS,
+        background=BackgroundTask(_cleanup)
     )
 
 
@@ -484,13 +498,14 @@ async def bp_next(request: Request):
 
     _ensure_bp_restored(request, session_id, sm)
 
-    if not await _bp_mark_busy(session_id, "bp_next"):
+    lock_id = uuid.uuid4().hex
+    if not await _bp_mark_busy(session_id, "bp_next", lock_id):
         return JSONResponse({"error": "Session is busy"}, status_code=409)
 
     session = _resolve_session(request, session_id)
     resume = engine.resume_if_needed(instance_id, session)
     if not resume.get("success"):
-        _bp_clear_busy(session_id)
+        _bp_clear_busy(session_id, lock_id)
         status_code = 409 if resume.get("code") == "conflict" else 404
         return JSONResponse(
             {
@@ -542,10 +557,14 @@ async def bp_next(request: Request):
             yield _sse({"type": "done"})
         finally:
             watcher.cancel()
-            _bp_clear_busy(session_id)
+            _bp_clear_busy(session_id, lock_id)
+
+    async def _cleanup():
+        _bp_clear_busy(session_id, lock_id)
 
     return StreamingResponse(
         generate(), media_type="text/event-stream", headers=_SSE_HEADERS,
+        background=BackgroundTask(_cleanup)
     )
 
 
@@ -565,13 +584,14 @@ async def bp_answer(request: Request):
 
     _ensure_bp_restored(request, session_id, sm)
 
-    if not await _bp_mark_busy(session_id, "bp_answer"):
+    lock_id = uuid.uuid4().hex
+    if not await _bp_mark_busy(session_id, "bp_answer", lock_id):
         return JSONResponse({"error": "Session is busy"}, status_code=409)
 
     session = _resolve_session(request, session_id)
     resume = engine.resume_if_needed(instance_id, session)
     if not resume.get("success"):
-        _bp_clear_busy(session_id)
+        _bp_clear_busy(session_id, lock_id)
         status_code = 409 if resume.get("code") == "conflict" else 404
         return JSONResponse(
             {
@@ -621,10 +641,14 @@ async def bp_answer(request: Request):
             yield _sse({"type": "done"})
         finally:
             watcher.cancel()
-            _bp_clear_busy(session_id)
+            _bp_clear_busy(session_id, lock_id)
+
+    async def _cleanup():
+        _bp_clear_busy(session_id, lock_id)
 
     return StreamingResponse(
         generate(), media_type="text/event-stream", headers=_SSE_HEADERS,
+        background=BackgroundTask(_cleanup)
     )
 
 
