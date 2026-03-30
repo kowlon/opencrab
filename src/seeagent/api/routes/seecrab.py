@@ -327,7 +327,7 @@ async def _stream_bp_next_from_chat(
         yield {"type": "error", "message": "BP system not initialized", "code": "bp"}
         yield {"type": "done"}
         return
-    _ensure_bp_restored(request, session_id, sm)
+    await _ensure_bp_restored(request, session_id, sm)
     snap = sm.get(instance_id)
     if not snap:
         yield {"type": "ai_text", "content": "当前没有可继续的最佳实践任务。"}
@@ -341,7 +341,7 @@ async def _stream_bp_next_from_chat(
         yield {"type": "error", "message": "Session is busy", "code": "bp"}
         yield {"type": "done"}
         return
-    resume = engine.resume_if_needed(instance_id, session)
+    resume = await engine.resume_if_needed(instance_id, session)
     if not resume.get("success"):
         yield {
             "type": "error",
@@ -448,7 +448,7 @@ async def _stream_bp_answer_from_chat(
         yield {"type": "error", "message": "Session is busy", "code": "bp"}
         yield {"type": "done"}
         return
-    resume = engine.resume_if_needed(instance_id, session)
+    resume = await engine.resume_if_needed(instance_id, session)
     if not resume.get("success"):
         yield {
             "type": "error",
@@ -530,7 +530,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                             _bp_sm, conversation_id,
                         ) if _bp_sm else None
                         if _bp_engine and _bp_active:
-                            _bp_engine.request_suspend(
+                            await _bp_engine.request_suspend(
                                 _bp_active.instance_id, session, "disconnect",
                             )
                     except Exception:
@@ -602,7 +602,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             bp_sm = get_bp_state_manager()
             if bp_sm:
                 from seeagent.api.routes.bestpractice import _ensure_bp_restored
-                _ensure_bp_restored(request, bp_session_id, bp_sm)
+                await _ensure_bp_restored(request, bp_session_id, bp_sm)
                 bp_sm.tick_cooldown(bp_session_id)
 
             # Pre-fetch brain for LLM operations
@@ -785,7 +785,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                         f"found={_active_pre.instance_id if _active_pre else None}"
                     )
                     if _active_pre:
-                        _engine_pre.request_suspend(
+                        await _engine_pre.request_suspend(
                             _active_pre.instance_id, session, "free_form_chat",
                         )
                         logger.info(

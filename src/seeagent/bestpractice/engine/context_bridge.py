@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .compression import (
     LLMCompression,
@@ -84,6 +84,7 @@ class ContextBridge:
             )
             if suspended:
                 suspended.context_summary = summary
+                await self._state_manager.persist_context_summary(suspended.instance_id)
 
         # 2. Restore target instance context
         target = self._state_manager.get(switch.target_instance_id)

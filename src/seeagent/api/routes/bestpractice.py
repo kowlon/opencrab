@@ -22,27 +22,33 @@ router = APIRouter(prefix="/api/bp")
 # ── BP state restoration (survives server restart) ────────────
 
 
-def _ensure_bp_restored(request: Request, session_id: str, sm) -> None:
-    """Restore BP instances from session metadata if missing in memory.
+async def _ensure_bp_restored(request: Request, session_id: str, sm) -> None:
+    """Restore BP instances from SQLite (primary) or session metadata (fallback).
 
     After server restart, BPStateManager._instances is empty.
-    This lazily restores them from session.metadata["bp_state"].
+    Priority: SQLite → session.metadata["bp_state"] (legacy compatibility).
     """
     if not sm or not session_id:
         return
     # Already have instances for this session? Skip.
     if sm.get_all_for_session(session_id):
         return
+    loader = get_bp_config_loader()
+    config_map = dict(loader.configs) if loader and loader.configs else {}
+
+    # Primary: restore from SQLite
+    restored = await sm.restore_from_db(session_id, config_map=config_map)
+    if restored:
+        logger.info(f"[BP] Restored {restored} instance(s) for session {session_id} from SQLite")
+        return
+
+    # Fallback: restore from session.metadata["bp_state"] (legacy / no-storage path)
     session = _resolve_session(request, session_id)
     if not session:
         return
     bp_state = session.metadata.get("bp_state")
     if not bp_state:
         return
-    loader = get_bp_config_loader()
-    config_map = {}
-    if loader and loader.configs:
-        config_map = dict(loader.configs)
     restored = sm.restore_from_dict(session_id, bp_state, config_map=config_map)
     if restored:
         logger.info(f"[BP] Restored {restored} instance(s) for session {session_id} from metadata")
@@ -58,7 +64,7 @@ async def get_bp_status(session_id: str, request: Request):
     if not sm:
         return JSONResponse({"instances": [], "active_id": None})
 
-    _ensure_bp_restored(request, session_id, sm)
+    await _ensure_bp_restored(request, session_id, sm)
 
     instances = sm.get_all_for_session(session_id)
     active = sm.get_active(session_id)
@@ -107,6 +113,7 @@ async def set_run_mode(request: Request):
     snap.run_mode = (
         RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
     )
+    await sm.persist_instance(instance_id)
     return JSONResponse({"success": True, "run_mode": snap.run_mode.value})
 
 
@@ -142,6 +149,9 @@ async def edit_bp_output(request: Request):
         )
 
     result = engine.handle_edit_output(instance_id, subtask_id, changes, bp_config)
+    if result.get("success"):
+        await sm.persist_subtask_output(instance_id, subtask_id)
+        await sm.persist_subtask_progress(instance_id)
     return JSONResponse(result)
 
 
@@ -394,7 +404,7 @@ async def bp_start(request: Request):
     if session_id in _bp_busy_locks:
         _active_now = sm.get_active(session.id) if session else None
         if _active_now and engine:
-            engine.request_suspend(_active_now.instance_id, session, "bp_start_preempt")
+            await engine.request_suspend(_active_now.instance_id, session, "bp_start_preempt")
             logger.info(f"[BP] bp_start preempting active instance {_active_now.instance_id}")
 
     acquired = False
@@ -427,7 +437,7 @@ async def bp_start(request: Request):
                         f"active={active.instance_id if active else None}"
                     )
                     if active:
-                        engine.request_suspend(
+                        await engine.request_suspend(
                             active.instance_id, session, "disconnect",
                         )
                     return
@@ -482,13 +492,13 @@ async def bp_next(request: Request):
     if not engine or not sm:
         return JSONResponse({"error": "BP system not initialized"}, status_code=500)
 
-    _ensure_bp_restored(request, session_id, sm)
+    await _ensure_bp_restored(request, session_id, sm)
 
     if not await _bp_mark_busy(session_id, "bp_next"):
         return JSONResponse({"error": "Session is busy"}, status_code=409)
 
     session = _resolve_session(request, session_id)
-    resume = engine.resume_if_needed(instance_id, session)
+    resume = await engine.resume_if_needed(instance_id, session)
     if not resume.get("success"):
         _bp_clear_busy(session_id)
         status_code = 409 if resume.get("code") == "conflict" else 404
@@ -512,7 +522,7 @@ async def bp_next(request: Request):
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     disconnect_event.set()
-                    engine.request_suspend(instance_id, session, "disconnect")
+                    await engine.request_suspend(instance_id, session, "disconnect")
                     return
                 await asyncio.sleep(2)
 
@@ -563,13 +573,13 @@ async def bp_answer(request: Request):
     if not engine or not sm:
         return JSONResponse({"error": "BP system not initialized"}, status_code=500)
 
-    _ensure_bp_restored(request, session_id, sm)
+    await _ensure_bp_restored(request, session_id, sm)
 
     if not await _bp_mark_busy(session_id, "bp_answer"):
         return JSONResponse({"error": "Session is busy"}, status_code=409)
 
     session = _resolve_session(request, session_id)
-    resume = engine.resume_if_needed(instance_id, session)
+    resume = await engine.resume_if_needed(instance_id, session)
     if not resume.get("success"):
         _bp_clear_busy(session_id)
         status_code = 409 if resume.get("code") == "conflict" else 404
@@ -593,7 +603,7 @@ async def bp_answer(request: Request):
             while not disconnect_event.is_set():
                 if await request.is_disconnected():
                     disconnect_event.set()
-                    engine.request_suspend(instance_id, session, "disconnect")
+                    await engine.request_suspend(instance_id, session, "disconnect")
                     return
                 await asyncio.sleep(2)
 
@@ -633,11 +643,11 @@ async def bp_answer(request: Request):
 
 @router.get("/output/{instance_id}/{subtask_id}")
 async def bp_get_output(instance_id: str, subtask_id: str):
-    """Query subtask output (plain JSON)."""
+    """Query subtask output (plain JSON). Falls back to SQLite if not in memory."""
     sm = get_bp_state_manager()
     if not sm:
         return JSONResponse({"error": "BP system not initialized"}, status_code=500)
-    snap = sm.get(instance_id)
+    snap = await sm.ensure_loaded(instance_id)
     if not snap:
         return JSONResponse({"error": "Not found"}, status_code=404)
     output = snap.subtask_outputs.get(subtask_id)
@@ -656,6 +666,7 @@ async def bp_cancel(instance_id: str, request: Request):
     if not snap:
         return JSONResponse({"error": "Not found"}, status_code=404)
     sm.cancel(instance_id)
+    await sm.persist_status_change(instance_id)
     # Cancel running delegate task if any
     session = _resolve_session(request, snap.session_id)
     if session and hasattr(session, "context"):
@@ -668,3 +679,97 @@ async def bp_cancel(instance_id: str, request: Request):
         if session_mgr:
             session_mgr.mark_dirty()
     return JSONResponse({"status": "ok"})
+
+
+# ── New cross-session query endpoints ─────────────────────────
+
+
+@router.get("/instance/{instance_id}")
+async def bp_get_instance(instance_id: str, request: Request):
+    """查询单实例完整信息（内存优先 → SQLite 回退）。"""
+    sm = get_bp_state_manager()
+    if not sm:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+
+    snap = await sm.ensure_loaded(instance_id)
+    if not snap:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+
+    return JSONResponse({
+        "instance_id": snap.instance_id,
+        "bp_id": snap.bp_id,
+        "bp_name": snap.bp_config.name if snap.bp_config else snap.bp_id,
+        "session_id": snap.session_id,
+        "status": snap.status.value,
+        "run_mode": snap.run_mode.value,
+        "current_subtask_index": snap.current_subtask_index,
+        "created_at": snap.created_at,
+        "completed_at": snap.completed_at,
+        "suspended_at": snap.suspended_at,
+        "subtask_statuses": {
+            k: v.value if hasattr(v, "value") else v
+            for k, v in snap.subtask_statuses.items()
+        },
+        "subtask_outputs": snap.subtask_outputs,
+        "initial_input": snap.initial_input,
+        "supplemented_inputs": snap.supplemented_inputs,
+        "context_summary": snap.context_summary,
+    })
+
+
+@router.get("/list")
+async def bp_list_instances(
+    session_id: str | None = None,
+    status: str | None = None,
+    bp_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """跨 session 查询实例列表（直接读 SQLite）。"""
+    sm = get_bp_state_manager()
+    if not sm or not sm._storage:
+        return JSONResponse({"error": "BP storage not initialized"}, status_code=500)
+
+    if session_id:
+        # Load all for this session (no DB limit), filter in Python, then paginate
+        rows = await sm._storage.load_instances_by_session(session_id)
+        if status:
+            rows = [r for r in rows if r.get("status") == status]
+        if bp_id:
+            rows = [r for r in rows if r.get("bp_id") == bp_id]
+        total = len(rows)
+        rows = rows[offset: offset + limit]
+    elif status and bp_id:
+        total = await sm._storage.count_instances(status=status, bp_id=bp_id)
+        rows = await sm._storage.load_instances_by_status_and_bp_id(
+            status, bp_id, limit=limit, offset=offset
+        )
+    elif status:
+        total = await sm._storage.count_instances(status=status)
+        rows = await sm._storage.load_instances_by_status(status, limit=limit, offset=offset)
+    elif bp_id:
+        total = await sm._storage.count_instances(bp_id=bp_id)
+        rows = await sm._storage.load_instances_by_bp_id(bp_id, limit=limit, offset=offset)
+    else:
+        total = await sm._storage.count_instances()
+        rows = await sm._storage.load_all_instances(limit=limit, offset=offset)
+
+    return JSONResponse({
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "instances": [
+            {
+                "instance_id": r["instance_id"],
+                "bp_id": r["bp_id"],
+                "session_id": r["session_id"],
+                "status": r["status"],
+                "run_mode": r["run_mode"],
+                "current_subtask_index": r["current_subtask_index"],
+                "created_at": r["created_at"],
+                "completed_at": r.get("completed_at"),
+                "suspended_at": r.get("suspended_at"),
+            }
+            for r in rows
+        ],
+    })
