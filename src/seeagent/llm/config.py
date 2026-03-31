@@ -104,6 +104,81 @@ def get_default_config_path() -> Path:
     return cwd / "data" / "llm_endpoints.json"
 
 
+def _migrate_capabilities(config_path: Path, data: dict) -> None:
+    """自动补全旧配置中缺失的 capabilities。
+
+    旧版 setup wizard 生成的配置可能只包含 ["text", "tools"]，缺少 thinking/vision 等能力。
+    此函数在启动时对比 infer_capabilities() 的推断结果，补全缺失的能力并写回 JSON。
+
+    安全策略：只新增能力，不删除用户手动添加的能力。
+    """
+    try:
+        from .capabilities import get_provider_slug_from_base_url, infer_capabilities
+    except ImportError:
+        return
+
+    updated_count = 0
+    endpoint_keys = ["endpoints", "compiler_endpoints", "stt_endpoints"]
+
+    for key in endpoint_keys:
+        for ep in data.get(key, []):
+            model = ep.get("model", "")
+            if not model:
+                continue
+
+            base_url = ep.get("base_url", "")
+            provider_slug = get_provider_slug_from_base_url(base_url) if base_url else None
+            if not provider_slug:
+                provider_slug = ep.get("provider") or None
+
+            inferred = infer_capabilities(model, provider_slug=provider_slug)
+            inferred_caps = {k for k, v in inferred.items() if v}
+
+            current_caps = set(ep.get("capabilities") or [])
+
+            # 只在推断结果有新增能力时更新（不删除用户手动添加的能力）
+            new_caps = inferred_caps - current_caps
+            if new_caps:
+                merged = sorted(current_caps | inferred_caps)
+                ep["capabilities"] = merged
+                updated_count += 1
+                logger.info(
+                    f"[Config Migration] Endpoint '{ep.get('name', '?')}' "
+                    f"(model={model}): capabilities updated "
+                    f"{sorted(current_caps)} → {merged} (added: {sorted(new_caps)})"
+                )
+
+            # 一致性约束：thinking_only ⊂ thinking
+            # thinking_only 模型无法关闭思考，端点筛选层按 "thinking" 过滤，
+            # 若缺少 "thinking" 则端点会被跳过，provider 层的兜底来不及生效
+            final_caps = set(ep.get("capabilities") or [])
+            if "thinking_only" in final_caps and "thinking" not in final_caps:
+                final_caps.add("thinking")
+                ep["capabilities"] = sorted(final_caps)
+                if not new_caps:  # 前面没有触发更新计数
+                    updated_count += 1
+                logger.info(
+                    f"[Config Migration] Endpoint '{ep.get('name', '?')}' "
+                    f"(model={model}): added 'thinking' (required by thinking_only)"
+                )
+
+    if updated_count > 0:
+        try:
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+            logger.info(
+                f"[Config Migration] Updated capabilities for {updated_count} endpoint(s) "
+                f"in {config_path}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"[Config Migration] Failed to write back config: {e}. "
+                f"Capabilities have been updated in memory (effective for this run), "
+                f"but will need to be re-migrated on next startup."
+            )
+
+
 def load_endpoints_config(
     config_path: Path | None = None,
 ) -> tuple[list[EndpointConfig], list[EndpointConfig], list[EndpointConfig], dict]:
@@ -136,6 +211,9 @@ def load_endpoints_config(
         raise ConfigurationError(f"Invalid JSON in config file: {e}")
     except Exception as e:
         raise ConfigurationError(f"Failed to read config file: {e}")
+
+    # 自动迁移：补全旧配置中缺失的 capabilities
+    _migrate_capabilities(config_path, data)
 
     def _parse_endpoint_list(key: str) -> list[EndpointConfig]:
         result = []

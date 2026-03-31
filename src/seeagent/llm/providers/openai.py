@@ -420,13 +420,9 @@ class OpenAIProvider(LLMProvider):
         # 即使 fallback 降级了 enable_thinking=False，
         # 仍必须注入 reasoning_content 并保持 thinking 启用，否则 API 返回 400
         is_always_thinking = False
-        if not thinking_enabled and self.config.has_capability("thinking"):
-            from ..capabilities import is_thinking_only
-            is_always_thinking = is_thinking_only(
-                self.config.model, provider_slug=self.config.provider,
-            )
-            if is_always_thinking:
-                thinking_enabled = True
+        if not thinking_enabled and self.config.has_capability("thinking_only"):
+            is_always_thinking = True
+            thinking_enabled = True
 
         messages = convert_messages_to_openai(
             request.messages, request.system,
@@ -516,8 +512,7 @@ class OpenAIProvider(LLMProvider):
         #
         # 两类模型都不支持 OpenAI 风格的 thinking: {"type": "enabled"} + reasoning_effort
         elif self.config.provider in ("siliconflow", "siliconflow-intl") and self.config.has_capability("thinking"):
-            from ..capabilities import is_thinking_only
-            sf_thinking_only = is_thinking_only(self.config.model, provider_slug=self.config.provider)
+            sf_thinking_only = self.config.has_capability("thinking_only")
 
             if sf_thinking_only:
                 # B 类：天然思考模型 — 只允许 thinking_budget 控制深度

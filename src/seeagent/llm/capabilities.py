@@ -235,6 +235,16 @@ MODEL_CAPABILITIES = {
     },
     "dashscope": {
         # 阿里云 DashScope (通义千问官方)
+        # DashScope coding 端点 (coding.dashscope.aliyuncs.com) 为第三方模型提供 thinking 支持，
+        # 即使这些模型在原生 API 中不支持 thinking，通过 DashScope 也可以使用
+        # thinking: {"type": "enabled"} 参数启用思考。
+        "kimi-k2.5": {"text": True, "vision": True, "video": True, "tools": True, "thinking": True},
+        "kimi-k2": {"text": True, "vision": True, "video": True, "tools": True, "thinking": True},
+        "glm-5": {"text": True, "vision": False, "video": False, "tools": True, "thinking": True},
+        "glm-5-plus": {"text": True, "vision": False, "video": False, "tools": True, "thinking": True},
+        "glm-4.7": {"text": True, "vision": False, "video": False, "tools": True, "thinking": True},
+        "deepseek-v3": {"text": True, "vision": False, "video": False, "tools": True, "thinking": True},
+        "deepseek-r1": {"text": True, "vision": False, "video": False, "tools": False, "thinking": True, "thinking_only": True},
         "qwen3-vl": {"text": True, "vision": True, "video": True, "tools": True, "thinking": True},
         "qwen2.5-vl": {
             "text": True,

@@ -312,18 +312,13 @@ class BrowserHandler:
     def _model_supports_vision(self) -> bool:
         """检查当前 LLM 是否支持 vision（图片输入）。"""
         try:
-            from ...llm.capabilities import get_provider_slug_from_base_url, infer_capabilities
             brain = getattr(self.agent, "brain", None)
             if not brain:
                 return False
-            model = getattr(brain, "model_name", "") or ""
-            base_url = ""
             llm_client = getattr(brain, "_llm_client", None)
-            if llm_client:
-                base_url = getattr(llm_client, "base_url", "") or ""
-            provider = get_provider_slug_from_base_url(base_url) if base_url else None
-            caps = infer_capabilities(model, provider)
-            return caps.get("vision", False)
+            if llm_client and hasattr(llm_client, "has_any_endpoint_with_capability"):
+                return llm_client.has_any_endpoint_with_capability("vision")
+            return False
         except Exception:
             return False
 
