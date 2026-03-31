@@ -243,12 +243,18 @@ def _collect_reply_state(event: dict, reply_state: dict, full_reply: list) -> No
     """Collect SSE event data into reply_state for persistence."""
     etype = event.get("type")
     if etype == "thinking":
+        subtask_id = event.get("subtask_id")
         agent_id = event.get("agent_id")
-        if agent_id and agent_id != "main":
+        key = subtask_id or agent_id
+        if key and key != "main":
             at = reply_state["agent_thinking"].setdefault(
-                agent_id, {"content": "", "done": False},
+                key, {"content": "", "done": False},
             )
             at["content"] += event.get("content", "")
+            # Also store under agent_id if different, so both
+            # subtask_id and agent_id lookups hit the same data
+            if subtask_id and agent_id and agent_id != "main" and agent_id != subtask_id:
+                reply_state["agent_thinking"][agent_id] = at
         else:
             reply_state["thinking"] += event.get("content", "")
     elif etype == "step_card":

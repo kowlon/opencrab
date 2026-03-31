@@ -431,6 +431,7 @@ class BPEngine:
                     "card_type": "delegate",
                     "agent_id": "main",
                     "delegate_agent_id": subtask.agent_profile,
+                    "subtask_id": subtask.id,
                     "duration": delegate_duration,
                 }
 

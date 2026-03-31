@@ -68,6 +68,7 @@ export interface StepCard {
   planStepIndex: number | null
   agentId: string
   delegateAgentId?: string
+  subtaskId?: string
   input: Record<string, unknown> | null
   output: string | null
   absorbedCalls: AbsorbedCall[]

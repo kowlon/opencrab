@@ -28,7 +28,13 @@ class BPEventFormatter:
     ) -> None:
         self._agent_profile = agent_profile
         self._subtask_name = subtask_name
+        self._subtask_id = subtask_id
         self._delegate_step_id = delegate_step_id
+        # Use a stable display agent id for BP delegate + thinking binding.
+        # Frontend associates thinking blocks with delegate cards by agent id;
+        # if this id changes mid-stream (e.g. from agent_header), thinking may
+        # appear during streaming but disappear after card rendering.
+        self._display_agent_id = agent_profile
         self._sub_agent_id = agent_profile
 
         step_filter = StepFilter()
@@ -65,7 +71,9 @@ class BPEventFormatter:
         return {
             "type": "thinking",
             "content": event.get("content", ""),
-            "agent_id": self._sub_agent_id,
+            "agent_id": self._display_agent_id,
+            "subtask_id": self._subtask_id,
+            "runtime_agent_id": self._sub_agent_id,
         }
 
     def make_delegate_card(self, status: str, duration: float | None = None) -> dict:
@@ -78,7 +86,8 @@ class BPEventFormatter:
             "source_type": "tool",
             "card_type": "delegate",
             "agent_id": "main",
-            "delegate_agent_id": self._sub_agent_id,
+            "delegate_agent_id": self._display_agent_id,
+            "subtask_id": self._subtask_id,
             "duration": duration,
         }
 

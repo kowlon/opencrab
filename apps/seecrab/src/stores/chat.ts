@@ -57,12 +57,12 @@ export const useChatStore = defineStore('chat', () => {
 
     switch (event.type) {
       case 'thinking': {
-        const aid = (event as any).agent_id
-        if (aid && aid !== 'main') {
-          if (!reply.agentThinking[aid]) {
-            reply.agentThinking[aid] = { content: '', done: false }
+        const key = (event as any).subtask_id || (event as any).agent_id
+        if (key && key !== 'main') {
+          if (!reply.agentThinking[key]) {
+            reply.agentThinking[key] = { content: '', done: false }
           }
-          reply.agentThinking[aid].content += (event as any).content ?? ''
+          reply.agentThinking[key].content += (event as any).content ?? ''
         } else {
           reply.thinking += (event as any).content ?? ''
         }
@@ -304,6 +304,7 @@ export const useChatStore = defineStore('chat', () => {
       planStepIndex: card.plan_step_index ?? null,
       agentId: card.agent_id || 'main',
       delegateAgentId: card.delegate_agent_id || undefined,
+      subtaskId: card.subtask_id || undefined,
       input: card.input ?? null,
       output: card.output ?? null,
       absorbedCalls: card.absorbed_calls ?? [],
@@ -432,6 +433,7 @@ export const useChatStore = defineStore('chat', () => {
       planStepIndex: raw.plan_step_index ?? null,
       agentId: raw.agent_id ?? 'main',
       delegateAgentId: raw.delegate_agent_id || undefined,
+      subtaskId: raw.subtask_id || undefined,
       input: raw.input ?? null,
       output: raw.output ?? null,
       absorbedCalls: raw.absorbed_calls ?? [],

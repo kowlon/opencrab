@@ -48,17 +48,20 @@ const renderItems = computed<RenderItem[]>(() => {
   for (let i = 0; i < props.cards.length; i++) {
     const card = props.cards[i]
 
-    // Insert thinking block before delegate card using delegateAgentId
-    if (card.cardType === 'delegate' && card.delegateAgentId) {
+    // Insert thinking block before delegate card using subtaskId (fallback delegateAgentId)
+    if (card.cardType === 'delegate' && (card.subtaskId || card.delegateAgentId)) {
       const dedupKey = card.stepId  // unique per subtask delegation
       if (!emittedThinking.has(dedupKey)) {
-        const aid = card.delegateAgentId
-        const at = thinking[aid]
+        // Try subtaskId first, then delegateAgentId as fallback
+        const at = (card.subtaskId && thinking[card.subtaskId])
+          || (card.delegateAgentId && thinking[card.delegateAgentId])
+          || null
+        const thinkingKey = card.subtaskId || card.delegateAgentId!
         if (at && at.content) {
           emittedThinking.add(dedupKey)
           items.push({
             type: 'thinking',
-            key: `thinking_${aid}_${i}`,
+            key: `thinking_${thinkingKey}_${i}`,
             thinkingContent: at.content,
             thinkingDone: at.done,
           })
