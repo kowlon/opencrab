@@ -1050,14 +1050,14 @@ class Brain:
                 logger.warning(
                     f"[LLM DEBUG] ⚠️ Very large context! Estimated {total_estimated_tokens} tokens ({token_detail})"
                 )
-            elif total_estimated_tokens > 30000:
-                logger.warning(
-                    f"[LLM DEBUG] Large context: {total_estimated_tokens} tokens ({token_detail})"
-                )
-            else:
-                logger.info(
-                    f"[LLM DEBUG] Request saved: {total_estimated_tokens} tokens ({token_detail})"
-                )
+            # elif total_estimated_tokens > 30000:
+            #     # logger.warning(
+            #     #     f"[LLM DEBUG] Large context: {total_estimated_tokens} tokens ({token_detail})"
+            #     # )
+            # else:
+            #     # logger.info(
+            #     #     f"[LLM DEBUG] Request saved: {total_estimated_tokens} tokens ({token_detail})"
+            #     # )
 
             # 清理超过 3 天的旧调试文件
             self._cleanup_old_debug_files(debug_dir, max_age_days=3)
@@ -1124,10 +1124,10 @@ class Brain:
             )
             in_tokens = debug_data["llm_response"]["usage"]["input_tokens"]
             out_tokens = debug_data["llm_response"]["usage"]["output_tokens"]
-            logger.info(
-                f"[LLM DEBUG] Response saved: text_len={text_len}, tool_calls={tool_count}, "
-                f"tokens_in={in_tokens}, tokens_out={out_tokens} (request_id={request_id})"
-            )
+            # logger.info(
+            #     f"[LLM DEBUG] Response saved: text_len={text_len}, tool_calls={tool_count}, "
+            #     f"tokens_in={in_tokens}, tokens_out={out_tokens} (request_id={request_id})"
+            # )
 
         except Exception as e:
             logger.warning(f"[LLM DEBUG] Failed to save response debug file: {e}")

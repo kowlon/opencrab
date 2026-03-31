@@ -43,6 +43,8 @@ async def _ensure_bp_restored(request: Request, session_id: str, sm) -> None:
     restored = await sm.restore_from_db(session_id, config_map=config_map)
     if restored:
         logger.info(f"[BP] Restored {restored} instance(s) for session {session_id} from SQLite")
+        for inst in sm.get_all_for_session(session_id):
+            sm.mark_bp_offered(session_id, inst.bp_id)
         return
 
     # Fallback: restore from session.metadata["bp_state"] (legacy / no-storage path)

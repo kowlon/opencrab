@@ -157,6 +157,24 @@ class TestLLMMatchBPFromMessage:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_suspended_instance_skipped_in_llm_matchTest(self, setup_llm_match):
+        """LLM match should skip bp_id that has a SUSPENDED instance."""
+        sm, config = setup_llm_match
+        inst_id = sm.create_instance(config, "s1")
+        sm.suspend(inst_id)
+
+        mock_brain = AsyncMock()
+        mock_resp = MagicMock()
+        mock_resp.content = (
+            '{"matched": true, "bp_id": "content-pipeline", '
+            '"confidence": 0.9, "extracted_input": {"domain": "科技"}}'
+        )
+        mock_brain.think_lightweight = AsyncMock(return_value=mock_resp)
+
+        result = await llm_match_bp_from_message("写文章", "s1", mock_brain)
+        assert result is None
+
+    @pytest.mark.asyncio
     async def test_no_brain_returns_none(self, setup_llm_match):
         result = await llm_match_bp_from_message("写文章", "s1", None)
         assert result is None

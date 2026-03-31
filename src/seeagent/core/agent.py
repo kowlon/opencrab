@@ -2288,8 +2288,9 @@ search_github → install_skill → 使用
         Returns:
             编译后的系统提示词
         """
+        bp_session_id = getattr(self, "_current_bp_session_id", "") or ""
         prompt = await self.prompt_assembler.build_system_prompt_compiled(
-            task_description, session_type=session_type
+            task_description, session_type=session_type, bp_session_id=bp_session_id
         )
         if self._custom_prompt_suffix:
             prompt += f"\n\n{self._custom_prompt_suffix}"
@@ -4299,6 +4300,10 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
         self._current_session_id = session_id
         conversation_id = self._resolve_conversation_id(session, session_id)
         self._current_conversation_id = conversation_id
+        # BP state uses session.id (includes timestamp), not conversation_id
+        self._current_bp_session_id = (
+            session.id if session and hasattr(session, "id") else session_id
+        )
 
         # 清理上一轮残留的任务状态（按 session 隔离）
         # 注意：task key 可能是 conversation_id 而非 session_id，两者都要尝试

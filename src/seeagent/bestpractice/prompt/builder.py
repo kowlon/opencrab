@@ -168,26 +168,37 @@ class BPPromptBuilder:
                         "D) 询问其他问题（不涉及 BP 操作）\n"
                     )
                 else:
+                    suspended_list = self._format_suspended_list(session_id)
+                    switch_hint = (
+                        f"B) 切换到其他任务:\n{suspended_list}\n"
+                        if suspended_list
+                        else "B) 切换到其他任务 (bp_switch_task)\n"
+                    )
                     intent_routing = (
                         "用户可能想要:\n"
                         "A) 修改已完成子任务结果 (bp_edit_output)\n"
-                        "B) 切换到其他任务 (bp_switch_task)\n"
+                        f"{switch_hint}"
                         "C) 取消当前任务 (bp_cancel)\n"
                         "D) 询问相关问题\n"
                     )
+                    if suspended_list:
+                        logger.debug(
+                            f"[BP] intent_routing(active+suspended): "
+                            f"active={active.instance_id} suspended_list={suspended_list!r}"
+                        )
 
         # When no active instance but suspended ones exist, guide the LLM
         if not active and not intent_routing:
-            suspended = [
-                s for s in self._state_manager.get_all_for_session(session_id)
-                if hasattr(s.status, "value") and s.status.value == "suspended"
-                or (not hasattr(s.status, "value") and str(s.status) == "suspended")
-            ]
-            if suspended:
+            suspended_list = self._format_suspended_list(session_id)
+            if suspended_list:
+                logger.debug(
+                    f"[BP] intent_routing(suspended-only): "
+                    f"session={session_id} suspended_list={suspended_list!r}"
+                )
                 intent_routing = (
                     "当前有暂停的任务。用户可能想要:\n"
-                    "A) 开始新的最佳实践任务 → 调用 bp_start\n"
-                    "B) 恢复已暂停的任务 → 调用 bp_switch_task\n"
+                    f"A) 恢复已暂停的任务:\n{suspended_list}\n"
+                    "B) 开始新的最佳实践任务 → 调用 bp_start\n"
                     "C) 询问相关问题\n"
                 )
 
@@ -205,3 +216,23 @@ class BPPromptBuilder:
             user_preferences=user_preferences,
             intent_routing=intent_routing,
         )
+
+    def _format_suspended_list(self, session_id: str) -> str:
+        """Return bullet lines for suspended instances, for use in intent_routing."""
+        from ..models import BPStatus
+
+        suspended = [
+            s
+            for s in self._state_manager.get_all_for_session(session_id)
+            if s.status == BPStatus.SUSPENDED
+        ]
+        lines = []
+        for s in suspended:
+            name = s.bp_config.name if s.bp_config else s.bp_id
+            done = sum(1 for v in s.subtask_statuses.values() if v == "done")
+            total = len(s.subtask_statuses)
+            lines.append(
+                f'  - 「{name}」→ bp_switch_task(target_instance_id="{s.instance_id}")'
+                f" [进度: {done}/{total}]"
+            )
+        return "\n".join(lines)

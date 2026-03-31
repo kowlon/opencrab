@@ -238,6 +238,19 @@ class TestMatchBPFromMessage:
         result = match_bp_from_message("write an article", "sess-1")
         assert result is None
 
+    def test_suspended_instance_skips_keyword_matchTest(
+        self, sample_bp_config, setup_facade_with_config,
+    ):
+        """Keyword match should skip bp_id that has a SUSPENDED instance."""
+        state_mgr = setup_facade_with_config
+        inst_id = state_mgr.create_instance(sample_bp_config, "sess-1")
+        state_mgr.suspend(inst_id)
+
+        result = match_bp_from_message(
+            "I want to write an article", "sess-1",
+        )
+        assert result is None
+
     def test_command_trigger_not_matched(self, setup_facade_with_config):
         """COMMAND triggers should not be matched by match_bp_from_message."""
         # Replace the config with one that only has a COMMAND trigger
@@ -256,3 +269,47 @@ class TestMatchBPFromMessage:
 
         result = match_bp_from_message("/run-bp", "sess-1")
         assert result is None
+
+
+class TestBuildBpSectionIncludesDynamic:
+    """Regression test: prompt/builder._build_bp_section must include dynamic section.
+
+    Previously _build_bp_section returned only the static section, so the agent
+    never saw suspended instance IDs and couldn't call bp_switch_task.
+    """
+
+    def test_build_bp_section_includes_suspended_instancesTest(self, bp_base_path):
+        """_build_bp_section(session_id) must contain suspended instance info."""
+        if not bp_base_path.is_dir():
+            pytest.skip("best_practice/ directory not found")
+
+        from seeagent.prompt.builder import _build_bp_section
+
+        init_bp_system(search_paths=[bp_base_path])
+        mgr = get_bp_state_manager()
+        handler = get_bp_handler()
+        config = list(handler.config_registry.values())[0]
+
+        # Create an instance then suspend it
+        inst_id = mgr.create_instance(config, "sess-with-suspended", {})
+        from seeagent.bestpractice.models import BPStatus
+        mgr._instances[inst_id].status = BPStatus.SUSPENDED
+
+        section = _build_bp_section("sess-with-suspended")
+        # Must contain both static and dynamic content
+        assert "最佳实践" in section or config.name in section
+        assert inst_id in section or "bp_switch_task" in section
+
+    def test_build_bp_section_empty_session_id_omits_dynamicTest(self, bp_base_path):
+        """_build_bp_section('') must return only static section (no per-session dynamic)."""
+        if not bp_base_path.is_dir():
+            pytest.skip("best_practice/ directory not found")
+
+        from seeagent.prompt.builder import _build_bp_section
+
+        init_bp_system(search_paths=[bp_base_path])
+        section = _build_bp_section("")
+        # Static section present
+        assert section != ""
+        # No dynamic per-instance content (target_instance_id=") for empty session_id
+        assert 'target_instance_id="' not in section

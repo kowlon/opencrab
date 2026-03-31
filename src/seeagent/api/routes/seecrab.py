@@ -597,13 +597,23 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             # 确保 /api/bp/start 能通过 get_pending_offer(session_id) 找到 pending_offer
             bp_session_id = conversation_id
 
+            # BPStateManager 内部用 session.id 存储实例（含 channel/timestamp/random）
+            # 而 bp_session_id = conversation_id（无时间戳后缀）
+            # 两者不同：直接用 bp_session_id 做 get_all_for_session 查询会返回空
+            # 所以 state_manager 内部查询（restore / cooldown / matcher）统一用 session.id
+            _sm_sid = session.id if session else bp_session_id
+            logger.info(
+                f"[BP] session_id mapping: bp_session_id={bp_session_id!r} "
+                f"session.id={_sm_sid!r}"
+            )
+
             # ── Step 0: BP state restoration + cooldown tick ──
             from seeagent.bestpractice.facade import get_bp_state_manager
             bp_sm = get_bp_state_manager()
             if bp_sm:
                 from seeagent.api.routes.bestpractice import _ensure_bp_restored
-                await _ensure_bp_restored(request, bp_session_id, bp_sm)
-                bp_sm.tick_cooldown(bp_session_id)
+                await _ensure_bp_restored(request, _sm_sid, bp_sm)
+                bp_sm.tick_cooldown(_sm_sid)
 
             # Pre-fetch brain for LLM operations
             brain = getattr(agent, "brain", None)
@@ -797,12 +807,12 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
             try:
                 from seeagent.bestpractice.facade import match_bp_from_message
-                bp_match = match_bp_from_message(body.message or "", bp_session_id)
+                bp_match = match_bp_from_message(body.message or "", _sm_sid)
                 # Step 4: LLM fallback if keyword didn't match
                 if not bp_match and brain:
                     from seeagent.bestpractice.facade import llm_match_bp_from_message
                     bp_match = await llm_match_bp_from_message(
-                        body.message or "", bp_session_id, brain,
+                        body.message or "", _sm_sid, brain,
                     )
                 if bp_match:
                     bp_name = bp_match["bp_name"]

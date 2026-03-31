@@ -16,7 +16,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .models import RunMode
+from .models import BPStatus, RunMode
 
 if TYPE_CHECKING:
     from .engine import BPEngine, BPStateManager, ContextBridge
@@ -85,7 +85,26 @@ class BPToolHandler:
                 f"无需重复启动。"
             )
 
+        # Resume suspended instance with the same bp_id instead of creating new,
+        # but only when caller did NOT supply new input_data that differs from the
+        # suspended instance's initial_input (which indicates user wants a fresh run).
         input_data = params.get("input_data", {})
+        suspended_same = [
+            s for s in self.state_manager.get_all_for_session(session.id)
+            if s.bp_id == bp_id and s.status == BPStatus.SUSPENDED
+        ]
+        if suspended_same:
+            target = max(suspended_same, key=lambda s: s.suspended_at or 0)
+            new_input_differs = bool(input_data) and input_data != (target.initial_input or {})
+            if not new_input_differs:
+                result = await self.engine.switch(target.instance_id, session)
+                if result.get("success"):
+                    await self._relay_events(
+                        self.engine.advance(target.instance_id, session), session,
+                    )
+                    self.state_manager.persist_to_session(target.instance_id, session)
+                    return f"✅ 已恢复并继续「{bp_config.name}」任务。"
+
         run_mode_str = params.get("run_mode", bp_config.default_run_mode.value)
         run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
 
@@ -159,19 +178,27 @@ class BPToolHandler:
         if target.session_id != session.id:
             return f"❌ BP instance {target_id} 不属于当前会话"
 
+        logger.info(
+            f"[BP] switch_task: target={target_id} bp_id={target.bp_id} "
+            f"status={target.status.value} session={session.id}"
+        )
         result = await self.engine.switch(target_id, session)
         if not result.get("success"):
             if result.get("already_active"):
+                logger.debug(f"[BP] switch_task: {target_id} already active, skip")
                 return f"ℹ️ {target_id} 已经是当前活跃任务"
+            logger.warning(f"[BP] switch_task: switch failed result={result}")
             return f"❌ {result.get('error', 'Unknown error')}"
 
         bp_config = self._get_config_for_instance(target)
         bp_name = bp_config.name if bp_config else target.bp_id
+        logger.info(f"[BP] switch_task: switched to 「{bp_name}」, starting advance")
 
-        return (
-            f"已切换到任务「{bp_name}」(id={target_id})。\n"
-            f"上下文将在下一轮对话中恢复。"
-        )
+        await self._relay_events(self.engine.advance(target_id, session), session)
+        self.state_manager.persist_to_session(target_id, session)
+        logger.info(f"[BP] switch_task: advance complete, instance={target_id}")
+
+        return f"✅ 已切换到任务「{bp_name}」并继续执行。"
 
     # ── bp_next ────────────────────────────────────────────────
 

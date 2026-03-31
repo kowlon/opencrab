@@ -1513,9 +1513,9 @@ class ReasoningEngine:
                 return f"{name}({param_hash})"
 
             # ==================== 主循环 ====================
-            logger.info(
-                f"[ReAct-Stream] === Loop started (max_iterations={max_iterations}, model={current_model}) ==="
-            )
+            # logger.info(
+            #     f"[ReAct-Stream] === Loop started (max_iterations={max_iterations}, model={current_model}) ==="
+            # )
 
             for _iteration in range(max_iterations):
                 self._last_working_messages = working_messages
@@ -1570,9 +1570,9 @@ class ReasoningEngine:
                         recent_tool_signatures = []
                         no_confirmation_text_count = 0
 
-                logger.info(
-                    f"[ReAct-Stream] Iter {_iteration+1}/{max_iterations} — REASON (model={current_model})"
-                )
+                # logger.info(
+                #     f"[ReAct-Stream] Iter {_iteration+1}/{max_iterations} — REASON (model={current_model})"
+                # )
 
                 # --- 状态转换: REASONING（与 run() 一致） ---
                 if state.status != TaskStatus.REASONING:

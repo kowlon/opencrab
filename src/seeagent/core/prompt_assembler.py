@@ -135,6 +135,7 @@ class PromptAssembler:
         self,
         task_description: str = "",
         session_type: str = "cli",
+        bp_session_id: str = "",
     ) -> str:
         """
         使用编译管线构建系统提示词 (v2) - 异步版本。
@@ -169,6 +170,7 @@ class PromptAssembler:
             include_tools_guide=True,
             session_type=session_type,
             persona_manager=self._persona_manager,
+            bp_session_id=bp_session_id,
         )
 
     def _build_compiled_sync(self, task_description: str = "", session_type: str = "cli") -> str:

@@ -230,7 +230,7 @@ class ToolExecutor:
         Returns:
             工具执行结果字符串
         """
-        logger.info(f"Executing tool: {tool_name} with {tool_input}")
+        # logger.info(f"Executing tool: {tool_name} with {tool_input}")
 
         # ★ 拦截 JSON 解析失败的工具调用（参数被 API 截断）
         # convert_tool_calls_from_openai() 在 JSON 解析失败时会注入 __parse_error__
