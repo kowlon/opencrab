@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, reactive } from 'vue'
+import { ref, computed, watch, reactive, nextTick } from 'vue'
 import { useBestPracticeStore } from '@/stores/bestpractice'
 import { useUIStore } from '@/stores/ui'
 import { httpClient } from '@/api/http-client'
@@ -7,6 +7,7 @@ import { httpClient } from '@/api/http-client'
 const bpStore = useBestPracticeStore()
 const uiStore = useUIStore()
 const confirmStatus = ref<'idle' | 'saving' | 'saved'>('idle')
+let skipWatchReset = false
 
 const instance = computed(() => {
   if (!uiStore.selectedBPInstanceId) return null
@@ -83,7 +84,7 @@ watch(() => [uiStore.selectedSubtaskId, selectedSubtask.value?.output], () => {
     editedData.value = {}
     originalData.value = {}
   }
-  confirmStatus.value = 'idle'
+  if (!skipWatchReset) confirmStatus.value = 'idle'
   rawOutputCollapsed.value = false
 }, { immediate: true })
 
@@ -152,9 +153,20 @@ async function confirmUpdate() {
       confirmStatus.value = 'idle'
       return
     }
-    await httpClient.editBPOutput(uiStore.selectedBPInstanceId, uiStore.selectedSubtaskId, changes)
+    const result = await httpClient.editBPOutput(uiStore.selectedBPInstanceId, uiStore.selectedSubtaskId, changes)
+    // 用后端返回的 merged 更新 Pinia store，避免切换 subtask 再切回时读到旧值
+    // skipWatchReset 防止 store 更新触发的 watch（flush: 'pre'）重置 confirmStatus
+    skipWatchReset = true
+    if (result.merged) {
+      bpStore.updateSubtaskOutput(uiStore.selectedBPInstanceId, uiStore.selectedSubtaskId, result.merged)
+    }
+    if (result.stale_subtasks?.length) {
+      bpStore.markStale(uiStore.selectedBPInstanceId, result.stale_subtasks)
+    }
     originalData.value = JSON.parse(JSON.stringify(editedData.value))
     confirmStatus.value = 'saved'
+    await nextTick()
+    skipWatchReset = false
     setTimeout(() => { confirmStatus.value = 'idle' }, 1500)
   } catch (e) {
     console.error('Failed to update output:', e)

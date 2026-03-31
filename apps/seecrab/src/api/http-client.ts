@@ -61,4 +61,9 @@ export const httpClient = {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     return resp.json()
   },
+  getBPInstance: async (instanceId: string) => {
+    const resp = await fetch(`/api/bp/instance/${instanceId}`)
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return resp.json()
+  },
 }

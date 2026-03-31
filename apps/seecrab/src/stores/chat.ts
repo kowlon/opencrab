@@ -446,6 +446,7 @@ export const useChatStore = defineStore('chat', () => {
       messages.value = _mapHistoryMessages(data.messages || [])
 
       // Restore BP store from persisted messages
+      const sessionStore = useSessionStore()
       const bpStore = useBestPracticeStore()
       bpStore.clear()
       for (const msg of messages.value) {
@@ -485,6 +486,18 @@ export const useChatStore = defineStore('chat', () => {
             },
           )
         }
+      }
+
+      // 从后端 SQLite 刷新最新 output（edit-output 不更新 sessions.json，需要这一步）
+      for (const [instId] of bpStore.instances) {
+        // 会话已切换，中止刷新
+        if (sessionStore.activeSessionId !== sessionId) break
+        try {
+          const fresh = await httpClient.getBPInstance(instId)
+          if (fresh.subtask_outputs && fresh.subtask_statuses) {
+            bpStore.refreshFromServer(instId, fresh.subtask_outputs, fresh.subtask_statuses)
+          }
+        } catch { /* 降级：保留 session history 中的值 */ }
       }
     } catch {
       messages.value = []

@@ -123,6 +123,25 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
     inst.status = 'completed'
   }
 
+  // 与 BPSubtaskStatus (types/index.ts) 保持同步
+  const validStatuses = new Set<BPSubtaskInfo['status']>(['pending', 'current', 'done', 'failed', 'stale', 'waiting_input'])
+
+  function refreshFromServer(
+    instanceId: string,
+    outputs: Record<string, Record<string, unknown>>,
+    statuses: Record<string, string>,
+  ) {
+    const inst = instances.value.get(instanceId)
+    if (!inst) return
+    for (const st of inst.subtasks) {
+      if (outputs[st.id]) st.output = outputs[st.id]
+      const s = statuses[st.id]
+      if (s && validStatuses.has(s as BPSubtaskInfo['status'])) {
+        st.status = s as BPSubtaskInfo['status']
+      }
+    }
+  }
+
   function clear() {
     instances.value.clear()
     activeInstanceId.value = null
@@ -135,6 +154,7 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
     updateFromProgress,
     updateSubtaskOutput,
     markStale,
+    refreshFromServer,
     handleInstanceCreated,
     handleSubtaskStart,
     handleCancelled,
