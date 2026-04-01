@@ -58,6 +58,7 @@ subtasks:
           type: integer
           description: "目标字数"
       required: [selected_topic]
+      upstream: [selected_topic, reference_materials]
 
   - id: "writing"
     name: "内容创作"
@@ -77,6 +78,7 @@ subtasks:
           items: { type: string }
           description: "核心论点"
       required: [outline]
+      upstream: [outline, style_guide, key_points]
 
   - id: "review"
     name: "审核优化"
@@ -95,3 +97,4 @@ subtasks:
           type: object
           description: "SEO 要求"
       required: [draft_content]
+      upstream: [draft_content, platform, seo_requirements]

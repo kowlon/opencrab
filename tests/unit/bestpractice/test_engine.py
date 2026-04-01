@@ -273,3 +273,37 @@ class TestConformOutputFallback:
         assert conformed["insights"] == [{"k": "v"}]
         assert conformed["summary"] == ""
         assert "_raw_output" not in conformed
+
+
+class TestSanitizeOutput:
+    """_sanitize_output properties 白名单过滤测试。"""
+
+    def test_strips_fields_not_in_schema_properties(self):
+        """schema 声明了 properties 时，剔除 schema 外的多余字段。"""
+        output = {
+            "findings": [{"topic": "AI"}],
+            "raw_data": {"src": "web"},
+            "hello": "should be removed",
+            "extra": "also removed",
+        }
+        schema = {
+            "type": "object",
+            "properties": {
+                "findings": {"type": "array"},
+                "raw_data": {"type": "object"},
+            },
+            "required": ["findings"],
+        }
+        result = BPEngine._sanitize_output(output, schema)
+        assert "findings" in result
+        assert "raw_data" in result
+        assert "hello" not in result
+        assert "extra" not in result
+
+    def test_keeps_all_when_no_properties(self):
+        """schema 无 properties 定义时，保留所有非 _ 前缀字段。"""
+        output = {"a": 1, "b": 2, "_internal": 3}
+        schema = {"type": "object", "required": ["a"]}
+        result = BPEngine._sanitize_output(output, schema)
+        assert result == {"a": 1, "b": 2}
+        assert "_internal" not in result

@@ -64,6 +64,7 @@ subtasks:
           type: object
           description: "现有基础设施"
       required: [functional_requirements]
+      upstream: [functional_requirements, non_functional_requirements, constraints]
 
   - id: "risk-assessment"
     name: "风险评估"
@@ -82,6 +83,7 @@ subtasks:
           type: object
           description: "项目时间线"
       required: [architecture_proposal]
+      upstream: [architecture_proposal, tech_stack]
 
   - id: "review-report"
     name: "评审报告"
@@ -94,3 +96,4 @@ subtasks:
         architecture_design: { type: object }
         risk_assessment: { type: object }
       required: [requirements_analysis, architecture_design, risk_assessment]
+      upstream: [requirements_analysis, architecture_design, risk_assessment]

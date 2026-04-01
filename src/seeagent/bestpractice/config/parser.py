@@ -119,4 +119,23 @@ def validate_bp_config(config: BestPracticeConfig) -> list[str]:
         if t.type == TriggerType.CRON and not t.cron:
             errors.append("CRON trigger requires cron expression")
 
+    # upstream 合法性校验
+    for i, s in enumerate(config.subtasks):
+        schema = s.input_schema
+        if not schema:
+            continue
+        upstream = schema.get("upstream")
+        if not upstream:
+            continue
+        if i == 0:
+            # 首个 subtask 的 upstream 直接忽略（无上游输出源）
+            continue
+        props = set(schema.get("properties", {}).keys())
+        for field in upstream:
+            if field not in props:
+                errors.append(
+                    f"subtask '{s.id}' upstream field '{field}' "
+                    f"not found in input_schema.properties"
+                )
+
     return errors

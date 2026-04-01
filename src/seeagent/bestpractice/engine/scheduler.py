@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from ..models import SubtaskStatus
 
 if TYPE_CHECKING:
-    from ..models import BPInstanceSnapshot, BestPracticeConfig, SubtaskConfig
+    from ..models import BestPracticeConfig, BPInstanceSnapshot, SubtaskConfig
 
 
 class TaskScheduler(ABC):
@@ -68,12 +68,32 @@ class TaskScheduler(ABC):
         )
 
     def derive_output_schema(self, subtask_id: str) -> dict | None:
-        """推导子任务的输出 schema。"""
+        """推导子任务的输出 schema。
+
+        当下一个子任务的 input_schema 定义了 upstream 字段时，
+        只返回 upstream 声明的 properties 子集（而非完整 input_schema），
+        避免要求当前子任务输出本应由用户提供的字段。
+        """
         idx = self._get_subtask_index(subtask_id)
         if idx >= len(self._config.subtasks) - 1:
             return self._config.final_output_schema or None
         next_subtask = self._config.subtasks[idx + 1]
-        return next_subtask.input_schema if next_subtask.input_schema else None
+        schema = next_subtask.input_schema
+        if not schema:
+            return None
+
+        upstream = schema.get("upstream")
+        if not upstream:
+            # 未配置 upstream 或 upstream=[] → 上游不需要给下游输出
+            return None
+
+        all_props = schema.get("properties", {})
+        filtered_props = {k: v for k, v in all_props.items() if k in upstream}
+        return {
+            "type": "object",
+            "properties": filtered_props,
+            "required": list(upstream),
+        }
 
     def _find_subtask(self, subtask_id: str) -> SubtaskConfig | None:
         return next((s for s in self._config.subtasks if s.id == subtask_id), None)

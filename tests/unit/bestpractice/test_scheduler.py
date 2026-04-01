@@ -180,16 +180,12 @@ class TestLinearSchedulerIsDone:
 
 
 class TestDeriveOutputSchema:
-    def test_middle_subtask_gets_next_input_schema(self):
+    def test_middle_subtask_no_upstream_returns_none(self):
+        """下一个 subtask 没有 upstream → 返回 None（上游不需要给下游输出）。"""
         cfg = _make_config()
         snap = _make_snapshot()
         sched = LinearScheduler(cfg, snap)
-        schema = sched.derive_output_schema("s1")
-        assert schema == {
-            "type": "object",
-            "properties": {"data": {"type": "string"}},
-            "required": ["data"],
-        }
+        assert sched.derive_output_schema("s1") is None
 
     def test_last_subtask_gets_final_output_schema(self):
         cfg = _make_config()
@@ -204,3 +200,78 @@ class TestDeriveOutputSchema:
         snap = _make_snapshot()
         sched = LinearScheduler(cfg, snap)
         assert sched.derive_output_schema("s3") is None
+
+
+def _make_config_with_upstream():
+    """Build a 3-subtask config where s2 has upstream, s3 does not."""
+    s1 = SubtaskConfig(
+        id="s1", name="Step 1", agent_profile="default",
+        input_schema={
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    )
+    s2 = SubtaskConfig(
+        id="s2", name="Step 2", agent_profile="default",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "results": {"type": "array", "description": "上游搜索结果"},
+                "focus": {"type": "string", "description": "用户指定的关注点"},
+            },
+            "required": ["results", "focus"],
+            "upstream": ["results"],
+        },
+    )
+    s3 = SubtaskConfig(
+        id="s3", name="Step 3", agent_profile="default",
+        input_schema={
+            "type": "object",
+            "properties": {"analysis": {"type": "object"}},
+            "required": ["analysis"],
+        },
+    )
+    return BestPracticeConfig(
+        id="test_upstream", name="Test Upstream", subtasks=[s1, s2, s3],
+        final_output_schema={"type": "object", "properties": {"report": {"type": "string"}}},
+    )
+
+
+class TestDeriveOutputSchemaWithUpstream:
+    def test_upstream_filters_output_schema(self):
+        """有 upstream 时，derive_output_schema 只返回 upstream 字段。"""
+        cfg = _make_config_with_upstream()
+        snap = _make_snapshot(subtask_ids=("s1", "s2", "s3"))
+        sched = LinearScheduler(cfg, snap)
+        schema = sched.derive_output_schema("s1")
+        # s2 有 upstream=["results"]，所以 s1 的输出 schema 只含 results
+        assert schema == {
+            "type": "object",
+            "properties": {"results": {"type": "array", "description": "上游搜索结果"}},
+            "required": ["results"],
+        }
+
+    def test_no_upstream_returns_none(self):
+        """没有 upstream 时，返回 None（上游不需要给下游输出）。"""
+        cfg = _make_config_with_upstream()
+        snap = _make_snapshot(subtask_ids=("s1", "s2", "s3"))
+        sched = LinearScheduler(cfg, snap)
+        # s3 没有 upstream → s2 的输出 schema 为 None
+        assert sched.derive_output_schema("s2") is None
+
+    def test_last_subtask_still_uses_final_schema(self):
+        """最后一个 subtask 仍使用 final_output_schema。"""
+        cfg = _make_config_with_upstream()
+        snap = _make_snapshot(subtask_ids=("s1", "s2", "s3"))
+        sched = LinearScheduler(cfg, snap)
+        schema = sched.derive_output_schema("s3")
+        assert schema == {"type": "object", "properties": {"report": {"type": "string"}}}
+
+    def test_empty_upstream_returns_none(self):
+        """upstream=[] 等同于未配置，返回 None。"""
+        cfg = _make_config_with_upstream()
+        cfg.subtasks[1].input_schema["upstream"] = []
+        snap = _make_snapshot(subtask_ids=("s1", "s2", "s3"))
+        sched = LinearScheduler(cfg, snap)
+        assert sched.derive_output_schema("s1") is None

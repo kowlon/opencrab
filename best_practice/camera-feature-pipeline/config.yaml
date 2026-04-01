@@ -49,6 +49,7 @@ subtasks:
           type: string
           description: "文本特征描述"
       required: [camera_ids, feature_text]
+      upstream: [camera_ids]
 
   - id: "render-image"
     name: "结果出图"
@@ -64,3 +65,4 @@ subtasks:
           type: string
           description: "输出图片路径"
       required: [feature_result]
+      upstream: [feature_result]

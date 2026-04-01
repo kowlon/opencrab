@@ -58,6 +58,7 @@ subtasks:
           type: string
           description: "调研摘要"
       required: [findings]
+      upstream: [findings, raw_data, summary]
 
   - id: "report"
     name: "报告生成"
@@ -79,3 +80,4 @@ subtasks:
           items: { type: string }
           description: "建议"
       required: [insights]
+      upstream: [insights, trends, recommendations]

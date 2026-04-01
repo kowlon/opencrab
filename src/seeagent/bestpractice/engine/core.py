@@ -1089,9 +1089,13 @@ class BPEngine:
     @staticmethod
     def _sanitize_output(output: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
         required = set(schema.get("required", []))
+        properties = set(schema.get("properties", {}).keys())
+        allowed = required | properties if properties else None
         cleaned: dict[str, Any] = {}
         for key, value in output.items():
             if str(key).startswith("_") and key not in required:
+                continue
+            if allowed is not None and key not in allowed:
                 continue
             cleaned[key] = value
         return cleaned

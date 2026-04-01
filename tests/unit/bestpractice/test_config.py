@@ -255,6 +255,68 @@ class TestValidateBpConfig:
         errors = validate_bp_config(bp)
         assert any("pattern" in e for e in errors)
 
+    def test_upstream_on_first_subtask_is_ignored(self):
+        """首个 subtask 配置了 upstream 时静默忽略，不报错。"""
+        bp = BestPracticeConfig(
+            id="x", name="X",
+            subtasks=[
+                SubtaskConfig(
+                    id="s1", name="S1", agent_profile="a",
+                    input_schema={
+                        "type": "object",
+                        "properties": {"q": {"type": "string"}},
+                        "required": ["q"],
+                        "upstream": ["q"],
+                    },
+                ),
+            ],
+        )
+        errors = validate_bp_config(bp)
+        assert errors == []
+
+    def test_upstream_field_not_in_properties_is_error(self):
+        bp = BestPracticeConfig(
+            id="x", name="X",
+            subtasks=[
+                SubtaskConfig(id="s1", name="S1", agent_profile="a"),
+                SubtaskConfig(
+                    id="s2", name="S2", agent_profile="b",
+                    input_schema={
+                        "type": "object",
+                        "properties": {"data": {"type": "string"}},
+                        "required": ["data"],
+                        "upstream": ["data", "ghost_field"],
+                    },
+                ),
+            ],
+        )
+        errors = validate_bp_config(bp)
+        assert any("ghost_field" in e and "not found" in e for e in errors)
+        # "data" is valid, should not appear in errors
+        assert not any("upstream field 'data'" in e for e in errors)
+
+    def test_valid_upstream_config_passes(self):
+        bp = BestPracticeConfig(
+            id="x", name="X",
+            subtasks=[
+                SubtaskConfig(id="s1", name="S1", agent_profile="a"),
+                SubtaskConfig(
+                    id="s2", name="S2", agent_profile="b",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "results": {"type": "array"},
+                            "focus": {"type": "string"},
+                        },
+                        "required": ["results", "focus"],
+                        "upstream": ["results"],
+                    },
+                ),
+            ],
+        )
+        errors = validate_bp_config(bp)
+        assert errors == []
+
 
 # ── BPInstanceSnapshot ─────────────────────────────────────────
 

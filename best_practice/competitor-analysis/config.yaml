@@ -58,6 +58,7 @@ subtasks:
           type: object
           description: "我方产品信息"
       required: [competitor_profiles]
+      upstream: [competitor_profiles, target_product_info]
 
   - id: "insights"
     name: "洞察总结"
@@ -76,3 +77,4 @@ subtasks:
           type: array
           items: { type: string }
       required: [comparison_matrix]
+      upstream: [comparison_matrix, strengths, weaknesses]
