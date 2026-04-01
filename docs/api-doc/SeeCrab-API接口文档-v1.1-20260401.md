@@ -827,7 +827,11 @@ data: {"type": "done"}
       "description": "从相机搜索到预处理检索再到表格图片生成的三阶段流程",
       "subtask_count": 3,
       "default_run_mode": "manual",
-      "trigger_types": ["command", "context"]
+      "trigger_types": ["command", "context"],
+      "triggers": [
+        { "type": "command", "pattern": "执行相机特征检索出图", "conditions": [], "cron": "" },
+        { "type": "context", "pattern": "", "conditions": ["相机", "预处理", "特征检索", "表格图片"], "cron": "" }
+      ]
     },
     {
       "id": "market-research-report",
@@ -835,7 +839,12 @@ data: {"type": "done"}
       "description": "从信息收集到分析再到报告生成的完整流程",
       "subtask_count": 4,
       "default_run_mode": "manual",
-      "trigger_types": ["command", "context", "ui_click"]
+      "trigger_types": ["command", "context", "ui_click"],
+      "triggers": [
+        { "type": "command", "pattern": "执行市场调研", "conditions": [], "cron": "" },
+        { "type": "context", "pattern": "", "conditions": ["市场", "调研", "行业分析"], "cron": "" },
+        { "type": "ui_click", "pattern": "market-research", "conditions": [], "cron": "" }
+      ]
     }
   ]
 }
@@ -861,6 +870,11 @@ data: {"type": "done"}
 | `configs[].subtask_count` | number | 子任务数量 |
 | `configs[].default_run_mode` | string | 默认运行模式: `"manual"` / `"auto"` |
 | `configs[].trigger_types` | string[] | 触发方式列表: `command`/`context`/`cron`/`event`/`ui_click` |
+| `configs[].triggers` | object[] | 触发器详情数组 |
+| `configs[].triggers[].type` | string | 触发器类型 |
+| `configs[].triggers[].pattern` | string | 匹配模式（command 类型使用） |
+| `configs[].triggers[].conditions` | string[] | 上下文条件关键词（context 类型使用） |
+| `configs[].triggers[].cron` | string | cron 表达式（cron 类型使用） |
 
 ---
 
@@ -1794,7 +1808,7 @@ const response = await fetch('/api/bp/answer', {
 
 ```typescript
 const { total, configs } = await fetch('/api/bp/configs').then(r => r.json())
-// configs: [{ id, name, description, subtask_count, default_run_mode, trigger_types }]
+// configs: [{ id, name, description, subtask_count, default_run_mode, trigger_types, triggers }]
 ```
 
 ### 5.14 获取 BP 模板详情 [v1.1 新增]

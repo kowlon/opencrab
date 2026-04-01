@@ -113,6 +113,8 @@ class TestBpDeleteEndpoint:
 
 class TestBpConfigsEndpoint:
     def test_returns_config_list(self):
+        from seeagent.bestpractice.models import TriggerConfig, TriggerType
+
         app = _create_test_app()
         mock_loader = MagicMock()
         mock_cfg = MagicMock()
@@ -121,7 +123,7 @@ class TestBpConfigsEndpoint:
         mock_cfg.description = "测试描述"
         mock_cfg.subtasks = [MagicMock(), MagicMock()]
         mock_cfg.default_run_mode = MagicMock(value="manual")
-        mock_cfg.triggers = [MagicMock(type=MagicMock(value="command"))]
+        mock_cfg.triggers = [TriggerConfig(type=TriggerType.COMMAND, pattern="测试")]
         mock_loader.configs = {"test-bp": mock_cfg}
 
         with patch("seeagent.api.routes.bestpractice.get_bp_config_loader", return_value=mock_loader):
@@ -132,6 +134,44 @@ class TestBpConfigsEndpoint:
             assert data["total"] == 1
             assert data["configs"][0]["id"] == "test-bp"
             assert data["configs"][0]["subtask_count"] == 2
+
+    def test_returns_triggers_in_config_list(self):
+        """列表接口应返回完整的 triggers 数组。"""
+        from seeagent.bestpractice.models import TriggerConfig, TriggerType
+
+        app = _create_test_app()
+        mock_loader = MagicMock()
+        mock_cfg = MagicMock()
+        mock_cfg.id = "test-bp"
+        mock_cfg.name = "测试流程"
+        mock_cfg.description = "测试描述"
+        mock_cfg.subtasks = [MagicMock()]
+        mock_cfg.default_run_mode = MagicMock(value="manual")
+        mock_cfg.triggers = [
+            TriggerConfig(type=TriggerType.COMMAND, pattern="执行测试"),
+            TriggerConfig(type=TriggerType.CONTEXT, conditions=["关键词A", "关键词B"]),
+        ]
+        mock_loader.configs = {"test-bp": mock_cfg}
+
+        with patch("seeagent.api.routes.bestpractice.get_bp_config_loader", return_value=mock_loader):
+            client = TestClient(app)
+            resp = client.get("/api/bp/configs")
+            assert resp.status_code == 200
+            data = resp.json()
+            triggers = data["configs"][0]["triggers"]
+            assert len(triggers) == 2
+            assert triggers[0] == {
+                "type": "command",
+                "pattern": "执行测试",
+                "conditions": [],
+                "cron": "",
+            }
+            assert triggers[1] == {
+                "type": "context",
+                "pattern": "",
+                "conditions": ["关键词A", "关键词B"],
+                "cron": "",
+            }
 
     def test_returns_empty_when_loader_none(self):
         app = _create_test_app()

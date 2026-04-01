@@ -196,6 +196,13 @@ export interface BPOfferInfo {
 
 // ── BP v1.1 types ───────────────────────────────────────────
 
+export interface BPTrigger {
+  type: string
+  pattern: string
+  conditions: string[]
+  cron: string
+}
+
 export interface BPConfigSummary {
   id: string
   name: string
@@ -203,15 +210,10 @@ export interface BPConfigSummary {
   subtask_count: number
   default_run_mode: string
   trigger_types: string[]
+  triggers: BPTrigger[]
 }
 
 export interface BPConfigDetail extends BPConfigSummary {
-  triggers: Array<{
-    type: string
-    pattern: string
-    conditions: string[]
-    cron: string
-  }>
   subtasks: Array<{
     id: string
     name: string

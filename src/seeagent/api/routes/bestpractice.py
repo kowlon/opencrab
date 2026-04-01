@@ -159,6 +159,15 @@ async def get_bp_configs():
             "subtask_count": len(cfg.subtasks),
             "default_run_mode": cfg.default_run_mode.value,
             "trigger_types": sorted({t.type.value for t in cfg.triggers}),
+            "triggers": [
+                {
+                    "type": t.type.value,
+                    "pattern": t.pattern,
+                    "conditions": t.conditions,
+                    "cron": t.cron,
+                }
+                for t in cfg.triggers
+            ],
         })
     return JSONResponse({"total": len(configs), "configs": configs})
 
