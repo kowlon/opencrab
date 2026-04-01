@@ -18,6 +18,7 @@
 | **调整** | `PUT /api/bp/instances/{id}/run-mode` | 原 `/run-mode`，instance_id 移入路径参数 |
 | **调整** | `PUT /api/bp/instances/{id}/output` | 原 `/edit-output`，instance_id 移入路径参数 |
 | **调整** | `DELETE /api/bp/instances/{id}` | 原 `DELETE /{id}`，归入 instances |
+| **增强** | `GET /api/bp/instances` | 新增 `session_title`/`subtask_count`/`done_count`/`subtask_names` 字段，支持实例列表导航 |
 
 ---
 
@@ -1143,10 +1144,14 @@ BP 存储未初始化 (HTTP 500):
       "bp_id": "camera-feature-pipeline",
       "bp_name": "相机特征检索出图",
       "session_id": "seecrab_ff9f0f08ccec",
+      "session_title": "帮我查园区东门的相机",
       "status": "active",
       "run_mode": "manual",
       "current_subtask_index": 1,
       "progress": "1/3",
+      "subtask_count": 3,
+      "done_count": 1,
+      "subtask_names": ["相机搜索", "特征检索", "结果出图"],
       "subtask_statuses": {
         "camera-search": "done",
         "feature-extraction": "current",
@@ -1161,10 +1166,14 @@ BP 存储未初始化 (HTTP 500):
       "bp_id": "market-research-report",
       "bp_name": "市场调研报告",
       "session_id": "seecrab_ff9f0f08ccec",
+      "session_title": "帮我查园区东门的相机",
       "status": "completed",
       "run_mode": "auto",
       "current_subtask_index": 3,
       "progress": "4/4",
+      "subtask_count": 4,
+      "done_count": 4,
+      "subtask_names": ["信息收集", "分析", "大纲", "报告"],
       "subtask_statuses": {
         "research": "done",
         "analysis": "done",
@@ -1203,10 +1212,14 @@ BP 存储未初始化 (HTTP 500):
 | `instances[].bp_id` | string | BP 模板 ID |
 | `instances[].bp_name` | string | BP 模板展示名称 |
 | `instances[].session_id` | string | 所属会话 ID |
+| `instances[].session_title` | string | 所属会话标题，用于列表展示（避免 N+1 次 sessions 请求） |
 | `instances[].status` | string | `active`/`suspended`/`completed`/`cancelled` |
 | `instances[].run_mode` | string | `manual`/`auto` |
 | `instances[].current_subtask_index` | number | 当前子任务索引 (0-based) |
 | `instances[].progress` | string | 进度文本（如 `"1/3"`） |
+| `instances[].subtask_count` | number | 子任务总数 |
+| `instances[].done_count` | number | 已完成子任务数（注意：不等于 `current_subtask_index`，因 subtask 可能 failed/stale） |
+| `instances[].subtask_names` | string[] | 各子任务名称列表，用于列表悬停展示 |
 | `instances[].subtask_statuses` | Record<string, string> | 各子任务状态 |
 | `instances[].created_at` | number | 创建时间戳 (Unix) |
 | `instances[].completed_at` | number \| null | 完成时间戳 |
@@ -1570,6 +1583,8 @@ BP 配置不存在 (HTTP 404):
 | `bp_waiting_next` | 等待用户执行下一步 | `instance_id` |
 | `bp_stale` | 子任务过时标记 | `instance_id`, `stale_subtask_ids`, `reason` |
 | `bp_complete` | BP 全部完成 | `instance_id` |
+| `bp_cancelled` | BP 实例已取消 | `instance_id` |
+| `bp_suspended` | BP 实例被挂起（如新 BP 启动时抢占） | `instance_id`, `reason` |
 | `bp_error` | BP 错误 | `instance_id`, `message` |
 
 ---
@@ -1802,7 +1817,10 @@ const sessionStats = await fetch(`/api/bp/instances/stats?session_id=${sessionId
 ```typescript
 // v1.1: 路径从 /api/bp/status 调整为 /api/bp/instances
 const data = await fetch(`/api/bp/instances?session_id=${sessionId}`).then(r => r.json())
-// data: { total, limit, offset, active_id, instances: [{ instance_id, bp_name, progress, ... }] }
+// data: { total, limit, offset, active_id, instances: [{
+//   instance_id, bp_name, progress, session_title,
+//   subtask_count, done_count, subtask_names, ...
+// }] }
 ```
 
 ### 5.17 切换 BP 运行模式 [v1.1 调整]
