@@ -238,10 +238,14 @@ class TestMatchBPFromMessage:
         result = match_bp_from_message("write an article", "sess-1")
         assert result is None
 
-    def test_suspended_instance_skips_keyword_matchTest(
+    def test_suspended_instance_still_matched_in_keyword_matchTest(
         self, sample_bp_config, setup_facade_with_config,
     ):
-        """Keyword match should skip bp_id that has a SUSPENDED instance."""
+        """Keyword match should still match bp_id even when a SUSPENDED instance exists.
+
+        Suspended BPs are allowed to re-match so the offer card is shown for new starts.
+        Resume intent is handled upstream by the route layer, not by the matcher.
+        """
         state_mgr = setup_facade_with_config
         inst_id = state_mgr.create_instance(sample_bp_config, "sess-1")
         state_mgr.suspend(inst_id)
@@ -249,7 +253,8 @@ class TestMatchBPFromMessage:
         result = match_bp_from_message(
             "I want to write an article", "sess-1",
         )
-        assert result is None
+        assert result is not None
+        assert result["bp_id"] == sample_bp_config.id
 
     def test_command_trigger_not_matched(self, setup_facade_with_config):
         """COMMAND triggers should not be matched by match_bp_from_message."""

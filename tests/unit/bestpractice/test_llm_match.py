@@ -157,8 +157,12 @@ class TestLLMMatchBPFromMessage:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_suspended_instance_skipped_in_llm_matchTest(self, setup_llm_match):
-        """LLM match should skip bp_id that has a SUSPENDED instance."""
+    async def test_suspended_instance_still_matched_in_llm_matchTest(self, setup_llm_match):
+        """LLM match should still match bp_id even when a SUSPENDED instance exists.
+
+        Suspended BPs are allowed to re-match so the offer card is shown for new starts.
+        Resume intent is handled upstream by the route layer, not by the matcher.
+        """
         sm, config = setup_llm_match
         inst_id = sm.create_instance(config, "s1")
         sm.suspend(inst_id)
@@ -172,7 +176,8 @@ class TestLLMMatchBPFromMessage:
         mock_brain.think_lightweight = AsyncMock(return_value=mock_resp)
 
         result = await llm_match_bp_from_message("写文章", "s1", mock_brain)
-        assert result is None
+        assert result is not None
+        assert result["bp_id"] == "content-pipeline"
 
     @pytest.mark.asyncio
     async def test_no_brain_returns_none(self, setup_llm_match):

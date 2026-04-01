@@ -231,8 +231,14 @@ class BPPromptBuilder:
             name = s.bp_config.name if s.bp_config else s.bp_id
             done = sum(1 for v in s.subtask_statuses.values() if v == "done")
             total = len(s.subtask_statuses)
+            input_hint = ""
+            if s.initial_input:
+                input_hint = " | " + ", ".join(
+                    f"{k}={v}" for k, v in list(s.initial_input.items())[:3]
+                )
             lines.append(
-                f'  - 「{name}」→ bp_switch_task(target_instance_id="{s.instance_id}")'
+                f'  - 「{name}{input_hint}」'
+                f'→ bp_switch_task(target_instance_id="{s.instance_id}")'
                 f" [进度: {done}/{total}]"
             )
         return "\n".join(lines)

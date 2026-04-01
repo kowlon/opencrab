@@ -94,7 +94,15 @@ class BPToolHandler:
             if s.bp_id == bp_id and s.status == BPStatus.SUSPENDED
         ]
         if suspended_same:
-            target = max(suspended_same, key=lambda s: s.suspended_at or 0)
+            # Prefer the instance whose initial_input matches the incoming input_data;
+            # fall back to the most recently suspended one.
+            if input_data:
+                target = next(
+                    (s for s in suspended_same if (s.initial_input or {}) == input_data),
+                    max(suspended_same, key=lambda s: s.suspended_at or 0.0),
+                )
+            else:
+                target = max(suspended_same, key=lambda s: s.suspended_at or 0.0)
             new_input_differs = bool(input_data) and input_data != (target.initial_input or {})
             if not new_input_differs:
                 result = await self.engine.switch(target.instance_id, session)
