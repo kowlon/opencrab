@@ -213,8 +213,13 @@ class BPStateManager:
                 current_step = inst.bp_config.subtasks[
                     inst.current_subtask_index
                 ].name
+            input_summary = ""
+            if inst.initial_input:
+                input_summary = " (" + ", ".join(
+                    f"{k}={v}" for k, v in list(inst.initial_input.items())[:2]
+                ) + ")"
             lines.append(
-                f"| {inst.instance_id} | {bp_name} | {inst.status.value} "
+                f"| {inst.instance_id} | {bp_name}{input_summary} | {inst.status.value} "
                 f"| {progress} | {current_step} | {inst.run_mode.value} |"
             )
 

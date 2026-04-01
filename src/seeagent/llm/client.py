@@ -562,10 +562,10 @@ class LLMClient:
         for i, provider in enumerate(eligible):
             yielded = False
             try:
-                logger.info(
-                    f"[LLM-Stream] endpoint={provider.name} model={provider.model} "
-                    f"action=stream_request"
-                )
+                # logger.info(
+                #     f"[LLM-Stream] endpoint={provider.name} model={provider.model} "
+                #     f"action=stream_request"
+                # )
                 async for event in provider.chat_stream(request):
                     yielded = True
                     yield event
@@ -968,20 +968,20 @@ class LLMClient:
             for attempt in range(max_attempts):
                 try:
                     tools_count = len(request.tools) if request.tools else 0
-                    logger.info(
-                        f"[LLM] endpoint={provider.name} model={provider.model} "
-                        f"action=request tools={tools_count}"
-                    )
+                    # logger.info(
+                    #     f"[LLM] endpoint={provider.name} model={provider.model} "
+                    #     f"action=request tools={tools_count}"
+                    # )
 
                     response = await provider.chat(request)
 
                     # 成功：重置连续失败计数
                     provider.record_success()
 
-                    logger.info(
-                        f"[LLM] endpoint={provider.name} model={provider.model} "
-                        f"action=response tokens_in={response.usage.input_tokens} tokens_out={response.usage.output_tokens}"
-                    )
+                    # logger.info(
+                    #     f"[LLM] endpoint={provider.name} model={provider.model} "
+                    #     f"action=response tokens_in={response.usage.input_tokens} tokens_out={response.usage.output_tokens}"
+                    # )
 
                     # 注意：这里不缩短其他失败端点的冷静期。
                     # A 失败、B 成功 ≠ 全局网络波动；A 的远程服务可能仍然有问题。

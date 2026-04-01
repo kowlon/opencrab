@@ -46,6 +46,9 @@ _BP_CANCEL_COMMANDS = {
     "停止最佳实践", "退出最佳实践",
 }
 
+# Resume intent keywords: skip BP matcher, let agent handle via bp_switch_task
+_BP_RESUME_INTENT_KEYWORDS = {"恢复", "继续之前", "回到之前"}
+
 def _upsert_step_card(cards: list[dict], event: dict) -> None:
     """Upsert a step_card event into the cards list by step_id."""
     step_id = event.get("step_id")
@@ -248,7 +251,7 @@ async def _stream_bp_start_from_chat(
         get_bp_engine,
         get_bp_state_manager,
     )
-    from seeagent.bestpractice.models import RunMode
+    from seeagent.bestpractice.models import BPStatus, RunMode
 
     engine = get_bp_engine()
     sm = get_bp_state_manager()
@@ -271,6 +274,54 @@ async def _stream_bp_start_from_chat(
     reply_state = _new_reply_state()
     full_reply: list[str] = []
     instance_id: str | None = None
+
+    # Resume check: if there's a suspended same-bp_id instance whose initial_input
+    # matches the incoming input_data (or no new input), resume instead of creating new.
+    _sm_sid = session.id if session else session_id
+    suspended_same = [
+        s for s in sm.get_all_for_session(_sm_sid)
+        if s.bp_id == bp_id and s.status == BPStatus.SUSPENDED
+    ]
+    if suspended_same:
+        # Prefer instance with matching initial_input; fall back to most recently suspended
+        if input_data:
+            target = next(
+                (s for s in suspended_same if (s.initial_input or {}) == input_data),
+                max(suspended_same, key=lambda s: s.suspended_at or 0.0),
+            )
+        else:
+            target = max(suspended_same, key=lambda s: s.suspended_at or 0.0)
+        new_input_differs = bool(input_data) and input_data != (target.initial_input or {})
+        if not new_input_differs:
+            result = await engine.switch(target.instance_id, session)
+            if result.get("success"):
+                instance_id = target.instance_id
+                try:
+                    async for event in engine.advance(target.instance_id, session):
+                        if disconnect_event.is_set():
+                            break
+                        yield event
+                        _collect_reply_state(event, reply_state, full_reply)
+                        if event.get("type") in ("bp_subtask_complete", "bp_progress"):
+                            _bp_renew_busy(session_id)
+                    snap = sm.get(instance_id)
+                    is_suspended = snap and getattr(snap.status, "value", snap.status) == "suspended"
+                    if not is_suspended:
+                        _persist_bp_to_session(
+                            session, instance_id, sm,
+                            reply_state=reply_state,
+                            full_reply="".join(full_reply),
+                            session_manager=session_manager,
+                        )
+                    sm.clear_pending_offer(session_id)
+                    yield {"type": "done"}
+                except Exception as e:
+                    yield {"type": "error", "message": str(e), "code": "bp"}
+                    yield {"type": "done"}
+                finally:
+                    _bp_clear_busy(session_id)
+                return
+
     try:
         async for event in engine.start(bp_config, session, input_data, run_mode):
             if disconnect_event.is_set():
@@ -597,13 +648,23 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             # 确保 /api/bp/start 能通过 get_pending_offer(session_id) 找到 pending_offer
             bp_session_id = conversation_id
 
+            # BPStateManager 内部用 session.id 存储实例（含 channel/timestamp/random）
+            # 而 bp_session_id = conversation_id（无时间戳后缀）
+            # 两者不同：直接用 bp_session_id 做 get_all_for_session 查询会返回空
+            # 所以 state_manager 内部查询（restore / cooldown / matcher）统一用 session.id
+            _sm_sid = session.id if session else bp_session_id
+            logger.info(
+                f"[BP] session_id mapping: bp_session_id={bp_session_id!r} "
+                f"session.id={_sm_sid!r}"
+            )
+
             # ── Step 0: BP state restoration + cooldown tick ──
             from seeagent.bestpractice.facade import get_bp_state_manager
             bp_sm = get_bp_state_manager()
             if bp_sm:
                 from seeagent.api.routes.bestpractice import _ensure_bp_restored
-                await _ensure_bp_restored(request, bp_session_id, bp_sm)
-                bp_sm.tick_cooldown(bp_session_id)
+                await _ensure_bp_restored(request, _sm_sid, bp_sm)
+                bp_sm.tick_cooldown(_sm_sid)
 
             # Pre-fetch brain for LLM operations
             brain = getattr(agent, "brain", None)
@@ -795,15 +856,23 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             except Exception:
                 pass
 
+            # Resume intent bypass: if user says "恢复" etc., skip matcher
+            # and let agent handle via bp_switch_task with full BP state context.
+            _has_resume_intent = any(
+                kw in (body.message or "") for kw in _BP_RESUME_INTENT_KEYWORDS
+            )
+
             try:
-                from seeagent.bestpractice.facade import match_bp_from_message
-                bp_match = match_bp_from_message(body.message or "", bp_session_id)
-                # Step 4: LLM fallback if keyword didn't match
-                if not bp_match and brain:
-                    from seeagent.bestpractice.facade import llm_match_bp_from_message
-                    bp_match = await llm_match_bp_from_message(
-                        body.message or "", bp_session_id, brain,
-                    )
+                bp_match = None
+                if not _has_resume_intent:
+                    from seeagent.bestpractice.facade import match_bp_from_message
+                    bp_match = match_bp_from_message(body.message or "", _sm_sid)
+                    # Step 4: LLM fallback if keyword didn't match
+                    if not bp_match and brain:
+                        from seeagent.bestpractice.facade import llm_match_bp_from_message
+                        bp_match = await llm_match_bp_from_message(
+                            body.message or "", _sm_sid, brain,
+                        )
                 if bp_match:
                     bp_name = bp_match["bp_name"]
                     bp_id = bp_match["bp_id"]

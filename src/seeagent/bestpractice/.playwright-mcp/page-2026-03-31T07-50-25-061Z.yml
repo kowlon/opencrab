@@ -1,0 +1,854 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]: smart_toy
+        - generic [ref=e7]: SeeAgent
+      - button "add New Chat" [ref=e9] [cursor=pointer]:
+        - generic [ref=e10]: add
+        - generic [ref=e11]: New Chat
+      - generic [ref=e12]: RECENT
+      - generic [ref=e13]:
+        - generic [ref=e801] [cursor=pointer]:
+          - generic [ref=e802]: chat_bubble
+          - generic [ref=e803]:
+            - generic [ref=e804]: 新对话
+            - generic [ref=e805]:
+              - generic [ref=e806]: 0 步骤
+              - generic [ref=e807]: ·
+              - generic [ref=e808]: 2 分钟前
+          - button "close" [ref=e809]:
+            - generic [ref=e810]: close
+        - generic [ref=e751] [cursor=pointer]:
+          - generic [ref=e752]: chat_bubble
+          - generic [ref=e753]:
+            - generic [ref=e754]: SeeAgent竞品分析
+            - generic [ref=e780]: 最佳实践模式
+            - generic [ref=e755]:
+              - generic [ref=e756]: 0 步骤
+              - generic [ref=e757]: ·
+              - generic [ref=e758]: 刚刚
+          - button "close" [ref=e759]:
+            - generic [ref=e760]: close
+        - generic [ref=e14] [cursor=pointer]:
+          - generic [ref=e15]: chat_bubble
+          - generic [ref=e16]:
+            - generic [ref=e17]: 咖啡行业调研
+            - generic [ref=e18]: 明白了，系统显示"当前没有活动的计划"，说明最佳实践流程可能已经结束。 **给用户的总结：** 我已完成"咖啡行业调研"的市场调研阶段，提供了完整的调研数据
+            - generic [ref=e19]:
+              - generic [ref=e20]: 5 步骤
+              - generic [ref=e21]: ·
+              - generic [ref=e22]: 27 分钟前
+          - button "close" [ref=e23]:
+            - generic [ref=e24]: close
+        - generic [ref=e25] [cursor=pointer]:
+          - generic [ref=e26]: chat_bubble
+          - generic [ref=e27]:
+            - generic [ref=e28]: 软件行业调研
+            - generic [ref=e29]: "[BP] 「市场调研报告」进度: 3/3"
+            - generic [ref=e30]:
+              - generic [ref=e31]: 8 步骤
+              - generic [ref=e32]: ·
+              - generic [ref=e33]: 27 分钟前
+          - button "close" [ref=e34]:
+            - generic [ref=e35]: close
+        - generic [ref=e36] [cursor=pointer]:
+          - generic [ref=e37]: chat_bubble
+          - generic [ref=e38]:
+            - generic [ref=e39]: 咖啡行业调研
+            - generic [ref=e40]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e41]:
+              - generic [ref=e42]: 14 步骤
+              - generic [ref=e43]: ·
+              - generic [ref=e44]: 4 小时前
+          - button "close" [ref=e45]:
+            - generic [ref=e46]: close
+        - generic [ref=e47] [cursor=pointer]:
+          - generic [ref=e48]: chat_bubble
+          - generic [ref=e49]:
+            - generic [ref=e50]: 咖啡行业调研
+            - generic [ref=e51]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e52]:
+              - generic [ref=e53]: 10 步骤
+              - generic [ref=e54]: ·
+              - generic [ref=e55]: 21 小时前
+          - button "close" [ref=e56]:
+            - generic [ref=e57]: close
+        - generic [ref=e58] [cursor=pointer]:
+          - generic [ref=e59]: chat_bubble
+          - generic [ref=e60]:
+            - generic [ref=e61]: 咖啡行业调研
+            - generic [ref=e62]: "[BP] 「市场调研报告」进度: 1/3"
+            - generic [ref=e63]:
+              - generic [ref=e64]: 11 步骤
+              - generic [ref=e65]: ·
+              - generic [ref=e66]: 21 小时前
+          - button "close" [ref=e67]:
+            - generic [ref=e68]: close
+        - generic [ref=e69] [cursor=pointer]:
+          - generic [ref=e70]: chat_bubble
+          - generic [ref=e71]:
+            - generic [ref=e72]: 咖啡行业调研
+            - generic [ref=e73]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e74]:
+              - generic [ref=e75]: 5 步骤
+              - generic [ref=e76]: ·
+              - generic [ref=e77]: 22 小时前
+          - button "close" [ref=e78]:
+            - generic [ref=e79]: close
+        - generic [ref=e80] [cursor=pointer]:
+          - generic [ref=e81]: chat_bubble
+          - generic [ref=e82]:
+            - generic [ref=e83]: 软件行业调研
+            - generic [ref=e84]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e85]:
+              - generic [ref=e86]: 5 步骤
+              - generic [ref=e87]: ·
+              - generic [ref=e88]: 23 小时前
+          - button "close" [ref=e89]:
+            - generic [ref=e90]: close
+        - generic [ref=e91] [cursor=pointer]:
+          - generic [ref=e92]: chat_bubble
+          - generic [ref=e93]:
+            - generic [ref=e94]: 咖啡行业调研
+            - generic [ref=e95]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e96]:
+              - generic [ref=e97]: 5 步骤
+              - generic [ref=e98]: ·
+              - generic [ref=e99]: 23 小时前
+          - button "close" [ref=e100]:
+            - generic [ref=e101]: close
+        - generic [ref=e102] [cursor=pointer]:
+          - generic [ref=e103]: chat_bubble
+          - generic [ref=e104]:
+            - generic [ref=e105]: 咖啡行业调研
+            - generic [ref=e106]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e107]:
+              - generic [ref=e108]: 6 步骤
+              - generic [ref=e109]: ·
+              - generic [ref=e110]: 23 小时前
+          - button "close" [ref=e111]:
+            - generic [ref=e112]: close
+        - generic [ref=e113] [cursor=pointer]:
+          - generic [ref=e114]: chat_bubble
+          - generic [ref=e115]:
+            - generic [ref=e116]: 咖啡行业调研
+            - generic [ref=e117]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e118]:
+              - generic [ref=e119]: 5 步骤
+              - generic [ref=e120]: ·
+              - generic [ref=e121]: 23 小时前
+          - button "close" [ref=e122]:
+            - generic [ref=e123]: close
+        - generic [ref=e124] [cursor=pointer]:
+          - generic [ref=e125]: chat_bubble
+          - generic [ref=e126]:
+            - generic [ref=e127]: 咖啡行业调研
+            - generic [ref=e128]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e129]:
+              - generic [ref=e130]: 6 步骤
+              - generic [ref=e131]: ·
+              - generic [ref=e132]: 23 小时前
+          - button "close" [ref=e133]:
+            - generic [ref=e134]: close
+        - generic [ref=e135] [cursor=pointer]:
+          - generic [ref=e136]: chat_bubble
+          - generic [ref=e137]:
+            - generic [ref=e138]: 咖啡行业调研
+            - generic [ref=e139]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e140]:
+              - generic [ref=e141]: 5 步骤
+              - generic [ref=e142]: ·
+              - generic [ref=e143]: 23 小时前
+          - button "close" [ref=e144]:
+            - generic [ref=e145]: close
+        - generic [ref=e146] [cursor=pointer]:
+          - generic [ref=e147]: chat_bubble
+          - generic [ref=e148]:
+            - generic [ref=e149]: 咖啡行业调研
+            - generic [ref=e150]: "## ✅ 咖啡行业调研报告已完成 已生成完整结构化调研报告，涵盖五大核心维度： ### 📊 核心发现摘要 **市场规模** - 2024年中国咖啡市场7,"
+            - generic [ref=e151]:
+              - generic [ref=e152]: 6 步骤
+              - generic [ref=e153]: ·
+              - generic [ref=e154]: 昨天
+          - button "close" [ref=e155]:
+            - generic [ref=e156]: close
+        - generic [ref=e157] [cursor=pointer]:
+          - generic [ref=e158]: chat_bubble
+          - generic [ref=e159]:
+            - generic [ref=e160]: 咖啡行业调研
+            - generic [ref=e161]: "[BP] 「市场调研报告」进度: 1/3"
+            - generic [ref=e162]:
+              - generic [ref=e163]: 15 步骤
+              - generic [ref=e164]: ·
+              - generic [ref=e165]: 昨天
+          - button "close" [ref=e166]:
+            - generic [ref=e167]: close
+        - generic [ref=e168] [cursor=pointer]:
+          - generic [ref=e169]: chat_bubble
+          - generic [ref=e170]:
+            - generic [ref=e171]: 咖啡行业调研
+            - generic [ref=e172]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e173]:
+              - generic [ref=e174]: 5 步骤
+              - generic [ref=e175]: ·
+              - generic [ref=e176]: 昨天
+          - button "close" [ref=e177]:
+            - generic [ref=e178]: close
+        - generic [ref=e179] [cursor=pointer]:
+          - generic [ref=e180]: chat_bubble
+          - generic [ref=e181]:
+            - generic [ref=e182]: 咖啡行业调研
+            - generic [ref=e183]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e184]:
+              - generic [ref=e185]: 5 步骤
+              - generic [ref=e186]: ·
+              - generic [ref=e187]: 昨天
+          - button "close" [ref=e188]:
+            - generic [ref=e189]: close
+        - generic [ref=e190] [cursor=pointer]:
+          - generic [ref=e191]: chat_bubble
+          - generic [ref=e192]:
+            - generic [ref=e193]: 咖啡行业调研
+            - generic [ref=e194]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e195]:
+              - generic [ref=e196]: 5 步骤
+              - generic [ref=e197]: ·
+              - generic [ref=e198]: 昨天
+          - button "close" [ref=e199]:
+            - generic [ref=e200]: close
+        - generic [ref=e201] [cursor=pointer]:
+          - generic [ref=e202]: chat_bubble
+          - generic [ref=e203]:
+            - generic [ref=e204]: 咖啡行业调研
+            - generic [ref=e205]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e206]:
+              - generic [ref=e207]: 5 步骤
+              - generic [ref=e208]: ·
+              - generic [ref=e209]: 3 天前
+          - button "close" [ref=e210]:
+            - generic [ref=e211]: close
+        - generic [ref=e212] [cursor=pointer]:
+          - generic [ref=e213]: chat_bubble
+          - generic [ref=e214]:
+            - generic [ref=e215]: 咖啡行业调研
+            - generic [ref=e216]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e217]:
+              - generic [ref=e218]: 5 步骤
+              - generic [ref=e219]: ·
+              - generic [ref=e220]: 3 天前
+          - button "close" [ref=e221]:
+            - generic [ref=e222]: close
+        - generic [ref=e223] [cursor=pointer]:
+          - generic [ref=e224]: chat_bubble
+          - generic [ref=e225]:
+            - generic [ref=e226]: 咖啡行业调研
+            - generic [ref=e227]: "好的，已为您启动软件行业市场调研最佳实践流程。 📋 **当前任务实例**: `bp-375a8d9e` **市场调研报告**流程包含 3 个子任务： 1."
+            - generic [ref=e228]:
+              - generic [ref=e229]: 6 步骤
+              - generic [ref=e230]: ·
+              - generic [ref=e231]: 3 天前
+          - button "close" [ref=e232]:
+            - generic [ref=e233]: close
+        - generic [ref=e234] [cursor=pointer]:
+          - generic [ref=e235]: chat_bubble
+          - generic [ref=e236]:
+            - generic [ref=e237]: 咖啡行业调研
+            - generic [ref=e238]: "[BP] 「市场调研报告」进度: 0/3"
+            - generic [ref=e239]:
+              - generic [ref=e240]: 6 步骤
+              - generic [ref=e241]: ·
+              - generic [ref=e242]: 3 天前
+          - button "close" [ref=e243]:
+            - generic [ref=e244]: close
+        - generic [ref=e245] [cursor=pointer]:
+          - generic [ref=e246]: chat_bubble
+          - generic [ref=e247]:
+            - generic [ref=e248]: 咖啡行业调研
+            - generic [ref=e249]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e250]:
+              - generic [ref=e251]: 7 步骤
+              - generic [ref=e252]: ·
+              - generic [ref=e253]: 3 天前
+          - button "close" [ref=e254]:
+            - generic [ref=e255]: close
+        - generic [ref=e256] [cursor=pointer]:
+          - generic [ref=e257]: chat_bubble
+          - generic [ref=e258]:
+            - generic [ref=e259]: 咖啡行业调研
+            - generic [ref=e260]: "[BP] 「市场调研报告」进度: 0/3"
+            - generic [ref=e261]:
+              - generic [ref=e262]: 6 步骤
+              - generic [ref=e263]: ·
+              - generic [ref=e264]: 4 天前
+          - button "close" [ref=e265]:
+            - generic [ref=e266]: close
+        - generic [ref=e267] [cursor=pointer]:
+          - generic [ref=e268]: chat_bubble
+          - generic [ref=e269]:
+            - generic [ref=e270]: 咖啡行业调研
+            - generic [ref=e271]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e272]:
+              - generic [ref=e273]: 2 步骤
+              - generic [ref=e274]: ·
+              - generic [ref=e275]: 4 天前
+          - button "close" [ref=e276]:
+            - generic [ref=e277]: close
+        - generic [ref=e278] [cursor=pointer]:
+          - generic [ref=e279]: chat_bubble
+          - generic [ref=e280]:
+            - generic [ref=e281]: 咖啡行业调研
+            - generic [ref=e282]: "[BP] 「市场调研报告」进度: 1/3"
+            - generic [ref=e283]:
+              - generic [ref=e284]: 12 步骤
+              - generic [ref=e285]: ·
+              - generic [ref=e286]: 4 天前
+          - button "close" [ref=e287]:
+            - generic [ref=e288]: close
+        - generic [ref=e289] [cursor=pointer]:
+          - generic [ref=e290]: chat_bubble
+          - generic [ref=e291]:
+            - generic [ref=e292]: 咖啡行业调研
+            - generic [ref=e293]: "[BP] 「市场调研报告」进度: 0/3"
+            - generic [ref=e294]:
+              - generic [ref=e295]: 6 步骤
+              - generic [ref=e296]: ·
+              - generic [ref=e297]: 4 天前
+          - button "close" [ref=e298]:
+            - generic [ref=e299]: close
+        - generic [ref=e300] [cursor=pointer]:
+          - generic [ref=e301]: chat_bubble
+          - generic [ref=e302]:
+            - generic [ref=e303]: 咖啡行业调研
+            - generic [ref=e304]: "[BP] 「市场调研报告」进度: 0/3"
+            - generic [ref=e305]:
+              - generic [ref=e306]: 6 步骤
+              - generic [ref=e307]: ·
+              - generic [ref=e308]: 4 天前
+          - button "close" [ref=e309]:
+            - generic [ref=e310]: close
+        - generic [ref=e311] [cursor=pointer]:
+          - generic [ref=e312]: chat_bubble
+          - generic [ref=e313]:
+            - generic [ref=e314]: 咖啡行业调研
+            - generic [ref=e315]: "[BP] 「市场调研报告」进度: 0/3"
+            - generic [ref=e316]:
+              - generic [ref=e317]: 6 步骤
+              - generic [ref=e318]: ·
+              - generic [ref=e319]: 4 天前
+          - button "close" [ref=e320]:
+            - generic [ref=e321]: close
+        - generic [ref=e322] [cursor=pointer]:
+          - generic [ref=e323]: chat_bubble
+          - generic [ref=e324]:
+            - generic [ref=e325]: 咖啡行业调研
+            - generic [ref=e326]: "[BP] 「市场调研报告」进度: 1/3"
+            - generic [ref=e327]:
+              - generic [ref=e328]: 14 步骤
+              - generic [ref=e329]: ·
+              - generic [ref=e330]: 4 天前
+          - button "close" [ref=e331]:
+            - generic [ref=e332]: close
+        - generic [ref=e333] [cursor=pointer]:
+          - generic [ref=e334]: chat_bubble
+          - generic [ref=e335]:
+            - generic [ref=e336]: 咖啡行业调研
+            - generic [ref=e337]: "好的，已获取到权威信息来源。让我基于这些资料为您整理软件行业调研报告： --- ## 📊 软件行业调研报告 ### 一、行业规模与增长 **全球市场**"
+            - generic [ref=e338]:
+              - generic [ref=e339]: 5 步骤
+              - generic [ref=e340]: ·
+              - generic [ref=e341]: 5 天前
+          - button "close" [ref=e342]:
+            - generic [ref=e343]: close
+        - generic [ref=e344] [cursor=pointer]:
+          - generic [ref=e345]: chat_bubble
+          - generic [ref=e346]:
+            - generic [ref=e347]: 咖啡行业调研
+            - generic [ref=e348]: "[BP] 「市场调研报告」进度: 0/3"
+            - generic [ref=e349]:
+              - generic [ref=e350]: 8 步骤
+              - generic [ref=e351]: ·
+              - generic [ref=e352]: 5 天前
+          - button "close" [ref=e353]:
+            - generic [ref=e354]: close
+        - generic [ref=e355] [cursor=pointer]:
+          - generic [ref=e356]: chat_bubble
+          - generic [ref=e357]:
+            - generic [ref=e358]: 咖啡行业调研
+            - generic [ref=e359]: ✅ 好的，已停止当前任务。
+            - generic [ref=e360]:
+              - generic [ref=e361]: 6 步骤
+              - generic [ref=e362]: ·
+              - generic [ref=e363]: 6 天前
+          - button "close" [ref=e364]:
+            - generic [ref=e365]: close
+        - generic [ref=e366] [cursor=pointer]:
+          - generic [ref=e367]: chat_bubble
+          - generic [ref=e368]:
+            - generic [ref=e369]: 咖啡行业调研
+            - generic [ref=e370]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e371]:
+              - generic [ref=e372]: 2 步骤
+              - generic [ref=e373]: ·
+              - generic [ref=e374]: 6 天前
+          - button "close" [ref=e375]:
+            - generic [ref=e376]: close
+        - generic [ref=e377] [cursor=pointer]:
+          - generic [ref=e378]: chat_bubble
+          - generic [ref=e379]:
+            - generic [ref=e380]: 咖啡行业调研
+            - generic [ref=e381]: ✅ 已启动「市场调研报告」最佳实践 **调研主题**：软件行业 **流程步骤**： 1. 📊 市场调研 → 收集行业数据与信息 2. 📈 数据分析 → 分析
+            - generic [ref=e382]:
+              - generic [ref=e383]: 6 步骤
+              - generic [ref=e384]: ·
+              - generic [ref=e385]: 6 天前
+          - button "close" [ref=e386]:
+            - generic [ref=e387]: close
+        - generic [ref=e388] [cursor=pointer]:
+          - generic [ref=e389]: chat_bubble
+          - generic [ref=e390]:
+            - generic [ref=e391]: 咖啡行业调研
+            - generic [ref=e392]: "--- ## ✅ 市场调研最佳实践已完成 本次最佳实践流程已走完全部 3 个子任务，但由于**数据采集环节未实际执行**，最终产出为诊断性报告而非实质性市场"
+            - generic [ref=e393]:
+              - generic [ref=e394]: 9 步骤
+              - generic [ref=e395]: ·
+              - generic [ref=e396]: 6 天前
+          - button "close" [ref=e397]:
+            - generic [ref=e398]: close
+        - generic [ref=e399] [cursor=pointer]:
+          - generic [ref=e400]: chat_bubble
+          - generic [ref=e401]:
+            - generic [ref=e402]: 咖啡行业调研
+            - generic [ref=e403]: "**总结**: 已将市场调研分析结果整理为结构化报告，涵盖中国软件行业的规模地位、增长引擎、竞争格局、技术变革趋势及战略建议。 ```json { \"ti"
+            - generic [ref=e404]:
+              - generic [ref=e405]: 9 步骤
+              - generic [ref=e406]: ·
+              - generic [ref=e407]: 6 天前
+          - button "close" [ref=e408]:
+            - generic [ref=e409]: close
+        - generic [ref=e410] [cursor=pointer]:
+          - generic [ref=e411]: chat_bubble
+          - generic [ref=e412]:
+            - generic [ref=e413]: 咖啡行业市场调研
+            - generic [ref=e414]: "市场调研报告流程已全部完成，但结果质量受限于输入数据缺失。以下是最终总结： --- ## 📋 任务完成总结 **最佳实践**: 市场调研报告 **执行"
+            - generic [ref=e415]:
+              - generic [ref=e416]: 9 步骤
+              - generic [ref=e417]: ·
+              - generic [ref=e418]: 6 天前
+          - button "close" [ref=e419]:
+            - generic [ref=e420]: close
+        - generic [ref=e421] [cursor=pointer]:
+          - generic [ref=e422]: chat_bubble
+          - generic [ref=e423]:
+            - generic [ref=e424]: 咖啡行业市场调研
+            - generic [ref=e425]: "[BP] 「市场调研报告」进度: 1/3"
+            - generic [ref=e426]:
+              - generic [ref=e427]: 7 步骤
+              - generic [ref=e428]: ·
+              - generic [ref=e429]: 6 天前
+          - button "close" [ref=e430]:
+            - generic [ref=e431]: close
+        - generic [ref=e432] [cursor=pointer]:
+          - generic [ref=e433]: chat_bubble
+          - generic [ref=e434]:
+            - generic [ref=e435]: 咖啡行业市场调研
+            - generic [ref=e436]: ✅ 好的，已停止当前任务。
+            - generic [ref=e437]:
+              - generic [ref=e438]: 9 步骤
+              - generic [ref=e439]: ·
+              - generic [ref=e440]: 6 天前
+          - button "close" [ref=e441]:
+            - generic [ref=e442]: close
+        - generic [ref=e443] [cursor=pointer]:
+          - generic [ref=e444]: chat_bubble
+          - generic [ref=e445]:
+            - generic [ref=e446]: 咖啡行业市场调研
+            - generic [ref=e447]: "[BP] 「市场调研报告」进度: 0/3"
+            - generic [ref=e448]:
+              - generic [ref=e449]: 5 步骤
+              - generic [ref=e450]: ·
+              - generic [ref=e451]: 6 天前
+          - button "close" [ref=e452]:
+            - generic [ref=e453]: close
+        - generic [ref=e454] [cursor=pointer]:
+          - generic [ref=e455]: chat_bubble
+          - generic [ref=e456]:
+            - generic [ref=e457]: 咖啡行业市场调研
+            - generic [ref=e458]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e459]:
+              - generic [ref=e460]: 3 步骤
+              - generic [ref=e461]: ·
+              - generic [ref=e462]: 6 天前
+          - button "close" [ref=e463]:
+            - generic [ref=e464]: close
+        - generic [ref=e465] [cursor=pointer]:
+          - generic [ref=e466]: chat_bubble
+          - generic [ref=e467]:
+            - generic [ref=e468]: 咖啡行业市场调研
+            - generic [ref=e469]: "[BP] 「市场调研报告」进度: 1/3"
+            - generic [ref=e470]:
+              - generic [ref=e471]: 6 步骤
+              - generic [ref=e472]: ·
+              - generic [ref=e473]: 6 天前
+          - button "close" [ref=e474]:
+            - generic [ref=e475]: close
+        - generic [ref=e476] [cursor=pointer]:
+          - generic [ref=e477]: chat_bubble
+          - generic [ref=e478]:
+            - generic [ref=e479]: 咖啡行业市场调研
+            - generic [ref=e480]: "[BP] 「市场调研报告」进度: 0/3 ✅ 已启动软件行业市场调研任务 **调研主题**: 软件行业市场 **执行流程**: 市场调研 → 数据分析 → 报"
+            - generic [ref=e481]:
+              - generic [ref=e482]: 6 步骤
+              - generic [ref=e483]: ·
+              - generic [ref=e484]: 6 天前
+          - button "close" [ref=e485]:
+            - generic [ref=e486]: close
+        - generic [ref=e487] [cursor=pointer]:
+          - generic [ref=e488]: chat_bubble
+          - generic [ref=e489]:
+            - generic [ref=e490]: 咖啡行业市场调研
+            - generic [ref=e491]: "## ✅ 咖啡行业市场调研完成 报告已生成并交付，核心发现如下： ### 📊 市场规模 - **2024年**：2,176-7,893亿元（不同统计口径）"
+            - generic [ref=e492]:
+              - generic [ref=e493]: 8 步骤
+              - generic [ref=e494]: ·
+              - generic [ref=e495]: 6 天前
+          - button "close" [ref=e496]:
+            - generic [ref=e497]: close
+        - generic [ref=e498] [cursor=pointer]:
+          - generic [ref=e499]: chat_bubble
+          - generic [ref=e500]:
+            - generic [ref=e501]: seecrab_ad7c009bb912
+            - generic [ref=e502]:
+              - generic [ref=e503]: 0 步骤
+              - generic [ref=e504]: ·
+              - generic [ref=e505]: 6 天前
+          - button "close" [ref=e506]:
+            - generic [ref=e507]: close
+        - generic [ref=e508] [cursor=pointer]:
+          - generic [ref=e509]: chat_bubble
+          - generic [ref=e510]:
+            - generic [ref=e511]: 咖啡行业市场调研
+            - generic [ref=e512]: "**☕ 咖啡行业市场调研完成！** --- ## 📊 核心发现 | 维度 | 关键数据 | |------|----------| | **全球市场**"
+            - generic [ref=e513]:
+              - generic [ref=e514]: 8 步骤
+              - generic [ref=e515]: ·
+              - generic [ref=e516]: 6 天前
+          - button "close" [ref=e517]:
+            - generic [ref=e518]: close
+        - generic [ref=e519] [cursor=pointer]:
+          - generic [ref=e520]: chat_bubble
+          - generic [ref=e521]:
+            - generic [ref=e522]: 咖啡行业市场调研
+            - generic [ref=e523]: "**总结**: 通过多维度搜索收集了中国咖啡行业的市场规模、竞争格局和消费者趋势数据，发现市场持续快速增长（2024年预计3133亿元），瑞幸已超越星巴克成为中"
+            - generic [ref=e524]:
+              - generic [ref=e525]: 7 步骤
+              - generic [ref=e526]: ·
+              - generic [ref=e527]: 6 天前
+          - button "close" [ref=e528]:
+            - generic [ref=e529]: close
+        - generic [ref=e530] [cursor=pointer]:
+          - generic [ref=e531]: chat_bubble
+          - generic [ref=e532]:
+            - generic [ref=e533]: 咖啡行业市场调研
+            - generic [ref=e534]: 竞品分析报告已完成！核心结论： **Dify** 更适合有技术团队、需要私有化部署、注重数据安全的企业用户。 **Coze** 更适合零基础用户、快速验证想
+            - generic [ref=e535]:
+              - generic [ref=e536]: 15 步骤
+              - generic [ref=e537]: ·
+              - generic [ref=e538]: 7 天前
+          - button "close" [ref=e539]:
+            - generic [ref=e540]: close
+        - generic [ref=e541] [cursor=pointer]:
+          - generic [ref=e542]: chat_bubble
+          - generic [ref=e543]:
+            - generic [ref=e544]: 帮我做个市场调研，主题是 AI Agen
+            - generic [ref=e545]: "[BP] 「市场调研报告」进度: 0/3"
+            - generic [ref=e546]:
+              - generic [ref=e547]: 8 步骤
+              - generic [ref=e548]: ·
+              - generic [ref=e549]: 7 天前
+          - button "close" [ref=e550]:
+            - generic [ref=e551]: close
+        - generic [ref=e552] [cursor=pointer]:
+          - generic [ref=e553]: chat_bubble
+          - generic [ref=e554]:
+            - generic [ref=e555]: 咖啡行业市场调研
+            - generic [ref=e556]: 检测到您的需求匹配最佳实践「市场调研报告」，该任务包含 3 个子任务：市场调研 → 数据分析 → 报告生成。是否使用最佳实践流程？
+            - generic [ref=e557]:
+              - generic [ref=e558]: 4 步骤
+              - generic [ref=e559]: ·
+              - generic [ref=e560]: 7 天前
+          - button "close" [ref=e561]:
+            - generic [ref=e562]: close
+        - generic [ref=e563] [cursor=pointer]:
+          - generic [ref=e564]: chat_bubble
+          - generic [ref=e565]:
+            - generic [ref=e566]: 咖啡行业市场调研
+            - generic [ref=e567]: ✅ 已启动市场调研最佳实践流程 **调研主题**：软件行业市场调研 接下来的流程： 1. **市场调研** → 收集软件行业的市场规模、发展趋势、主要玩家等
+            - generic [ref=e568]:
+              - generic [ref=e569]: 6 步骤
+              - generic [ref=e570]: ·
+              - generic [ref=e571]: 7 天前
+          - button "close" [ref=e572]:
+            - generic [ref=e573]: close
+        - generic [ref=e574] [cursor=pointer]:
+          - generic [ref=e575]: chat_bubble
+          - generic [ref=e576]:
+            - generic [ref=e577]: 咖啡行业市场调研
+            - generic [ref=e578]: 好的，我们来做 Dify 的竞品分析。 根据最佳实践流程，竞品分析需要先明确一个**对比基准**——也就是你的产品或服务，这样才能建立有效的对比维度。 请问
+            - generic [ref=e579]:
+              - generic [ref=e580]: 6 步骤
+              - generic [ref=e581]: ·
+              - generic [ref=e582]: 7 天前
+          - button "close" [ref=e583]:
+            - generic [ref=e584]: close
+        - generic [ref=e585] [cursor=pointer]:
+          - generic [ref=e586]: chat_bubble
+          - generic [ref=e587]:
+            - generic [ref=e588]: 咖啡行业市场调研
+            - generic [ref=e589]: "[BP] 「市场调研报告」进度: 1/3"
+            - generic [ref=e590]:
+              - generic [ref=e591]: 5 步骤
+              - generic [ref=e592]: ·
+              - generic [ref=e593]: 7 天前
+          - button "close" [ref=e594]:
+            - generic [ref=e595]: close
+        - generic [ref=e596] [cursor=pointer]:
+          - generic [ref=e597]: chat_bubble
+          - generic [ref=e598]:
+            - generic [ref=e599]: AI Agent调研
+            - generic [ref=e600]: "已重新启动市场调研任务（实例 ID: bp-e2b6bedd）。系统将自动继续执行，我会跟进整个调研流程： **市场调研主题**: AI Agent **流"
+            - generic [ref=e601]:
+              - generic [ref=e602]: 7 步骤
+              - generic [ref=e603]: ·
+              - generic [ref=e604]: 7 天前
+          - button "close" [ref=e605]:
+            - generic [ref=e606]: close
+        - generic [ref=e607] [cursor=pointer]:
+          - generic [ref=e608]: chat_bubble
+          - generic [ref=e609]:
+            - generic [ref=e610]: AI智能体市场调研
+            - generic [ref=e611]: "[BP] 「市场调研报告」进度: 1/3"
+            - generic [ref=e612]:
+              - generic [ref=e613]: 4 步骤
+              - generic [ref=e614]: ·
+              - generic [ref=e615]: 7 天前
+          - button "close" [ref=e616]:
+            - generic [ref=e617]: close
+        - generic [ref=e618] [cursor=pointer]:
+          - generic [ref=e619]: chat_bubble
+          - generic [ref=e620]:
+            - generic [ref=e621]: 帮我做个市场调研，主题是 AI Agen
+            - generic [ref=e622]: "[BP] 「市场调研报告」进度: 0/3"
+            - generic [ref=e623]:
+              - generic [ref=e624]: 8 步骤
+              - generic [ref=e625]: ·
+              - generic [ref=e626]: 7 天前
+          - button "close" [ref=e627]:
+            - generic [ref=e628]: close
+        - generic [ref=e629] [cursor=pointer]:
+          - generic [ref=e630]: chat_bubble
+          - generic [ref=e631]:
+            - generic [ref=e632]: 帮我做个市场调研，主题是 AI Agen
+            - generic [ref=e633]: 好的，启动竞品分析最佳实践。需要确认一个信息： 竞品分析需要指定您的产品/服务名称（target_product）。请告诉我您想对标的自家产品是什么？
+            - generic [ref=e634]:
+              - generic [ref=e635]: 6 步骤
+              - generic [ref=e636]: ·
+              - generic [ref=e637]: 7 天前
+          - button "close" [ref=e638]:
+            - generic [ref=e639]: close
+        - generic [ref=e640] [cursor=pointer]:
+          - generic [ref=e641]: chat_bubble
+          - generic [ref=e642]:
+            - generic [ref=e643]: AI Agent调研
+            - generic [ref=e644]: "[BP] 「市场调研报告」进度: 3/3"
+            - generic [ref=e645]:
+              - generic [ref=e646]: 8 步骤
+              - generic [ref=e647]: ·
+              - generic [ref=e648]: 7 天前
+          - button "close" [ref=e649]:
+            - generic [ref=e650]: close
+        - generic [ref=e651] [cursor=pointer]:
+          - generic [ref=e652]: chat_bubble
+          - generic [ref=e653]:
+            - generic [ref=e654]: AI Agent 调研
+            - generic [ref=e655]: "[BP] 「竞品分析」进度: 1/3"
+            - generic [ref=e656]:
+              - generic [ref=e657]: 12 步骤
+              - generic [ref=e658]: ·
+              - generic [ref=e659]: 7 天前
+          - button "close" [ref=e660]:
+            - generic [ref=e661]: close
+        - generic [ref=e662] [cursor=pointer]:
+          - generic [ref=e663]: chat_bubble
+          - generic [ref=e664]:
+            - generic [ref=e665]: AI Agent赛道
+            - generic [ref=e666]: "[BP] 「竞品分析」进度: 2/3"
+            - generic [ref=e667]:
+              - generic [ref=e668]: 18 步骤
+              - generic [ref=e669]: ·
+              - generic [ref=e670]: 7 天前
+          - button "close" [ref=e671]:
+            - generic [ref=e672]: close
+        - generic [ref=e673] [cursor=pointer]:
+          - generic [ref=e674]: chat_bubble
+          - generic [ref=e675]:
+            - generic [ref=e676]: 最佳实践
+            - generic [ref=e677]: "[BP] 「竞品分析」进度: 3/3"
+            - generic [ref=e678]:
+              - generic [ref=e679]: 37 步骤
+              - generic [ref=e680]: ·
+              - generic [ref=e681]: 7 天前
+          - button "close" [ref=e682]:
+            - generic [ref=e683]: close
+        - generic [ref=e684] [cursor=pointer]:
+          - generic [ref=e685]: search
+          - generic [ref=e686]:
+            - generic [ref=e687]: 帮我搜索最新 AI 观点
+            - generic [ref=e688]:
+              - generic [ref=e689]: 11 步骤
+              - generic [ref=e690]: ·
+              - generic [ref=e691]: 7 天前
+          - button "close" [ref=e692]:
+            - generic [ref=e693]: close
+    - main [ref=e694]:
+      - generic [ref=e695]:
+        - generic [ref=e696]: chat_bubble
+        - generic [ref=e697]: SeeAgent竞品分析
+      - generic [ref=e831]:
+        - generic [ref=e1022]:
+          - generic [ref=e1023]: 帮我做一个竞品分析，分析 SeeAgent 的竞品
+          - generic [ref=e1024]: U
+        - generic [ref=e1025]:
+          - generic [ref=e1026]:
+            - generic [ref=e1028]: smart_toy
+            - generic [ref=e1029]: SeeAgent
+          - paragraph [ref=e1031]: 检测到您的需求匹配最佳实践「竞品分析」，该任务包含 3 个子任务：竞品数据收集 → 对比分析 → 洞察总结。是否使用最佳实践流程？
+        - generic [ref=e1032]:
+          - generic [ref=e1033]: 最佳实践模式
+          - generic [ref=e1034]: U
+        - generic [ref=e1042]:
+          - generic [ref=e1044]: smart_toy
+          - generic [ref=e1045]: SeeAgent
+        - generic [ref=e1047]:
+          - generic [ref=e1049]: smart_toy
+          - generic [ref=e1050]: SeeAgent
+      - generic [ref=e738]:
+        - textbox "输入消息..." [active] [ref=e739]
+        - button "send" [disabled] [ref=e1051]:
+          - generic [ref=e741]: send
+  - button "/agentation v2.3.3 Output Detail Standard React Components Hide Until Restart Marker Color Indigo Blue Cyan Green Yellow Orange Red Clear on copy/send Block page interactions Manage MCP & Webhooks Manage MCP & Webhooks MCP Connection MCP connection allows agents to receive and act on annotations. Learn more Webhooks Auto-Send The webhook URL will receive live annotation changes and annotation data." [ref=e743] [cursor=pointer]:
+    - img [ref=e745]
+    - generic:
+      - generic:
+        - button:
+          - img
+      - generic:
+        - button [disabled]:
+          - img
+      - generic:
+        - button [disabled]:
+          - img
+      - generic:
+        - button [disabled]:
+          - img
+      - generic:
+        - button [disabled]:
+          - img
+      - generic:
+        - button:
+          - img
+      - generic:
+        - button:
+          - img
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic: /agentation
+            - generic: v2.3.3
+            - button "Switch to light mode":
+              - generic:
+                - generic:
+                  - img
+          - generic:
+            - generic:
+              - generic:
+                - text: Output Detail
+                - generic:
+                  - img
+              - button "Standard":
+                - generic: Standard
+            - generic:
+              - generic:
+                - text: React Components
+                - generic:
+                  - img
+              - generic:
+                - checkbox [checked]
+            - generic:
+              - generic:
+                - text: Hide Until Restart
+                - generic:
+                  - img
+              - generic:
+                - checkbox
+          - generic:
+            - generic: Marker Color
+            - generic:
+              - button "Indigo":
+                - generic "Indigo"
+              - button "Blue":
+                - generic "Blue"
+              - button "Cyan":
+                - generic "Cyan"
+              - button "Green":
+                - generic "Green"
+              - button "Yellow":
+                - generic "Yellow"
+              - button "Orange":
+                - generic "Orange"
+              - button "Red":
+                - generic "Red"
+          - generic:
+            - generic:
+              - checkbox "Clear on copy/send"
+              - generic:
+                - text: Clear on copy/send
+                - generic:
+                  - img
+            - generic:
+              - checkbox "Block page interactions" [checked]
+              - generic:
+                - img
+              - generic: Block page interactions
+          - generic:
+            - button "Manage MCP & Webhooks":
+              - generic: Manage MCP & Webhooks
+              - generic:
+                - img
+        - generic:
+          - button "Manage MCP & Webhooks":
+            - img
+            - generic: Manage MCP & Webhooks
+          - generic:
+            - generic:
+              - generic:
+                - text: MCP Connection
+                - generic:
+                  - img
+            - paragraph:
+              - text: MCP connection allows agents to receive and act on annotations.
+              - link "Learn more":
+                - /url: https://agentation.dev/mcp
+          - generic:
+            - generic:
+              - generic:
+                - text: Webhooks
+                - generic:
+                  - img
+              - generic:
+                - generic: Auto-Send
+                - generic:
+                  - checkbox [checked] [disabled]
+            - paragraph: The webhook URL will receive live annotation changes and annotation data.
+            - textbox "Webhook URL"
