@@ -197,6 +197,31 @@ class BPStorage:
             row = await cur.fetchone()
             return row[0] if row else 0
 
+    async def count_by_status(
+        self,
+        session_id: str | None = None,
+        bp_id: str | None = None,
+    ) -> dict[str, int]:
+        """按状态分组统计实例数。"""
+        result = {"active": 0, "suspended": 0, "completed": 0, "cancelled": 0}
+        conditions: list[str] = []
+        params: list[Any] = []
+        if session_id is not None:
+            conditions.append("session_id = ?")
+            params.append(session_id)
+        if bp_id is not None:
+            conditions.append("bp_id = ?")
+            params.append(bp_id)
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        async with self._conn() as conn, conn.execute(
+            f"SELECT status, COUNT(*) FROM bp_instances {where} GROUP BY status",
+            params,
+        ) as cur:
+            for row in await cur.fetchall():
+                if row[0] in result:
+                    result[row[0]] = row[1]
+        return result
+
     # ── Field-level updates ───────────────────────────────────────
 
     async def update_instance_status(

@@ -887,7 +887,9 @@ data: {"type": "done"}
   "id": "camera-feature-pipeline",
   "name": "相机特征检索出图",
   "description": "从相机搜索到预处理检索再到表格图片生成的三阶段流程",
+  "subtask_count": 3,
   "default_run_mode": "manual",
+  "trigger_types": ["command", "context"],
   "triggers": [
     {
       "type": "command",
@@ -994,7 +996,9 @@ data: {"type": "done"}
 | `id` | string | 模板 ID |
 | `name` | string | 展示名称 |
 | `description` | string | 模板描述 |
+| `subtask_count` | number | 子任务数量（与 `/configs` 列表一致） |
 | `default_run_mode` | string | `"manual"` / `"auto"` |
+| `trigger_types` | string[] | 触发方式列表（与 `/configs` 列表一致） |
 | `triggers[].type` | string | 触发类型 |
 | `triggers[].pattern` | string | 命令模式匹配字符串 |
 | `triggers[].conditions` | string[] | 上下文关键词条件 |

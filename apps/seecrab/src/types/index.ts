@@ -61,7 +61,7 @@ export interface ReplyState {
 export interface StepCard {
   stepId: string
   title: string
-  status: 'running' | 'completed' | 'failed'
+  status: 'running' | 'completed' | 'failed' | 'cancelled'
   sourceType: 'tool' | 'skill' | 'mcp' | 'plan_step'
   cardType: 'search' | 'code' | 'file' | 'analysis' | 'browser' | 'delegate' | 'default'
   duration: number | null
@@ -192,4 +192,65 @@ export interface BPOfferInfo {
   bpName: string
   subtasks: { id: string; name: string }[]
   defaultRunMode: string
+}
+
+// ── BP v1.1 types ───────────────────────────────────────────
+
+export interface BPConfigSummary {
+  id: string
+  name: string
+  description: string
+  subtask_count: number
+  default_run_mode: string
+  trigger_types: string[]
+}
+
+export interface BPConfigDetail extends BPConfigSummary {
+  triggers: Array<{
+    type: string
+    pattern: string
+    conditions: string[]
+    cron: string
+  }>
+  subtasks: Array<{
+    id: string
+    name: string
+    description: string
+    agent_profile: string
+    input_schema: Record<string, unknown>
+    depends_on: string[]
+    input_mapping: Record<string, string>
+    timeout_seconds: number | null
+    max_retries: number
+  }>
+  final_output_schema: Record<string, unknown> | null
+}
+
+export interface BPInstanceStats {
+  total: number
+  by_status: {
+    active: number
+    suspended: number
+    completed: number
+    cancelled: number
+  }
+}
+
+export interface BPInstanceListItem {
+  instance_id: string
+  bp_id: string
+  bp_name: string
+  session_id: string
+  session_title: string
+  status: BPInstanceStatus
+  run_mode: BPRunMode
+  current_subtask_index: number
+  progress: string
+  subtask_count: number
+  done_count: number
+  subtask_names: string[]
+  subtask_statuses: Record<string, string>
+  created_at: number
+  completed_at: number | null
+  suspended_at: number | null
 }

@@ -5,7 +5,6 @@ import asyncio
 import json
 import logging
 import time
-
 import uuid
 
 from fastapi import APIRouter, Request
@@ -59,48 +58,327 @@ async def _ensure_bp_restored(request: Request, session_id: str, sm) -> None:
         logger.info(f"[BP] Restored {restored} instance(s) for session {session_id} from metadata")
 
 
-# ── Existing endpoints (unchanged) ────────────────────────────
+# ── v1.1 Helpers ─────────────────────────────────────────────
 
 
-@router.get("/status")
-async def get_bp_status(session_id: str, request: Request):
-    """返回指定会话的所有 BP 实例状态。"""
-    sm = get_bp_state_manager()
-    if not sm:
-        return JSONResponse({"instances": [], "active_id": None})
+def _build_instance_item(
+    snap_or_row,
+    config_map: dict,
+    session_title_map: dict[str, str],
+) -> dict:
+    """Build unified v1.1 instance response dict from BPInstanceSnapshot or SQLite row."""
+    from seeagent.bestpractice.models import BPInstanceSnapshot
 
-    await _ensure_bp_restored(request, session_id, sm)
+    if isinstance(snap_or_row, BPInstanceSnapshot):
+        snap = snap_or_row
+        bp_id = snap.bp_id
+        bp_name = snap.bp_config.name if snap.bp_config else bp_id
+        statuses = {
+            k: v.value if hasattr(v, "value") else v
+            for k, v in snap.subtask_statuses.items()
+        }
+        cfg = snap.bp_config or config_map.get(bp_id)
+        subtask_names = [s.name for s in cfg.subtasks] if cfg else list(statuses.keys())
+        return {
+            "instance_id": snap.instance_id,
+            "bp_id": bp_id,
+            "bp_name": bp_name,
+            "session_id": snap.session_id,
+            "session_title": session_title_map.get(snap.session_id, snap.session_id),
+            "status": snap.status.value,
+            "run_mode": snap.run_mode.value,
+            "current_subtask_index": snap.current_subtask_index,
+            "progress": f"{sum(1 for v in statuses.values() if v == 'done')}"
+                        f"/{len(statuses)}",
+            "subtask_count": len(statuses),
+            "done_count": sum(1 for v in statuses.values() if v == "done"),
+            "subtask_names": subtask_names,
+            "subtask_statuses": statuses,
+            "created_at": snap.created_at,
+            "completed_at": snap.completed_at,
+            "suspended_at": snap.suspended_at,
+        }
+    else:
+        r = snap_or_row
+        bp_id = r["bp_id"]
+        cfg = config_map.get(bp_id)
+        bp_name = cfg.name if cfg else bp_id
+        raw_statuses = r.get("subtask_statuses", {})
+        if isinstance(raw_statuses, str):
+            import json as _json
+            raw_statuses = _json.loads(raw_statuses) if raw_statuses else {}
+        subtask_names = [s.name for s in cfg.subtasks] if cfg else list(raw_statuses.keys())
+        done = sum(1 for v in raw_statuses.values() if v == "done")
+        total = len(raw_statuses)
+        return {
+            "instance_id": r["instance_id"],
+            "bp_id": bp_id,
+            "bp_name": bp_name,
+            "session_id": r["session_id"],
+            "session_title": session_title_map.get(r["session_id"], r["session_id"]),
+            "status": r["status"],
+            "run_mode": r["run_mode"],
+            "current_subtask_index": r["current_subtask_index"],
+            "progress": f"{done}/{total}",
+            "subtask_count": total,
+            "done_count": done,
+            "subtask_names": subtask_names,
+            "subtask_statuses": raw_statuses,
+            "created_at": r["created_at"],
+            "completed_at": r.get("completed_at"),
+            "suspended_at": r.get("suspended_at"),
+        }
 
-    instances = sm.get_all_for_session(session_id)
-    active = sm.get_active(session_id)
+
+def _resolve_session_titles(request: Request, session_ids: set[str]) -> dict[str, str]:
+    """Batch-resolve session titles. Falls back to session_id string."""
+    result: dict[str, str] = {}
+    for sid in session_ids:
+        session = _resolve_session(request, sid)
+        title = session.metadata.get("title", sid) if session else sid
+        result[sid] = title or sid
+    return result
+
+
+# ── v1.1 Config endpoints ───────────────────────────────────
+
+
+@router.get("/configs")
+async def get_bp_configs():
+    """返回所有已配置的 BP 模板概要信息。"""
+    loader = get_bp_config_loader()
+    if not loader or not loader.configs:
+        return JSONResponse({"total": 0, "configs": []})
+
+    configs = []
+    for cfg in loader.configs.values():
+        configs.append({
+            "id": cfg.id,
+            "name": cfg.name,
+            "description": cfg.description,
+            "subtask_count": len(cfg.subtasks),
+            "default_run_mode": cfg.default_run_mode.value,
+            "trigger_types": sorted({t.type.value for t in cfg.triggers}),
+        })
+    return JSONResponse({"total": len(configs), "configs": configs})
+
+
+@router.get("/configs/{bp_id}")
+async def get_bp_config_detail(bp_id: str):
+    """返回单个 BP 模板的完整配置信息。"""
+    loader = get_bp_config_loader()
+    if not loader:
+        return JSONResponse(
+            {"error": "BP system not initialized"}, status_code=500
+        )
+
+    cfg = loader.configs.get(bp_id) if loader.configs else None
+    if not cfg:
+        return JSONResponse(
+            {"error": f"BP config '{bp_id}' not found"}, status_code=404
+        )
+
     return JSONResponse({
-        "instances": [
+        "id": cfg.id,
+        "name": cfg.name,
+        "description": cfg.description,
+        "subtask_count": len(cfg.subtasks),
+        "default_run_mode": cfg.default_run_mode.value,
+        "trigger_types": sorted({t.type.value for t in cfg.triggers}),
+        "triggers": [
             {
-                "instance_id": snap.instance_id,
-                "bp_id": snap.bp_id,
-                "bp_name": snap.bp_config.name if snap.bp_config else snap.bp_id,
-                "status": snap.status.value,
-                "run_mode": snap.run_mode.value,
-                "current_subtask_index": snap.current_subtask_index,
-                "subtask_statuses": {
-                    k: v.value if hasattr(v, "value") else v
-                    for k, v in snap.subtask_statuses.items()
-                },
-                "subtask_outputs": snap.subtask_outputs,
+                "type": t.type.value,
+                "pattern": t.pattern,
+                "conditions": t.conditions,
+                "cron": t.cron,
             }
-            for snap in instances
+            for t in cfg.triggers
         ],
-        "active_id": active.instance_id if active else None,
+        "subtasks": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "description": s.description,
+                "agent_profile": s.agent_profile,
+                "input_schema": s.input_schema,
+                "depends_on": s.depends_on,
+                "input_mapping": s.input_mapping,
+                "timeout_seconds": s.timeout_seconds,
+                "max_retries": s.max_retries,
+            }
+            for s in cfg.subtasks
+        ],
+        "final_output_schema": cfg.final_output_schema,
     })
 
 
-@router.put("/run-mode")
-async def set_run_mode(request: Request):
+# ── v1.1 Instance endpoints ─────────────────────────────────
+# Route order matters: /instances/stats BEFORE /instances/{instance_id}
+
+
+@router.get("/instances/stats")
+async def get_bp_instance_stats(
+    session_id: str | None = None,
+    bp_id: str | None = None,
+):
+    """返回 BP 实例的聚合统计数据（总数 + 按状态分组）。"""
+    sm = get_bp_state_manager()
+    if not sm or not sm._storage:
+        return JSONResponse(
+            {"error": "BP storage not initialized"}, status_code=500
+        )
+
+    by_status = await sm._storage.count_by_status(
+        session_id=session_id, bp_id=bp_id,
+    )
+    return JSONResponse({
+        "total": sum(by_status.values()),
+        "by_status": by_status,
+    })
+
+
+@router.get("/instances")
+async def get_bp_instances(
+    request: Request,
+    session_id: str | None = None,
+    status: str | None = None,
+    bp_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """统一 BP 实例列表查询（v1.1 合并原 /status + /list）。"""
+    sm = get_bp_state_manager()
+    loader = get_bp_config_loader()
+    config_map = dict(loader.configs) if loader and loader.configs else {}
+
+    if session_id:
+        # ── Memory-first path (with auto-restore) ───────────────
+        if not sm:
+            return JSONResponse({
+                "total": 0, "limit": limit, "offset": offset,
+                "active_id": None, "instances": [],
+            })
+
+        await _ensure_bp_restored(request, session_id, sm)
+        snapshots = sm.get_all_for_session(session_id)
+
+        if status:
+            snapshots = [
+                s for s in snapshots
+                if (s.status.value if hasattr(s.status, "value") else s.status) == status
+            ]
+        if bp_id:
+            snapshots = [s for s in snapshots if s.bp_id == bp_id]
+
+        total = len(snapshots)
+        page = snapshots[offset: offset + limit]
+        active = sm.get_active(session_id)
+        title_map = _resolve_session_titles(request, {session_id})
+        items = [_build_instance_item(s, config_map, title_map) for s in page]
+
+        return JSONResponse({
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "active_id": active.instance_id if active else None,
+            "instances": items,
+        })
+
+    else:
+        # ── SQLite path (cross-session) ─────────────────────────
+        if not sm or not sm._storage:
+            return JSONResponse({
+                "total": 0, "limit": limit, "offset": offset,
+                "active_id": None, "instances": [],
+            })
+
+        storage = sm._storage
+        if status and bp_id:
+            total = await storage.count_instances(status=status, bp_id=bp_id)
+            rows = await storage.load_instances_by_status_and_bp_id(
+                status, bp_id, limit=limit, offset=offset,
+            )
+        elif status:
+            total = await storage.count_instances(status=status)
+            rows = await storage.load_instances_by_status(
+                status, limit=limit, offset=offset,
+            )
+        elif bp_id:
+            total = await storage.count_instances(bp_id=bp_id)
+            rows = await storage.load_instances_by_bp_id(
+                bp_id, limit=limit, offset=offset,
+            )
+        else:
+            total = await storage.count_instances()
+            rows = await storage.load_all_instances(limit=limit, offset=offset)
+
+        sids = {r["session_id"] for r in rows}
+        title_map = _resolve_session_titles(request, sids)
+        items = [_build_instance_item(r, config_map, title_map) for r in rows]
+
+        return JSONResponse({
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "active_id": None,
+            "instances": items,
+        })
+
+
+@router.get("/instances/{instance_id}")
+async def bp_get_instance(instance_id: str, request: Request):
+    """查询单实例完整信息（内存优先 → SQLite 回退）。"""
+    sm = get_bp_state_manager()
+    if not sm:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+
+    snap = await sm.ensure_loaded(instance_id)
+    if not snap:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+
+    return JSONResponse({
+        "instance_id": snap.instance_id,
+        "bp_id": snap.bp_id,
+        "bp_name": snap.bp_config.name if snap.bp_config else snap.bp_id,
+        "session_id": snap.session_id,
+        "status": snap.status.value,
+        "run_mode": snap.run_mode.value,
+        "current_subtask_index": snap.current_subtask_index,
+        "created_at": snap.created_at,
+        "completed_at": snap.completed_at,
+        "suspended_at": snap.suspended_at,
+        "subtask_statuses": {
+            k: v.value if hasattr(v, "value") else v
+            for k, v in snap.subtask_statuses.items()
+        },
+        "subtask_outputs": snap.subtask_outputs,
+        "initial_input": snap.initial_input,
+        "supplemented_inputs": snap.supplemented_inputs,
+        "context_summary": snap.context_summary,
+    })
+
+
+@router.get("/instances/{instance_id}/output/{subtask_id}")
+async def bp_get_output(instance_id: str, subtask_id: str):
+    """Query subtask output (plain JSON). Falls back to SQLite if not in memory."""
+    sm = get_bp_state_manager()
+    if not sm:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+    snap = await sm.ensure_loaded(instance_id)
+    if not snap:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    output = snap.subtask_outputs.get(subtask_id)
+    if output is None:
+        return JSONResponse({"error": "No output"}, status_code=404)
+    return JSONResponse({"output": output})
+
+
+@router.put("/instances/{instance_id}/run-mode")
+async def set_run_mode(instance_id: str, request: Request):
     """切换 BP 实例的运行模式 (manual/auto)。"""
     from seeagent.bestpractice.models import RunMode
 
     body = await request.json()
-    instance_id = body.get("instance_id", "")
     run_mode_str = body.get("run_mode", "manual")
 
     sm = get_bp_state_manager()
@@ -109,7 +387,7 @@ async def set_run_mode(request: Request):
             {"success": False, "error": "BP system not initialized"}, 500
         )
 
-    snap = sm.get(instance_id)
+    snap = await sm.ensure_loaded(instance_id)
     if not snap:
         return JSONResponse(
             {"success": False, "error": f"Instance {instance_id} not found"}, 404
@@ -122,11 +400,10 @@ async def set_run_mode(request: Request):
     return JSONResponse({"success": True, "run_mode": snap.run_mode.value})
 
 
-@router.put("/edit-output")
-async def edit_bp_output(request: Request):
+@router.put("/instances/{instance_id}/output")
+async def edit_bp_output(instance_id: str, request: Request):
     """前端编辑子任务输出 (Chat-to-Edit)。"""
     body = await request.json()
-    instance_id = body.get("instance_id", "")
     subtask_id = body.get("subtask_id", "")
     changes = body.get("changes", {})
 
@@ -137,7 +414,7 @@ async def edit_bp_output(request: Request):
             {"success": False, "error": "BP system not initialized"}, 500
         )
 
-    snap = sm.get(instance_id)
+    snap = await sm.ensure_loaded(instance_id)
     if not snap:
         return JSONResponse(
             {"success": False, "error": f"Instance {instance_id} not found"}, 404
@@ -158,6 +435,30 @@ async def edit_bp_output(request: Request):
         await sm.persist_subtask_output(instance_id, subtask_id)
         await sm.persist_subtask_progress(instance_id)
     return JSONResponse(result)
+
+
+@router.delete("/instances/{instance_id}")
+async def bp_cancel(instance_id: str, request: Request):
+    """Cancel BP instance."""
+    sm = get_bp_state_manager()
+    if not sm:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+    snap = await sm.ensure_loaded(instance_id)
+    if not snap:
+        return JSONResponse({"error": "Not found"}, status_code=404)
+    sm.cancel(instance_id)
+    await sm.persist_status_change(instance_id)
+    session = _resolve_session(request, snap.session_id)
+    if session and hasattr(session, "context"):
+        dt = getattr(session.context, "_bp_delegate_task", None)
+        if dt and not dt.done():
+            dt.cancel()
+    if session:
+        session.metadata["bp_state"] = sm.serialize_for_session(snap.session_id)
+        session_mgr = _resolve_session_manager(request)
+        if session_mgr:
+            session_mgr.mark_dirty()
+    return JSONResponse({"status": "ok"})
 
 
 # ── Busy-lock (R11, R16) ───────────────────────────────────────
@@ -670,138 +971,3 @@ async def bp_answer(request: Request):
     )
 
 
-# ── New plain JSON endpoints (R5) ─────────────────────────────
-
-
-@router.get("/output/{instance_id}/{subtask_id}")
-async def bp_get_output(instance_id: str, subtask_id: str):
-    """Query subtask output (plain JSON). Falls back to SQLite if not in memory."""
-    sm = get_bp_state_manager()
-    if not sm:
-        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
-    snap = await sm.ensure_loaded(instance_id)
-    if not snap:
-        return JSONResponse({"error": "Not found"}, status_code=404)
-    output = snap.subtask_outputs.get(subtask_id)
-    if output is None:
-        return JSONResponse({"error": "No output"}, status_code=404)
-    return JSONResponse({"output": output})
-
-
-@router.delete("/{instance_id}")
-async def bp_cancel(instance_id: str, request: Request):
-    """Cancel BP instance."""
-    sm = get_bp_state_manager()
-    if not sm:
-        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
-    snap = sm.get(instance_id)
-    if not snap:
-        return JSONResponse({"error": "Not found"}, status_code=404)
-    sm.cancel(instance_id)
-    await sm.persist_status_change(instance_id)
-    # Cancel running delegate task if any
-    session = _resolve_session(request, snap.session_id)
-    if session and hasattr(session, "context"):
-        dt = getattr(session.context, "_bp_delegate_task", None)
-        if dt and not dt.done():
-            dt.cancel()
-    if session:
-        session.metadata["bp_state"] = sm.serialize_for_session(snap.session_id)
-        session_mgr = _resolve_session_manager(request)
-        if session_mgr:
-            session_mgr.mark_dirty()
-    return JSONResponse({"status": "ok"})
-
-
-# ── New cross-session query endpoints ─────────────────────────
-
-
-@router.get("/instance/{instance_id}")
-async def bp_get_instance(instance_id: str, request: Request):
-    """查询单实例完整信息（内存优先 → SQLite 回退）。"""
-    sm = get_bp_state_manager()
-    if not sm:
-        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
-
-    snap = await sm.ensure_loaded(instance_id)
-    if not snap:
-        return JSONResponse({"error": "Not found"}, status_code=404)
-
-    return JSONResponse({
-        "instance_id": snap.instance_id,
-        "bp_id": snap.bp_id,
-        "bp_name": snap.bp_config.name if snap.bp_config else snap.bp_id,
-        "session_id": snap.session_id,
-        "status": snap.status.value,
-        "run_mode": snap.run_mode.value,
-        "current_subtask_index": snap.current_subtask_index,
-        "created_at": snap.created_at,
-        "completed_at": snap.completed_at,
-        "suspended_at": snap.suspended_at,
-        "subtask_statuses": {
-            k: v.value if hasattr(v, "value") else v
-            for k, v in snap.subtask_statuses.items()
-        },
-        "subtask_outputs": snap.subtask_outputs,
-        "initial_input": snap.initial_input,
-        "supplemented_inputs": snap.supplemented_inputs,
-        "context_summary": snap.context_summary,
-    })
-
-
-@router.get("/list")
-async def bp_list_instances(
-    session_id: str | None = None,
-    status: str | None = None,
-    bp_id: str | None = None,
-    limit: int = 50,
-    offset: int = 0,
-):
-    """跨 session 查询实例列表（直接读 SQLite）。"""
-    sm = get_bp_state_manager()
-    if not sm or not sm._storage:
-        return JSONResponse({"error": "BP storage not initialized"}, status_code=500)
-
-    if session_id:
-        # Load all for this session (no DB limit), filter in Python, then paginate
-        rows = await sm._storage.load_instances_by_session(session_id)
-        if status:
-            rows = [r for r in rows if r.get("status") == status]
-        if bp_id:
-            rows = [r for r in rows if r.get("bp_id") == bp_id]
-        total = len(rows)
-        rows = rows[offset: offset + limit]
-    elif status and bp_id:
-        total = await sm._storage.count_instances(status=status, bp_id=bp_id)
-        rows = await sm._storage.load_instances_by_status_and_bp_id(
-            status, bp_id, limit=limit, offset=offset
-        )
-    elif status:
-        total = await sm._storage.count_instances(status=status)
-        rows = await sm._storage.load_instances_by_status(status, limit=limit, offset=offset)
-    elif bp_id:
-        total = await sm._storage.count_instances(bp_id=bp_id)
-        rows = await sm._storage.load_instances_by_bp_id(bp_id, limit=limit, offset=offset)
-    else:
-        total = await sm._storage.count_instances()
-        rows = await sm._storage.load_all_instances(limit=limit, offset=offset)
-
-    return JSONResponse({
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-        "instances": [
-            {
-                "instance_id": r["instance_id"],
-                "bp_id": r["bp_id"],
-                "session_id": r["session_id"],
-                "status": r["status"],
-                "run_mode": r["run_mode"],
-                "current_subtask_index": r["current_subtask_index"],
-                "created_at": r["created_at"],
-                "completed_at": r.get("completed_at"),
-                "suspended_at": r.get("suspended_at"),
-            }
-            for r in rows
-        ],
-    })
