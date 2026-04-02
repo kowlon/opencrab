@@ -660,10 +660,14 @@ def _resolve_session(request: Request, session_id: str, *, create_if_missing: bo
     """
     sm = getattr(request.app.state, "session_manager", None)
     if sm and session_id:
-        return sm.get_session(
+        session = sm.get_session(
             channel="seecrab", chat_id=session_id,
             user_id="seecrab_user", create_if_missing=create_if_missing,
         )
+        # Fallback: session_id may be composite Session.id rather than chat_id
+        if session is None:
+            session = sm.get_session_by_id(session_id)
+        return session
     return None
 
 

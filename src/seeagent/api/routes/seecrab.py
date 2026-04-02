@@ -1184,6 +1184,9 @@ async def get_session(session_id: str, request: Request):
             user_id="seecrab_user",
             create_if_missing=False,
         )
+        # Fallback: session_id may be the composite Session.id rather than chat_id
+        if session is None:
+            session = sm.get_session_by_id(session_id)
         if session is None:
             return JSONResponse({"error": "Session not found"}, status_code=404)
         messages = []
@@ -1241,6 +1244,8 @@ async def update_session(
         create_if_missing=False,
     )
     if session is None:
+        session = sm.get_session_by_id(session_id)
+    if session is None:
         return JSONResponse({"error": "Session not found"}, status_code=404)
     if body.title is not None:
         session.set_metadata("title", body.title)
@@ -1260,6 +1265,10 @@ async def delete_session(session_id: str, request: Request):
         return JSONResponse({"error": "Session manager not available"}, status_code=503)
     session_key = f"seecrab:{session_id}:seecrab_user"
     if sm.close_session(session_key):
+        return JSONResponse({"status": "ok"})
+    # Fallback: session_id may be composite Session.id — resolve to session_key
+    fallback = sm.get_session_by_id(session_id)
+    if fallback and sm.close_session(fallback.session_key):
         return JSONResponse({"status": "ok"})
     return JSONResponse({"error": "Session not found"}, status_code=404)
 
