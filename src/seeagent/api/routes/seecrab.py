@@ -163,21 +163,49 @@ async def _extract_input_from_query(
     if not brain or not user_query or not input_schema:
         return {}
 
-    props = input_schema.get("properties", {})
-    if not props:
+    branches = input_schema.get("oneOf") or input_schema.get("anyOf")
+    is_multi_branch = bool(branches)
+    if not is_multi_branch:
+        branches = [input_schema]
+
+    branch_desc_list = []
+    for idx, branch in enumerate(branches):
+        props = branch.get("properties", {})
+        if not props:
+            continue
+            
+        fields = "\n".join(
+            f"- {name}: {info.get('description', '无描述')} (type: {info.get('type', 'string')})"
+            for name, info in props.items()
+        )
+        
+        if is_multi_branch:
+            title = branch.get("title", f"分支 {idx+1}")
+            desc = branch.get("description", "无描述")
+            branch_desc_list.append(f"### {title}\n描述：{desc}\n字段定义：\n{fields}")
+        else:
+            branch_desc_list.append(fields)
+
+    if not branch_desc_list:
         return {}
 
-    fields_desc = "\n".join(
-        f"- {name}: {info.get('description', '无描述')} (type: {info.get('type', 'string')})"
-        for name, info in props.items()
-    )
+    all_branches_desc = "\n\n".join(branch_desc_list)
+    
+    if is_multi_branch:
+        instruction = "分析用户消息，判断其符合以下哪一种意图分支，然后仅提取该分支下定义的字段。"
+        schema_section = f"## 可选意图分支\n{all_branches_desc}"
+    else:
+        instruction = "从用户消息中提取以下字段。"
+        schema_section = f"## 字段定义\n{all_branches_desc}"
+
     prompt = (
-        "从用户消息中提取以下字段，输出一个 JSON 对象。\n"
-        "只提取消息中明确提到或可推断的字段，没有提到的字段不要包含。\n"
+        f"{instruction}\n"
+        "输出一个 JSON 对象。只提取消息中明确提到或可推断的字段，没有提到的字段不要包含。\n"
         "只输出 JSON，不要其他文字。\n\n"
-        f"## 字段定义\n{fields_desc}\n\n"
+        f"{schema_section}\n\n"
         f"## 用户消息\n{user_query}"
     )
+
     try:
         from seeagent.bestpractice.engine import BPEngine
 
@@ -790,18 +818,23 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     data = {}
                     still_missing = []
                     if subtask_config:
-                        required = subtask_config.input_schema.get("required", [])
                         from seeagent.bestpractice.engine import LinearScheduler
+                        from seeagent.bestpractice.facade import get_bp_engine
                         scheduler = LinearScheduler(current_bp.bp_config, current_bp)
                         resolved_input = scheduler.resolve_input(waiting_subtask_id)
-                        still_missing = [f for f in required if f not in resolved_input]
+                        
+                        engine = get_bp_engine()
+                        missing_fields, matched_schema = engine._check_input_completeness(subtask_config, resolved_input)
+                        still_missing = missing_fields
+                        
+                        target_schema = matched_schema or subtask_config.input_schema
 
                         if len(still_missing) == 1:
                             data = {still_missing[0]: body.message}
                         elif len(still_missing) > 1:
                             data = await _llm_extract_answer_fields(
                                 body.message, still_missing,
-                                subtask_config.input_schema, brain,
+                                target_schema, brain,
                             )
 
                     if not data:

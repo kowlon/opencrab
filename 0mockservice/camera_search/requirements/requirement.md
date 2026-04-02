@@ -35,10 +35,12 @@
 - 输出：匹配相机列表，每项至少包含：
   - `id`
   - `location`
+  - `name`（相机名称）
   - `image_url`（相机画面首帧）
+  - `time_scope`（可选，格式为 `start_time-end_time`）
 
 ### 3.2 预处理任务创建（按相机 ID）
-- 输入：一个或多个相机 ID（支持并行传入多个 ID）
+- 输入：一个或多个相机 ID（支持并行传入多个 ID）,上面的输出中的id和time_scope字段
 - 处理：
   - 根据 ID 定位对应视频文件
   - 执行预处理模拟逻辑：
@@ -73,8 +75,11 @@
   - 结果按相关性排序（Mock 可采用规则或随机打分）
 - 输出：检索结果列表，每项至少包含：
   - `camera_id`
-  - `location`
+  - `location`（相机位置）
+  - `name`（相机名称）
   - `image_url`
+  - `time_stamp`（时间戳）
+  - `score`（可选，Mock 排序分）
 
 ## 4. 接口约束
 

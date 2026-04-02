@@ -28,11 +28,30 @@ subtasks:
     agent_profile: "camera-locator"
     input_schema:
       type: object
-      properties:
-        query:
-          type: string
-          description: "相机搜索关键词，如园区东门"
-      required: [query]
+      oneOf:
+        - title: "精确地点检索"
+          description: "基于具体的地点名称进行检索，如'园区东门早上的摄像头'"
+          properties:
+            location:
+              type: string
+              description: "精确地点名，如'园区东门'"
+            time_range:
+              type: string
+              description: "时间范围，格式为 '开始时间, 结束时间'。早上可用 06:00:00, 08:00:00，默认为最近两小时。示例: '2026-04-03:06:00:00, 2026-04-03:08:00:00'"
+          required: [location, time_range]
+        - title: "周边范围检索"
+          description: "基于某地点的周边距离范围进行检索，如'某某大厦附近5km'"
+          properties:
+            center:
+              type: string
+              description: "中心地点，如'某某大厦'"
+            radius:
+              type: string
+              description: "检索距离，如'5km'，未提供则默认为'1km'"
+            time_range:
+              type: string
+              description: "时间范围，格式为 '开始时间, 结束时间'。早上可用 06:00:00, 08:00:00，默认为最近两小时。示例: '2026-04-03:06:00:00, 2026-04-03:08:00:00'"
+          required: [center, radius, time_range]
 
   - id: "feature-extraction"
     name: "特征检索"

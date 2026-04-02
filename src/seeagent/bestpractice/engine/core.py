@@ -337,7 +337,7 @@ class BPEngine:
                 # Quick path: check input completeness
                 input_data = scheduler.resolve_input(subtask.id)
                 output_schema = scheduler.derive_output_schema(subtask.id)
-                missing = self._check_input_completeness(subtask, input_data)
+                missing, matched_schema = self._check_input_completeness(subtask, input_data)
                 if missing:
                     self.state_manager.update_subtask_status(
                         instance_id, subtask.id, SubtaskStatus.WAITING_INPUT,
@@ -348,7 +348,7 @@ class BPEngine:
                         "subtask_id": subtask.id,
                         "subtask_name": subtask.name,
                         "missing_fields": missing,
-                        "input_schema": subtask.input_schema,
+                        "input_schema": matched_schema or subtask.input_schema,
                     }
                     return
 
@@ -967,13 +967,39 @@ class BPEngine:
 
     def _check_input_completeness(
         self, subtask: SubtaskConfig, input_data: dict[str, Any],
-    ) -> list[str]:
-        """检查 input_schema.required 字段是否都在 input_data 中。返回缺失字段列表。"""
+    ) -> tuple[list[str], dict[str, Any] | None]:
+        """检查 input_schema.required 字段是否都在 input_data 中。
+        如果是单分支，检查 required。
+        如果是多分支 (oneOf/anyOf)，找到匹配度最高的分支，检查其 required。
+        返回: (缺失字段列表, 匹配到的单分支schema)
+        """
         schema = subtask.input_schema
         if not schema:
-            return []
-        required = schema.get("required", [])
-        return [field for field in required if field not in input_data]
+            return [], None
+            
+        branches = schema.get("oneOf") or schema.get("anyOf")
+        if not branches:
+            required = schema.get("required", [])
+            missing = [field for field in required if field not in input_data]
+            return missing, schema
+
+        best_match = None
+        best_missing = []
+        min_missing_count = float('inf')
+
+        for branch in branches:
+            req = branch.get("required", [])
+            missing = [field for field in req if field not in input_data]
+            if len(missing) == 0:
+                # 完美匹配，直接返回
+                return [], branch
+            
+            if len(missing) < min_missing_count:
+                min_missing_count = len(missing)
+                best_missing = missing
+                best_match = branch
+
+        return best_missing, best_match
 
     # ── Output parsing ─────────────────────────────────────────
 
