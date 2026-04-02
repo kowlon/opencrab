@@ -616,7 +616,8 @@ class ReasoningEngine:
             return f"{name}({param_hash})"
 
         # ==================== 主循环 ====================
-        logger.info(f"[ReAct] === Loop started (max_iterations={max_iterations}, model={current_model}) ===")
+        agent_identity_str = f"SubAgent '{agent_profile_id}'" if agent_profile_id and agent_profile_id != "default" else "Main Agent"
+        logger.info(f"[ReAct] === Loop started ({agent_identity_str}, max_iterations={max_iterations}, model={current_model}) ===")
 
         react_trace: list[dict] = []
         _trace_started_at = datetime.now().isoformat()
@@ -746,7 +747,7 @@ class ReasoningEngine:
                 return await self._cancel_farewell(
                     working_messages, _build_effective_system_prompt(), current_model, state
                 )
-            logger.info(f"[ReAct] Iter {iteration+1}/{max_iterations} — REASON (model={current_model})")
+            logger.info(f"[ReAct] {agent_identity_str} — Iter {iteration+1}/{max_iterations} — REASON (model={current_model})")
             if state.status != TaskStatus.REASONING:
                 try:
                     state.transition(TaskStatus.REASONING)
@@ -863,7 +864,7 @@ class ReasoningEngine:
             }
             tool_names_for_log = [tc.get("name", "?") for tc in (decision.tool_calls or [])]
             logger.info(
-                f"[ReAct] Iter {iteration+1} — decision={_iter_trace['decision_type']}, "
+                f"[ReAct] {agent_identity_str} — Iter {iteration+1} — decision={_iter_trace['decision_type']}, "
                 f"tools={tool_names_for_log}, "
                 f"tokens_in={_in_tokens}, tokens_out={_out_tokens}"
             )
@@ -884,7 +885,7 @@ class ReasoningEngine:
 
             if decision.type == DecisionType.FINAL_ANSWER:
                 # 纯文本响应 - 处理完成度验证
-                logger.info(f"[ReAct] Iter {iteration+1} — FINAL_ANSWER: \"{(decision.text_content or '').replace(chr(10), ' ')}\"")
+                logger.info(f"[ReAct] {agent_identity_str} — Iter {iteration+1} — FINAL_ANSWER: \"{(decision.text_content or '').replace(chr(10), ' ')}\"")
                 consecutive_tool_rounds = 0
 
                 result = await self._handle_final_answer(
@@ -908,7 +909,7 @@ class ReasoningEngine:
                     # 最终答案
                     react_trace.append(_iter_trace)
                     logger.info(
-                        f"[ReAct] === COMPLETED after {iteration+1} iterations, "
+                        f"[ReAct] {agent_identity_str} === COMPLETED after {iteration+1} iterations, "
                         f"tools: {list(set(executed_tool_names))} ==="
                     )
                     self._save_react_trace(react_trace, conversation_id, session_type, "completed", _trace_started_at)
@@ -925,7 +926,7 @@ class ReasoningEngine:
                 else:
                     # 需要继续循环（验证不通过）
                     await _emit_progress("🔄 任务尚未完成，继续处理...")
-                    logger.info(f"[ReAct] Iter {iteration+1} — VERIFY: incomplete, continuing loop")
+                    logger.info(f"[ReAct] {agent_identity_str} — Iter {iteration+1} — VERIFY: incomplete, continuing loop")
                     react_trace.append(_iter_trace)
                     try:
                         state.transition(TaskStatus.VERIFYING)
@@ -943,7 +944,7 @@ class ReasoningEngine:
             elif decision.type == DecisionType.TOOL_CALLS:
                 # ==================== ACT 阶段 ====================
                 tool_names = [tc.get("name", "?") for tc in decision.tool_calls]
-                logger.info(f"[ReAct] Iter {iteration+1} — ACT: {tool_names}")
+                logger.info(f"[ReAct] {agent_identity_str} — Iter {iteration+1} — ACT: {tool_names}")
                 try:
                     state.transition(TaskStatus.ACTING)
                 except ValueError:
@@ -956,7 +957,7 @@ class ReasoningEngine:
 
                 if ask_user_calls:
                     logger.info(
-                        f"[ReAct] Iter {iteration+1} — ask_user intercepted, "
+                        f"[ReAct] {agent_identity_str} — Iter {iteration+1} — ask_user intercepted, "
                         f"pausing for user input (other_tools={[tc.get('name') for tc in other_calls]})"
                     )
 
@@ -1052,7 +1053,7 @@ class ReasoningEngine:
                     if user_reply:
                         # 用户在超时内回复了 → 注入回复，继续 ReAct 循环
                         logger.info(
-                            f"[ReAct] Iter {iteration+1} — ask_user: user replied, resuming loop"
+                            f"[ReAct] {agent_identity_str} — Iter {iteration+1} — ask_user: user replied, resuming loop"
                         )
                         react_trace.append(_iter_trace)
                         working_messages.append({
@@ -1072,7 +1073,7 @@ class ReasoningEngine:
                     ):
                         # IM 模式，用户超时未回复 → 注入系统提示让 LLM 自行决策
                         logger.info(
-                            f"[ReAct] Iter {iteration+1} — ask_user: user timeout, "
+                            f"[ReAct] {agent_identity_str} — Iter {iteration+1} — ask_user: user timeout, "
                             f"injecting auto-decide prompt"
                         )
                         react_trace.append(_iter_trace)
@@ -1101,7 +1102,7 @@ class ReasoningEngine:
                         self._save_react_trace(react_trace, conversation_id, session_type, "waiting_user", _trace_started_at)
                         self._last_exit_reason = "ask_user"
                         logger.info(
-                            f"[ReAct] === WAITING_USER (CLI) after {iteration+1} iterations ==="
+                            f"[ReAct] {agent_identity_str} === WAITING_USER (CLI) after {iteration+1} iterations ==="
                         )
                         return final_text
 
@@ -1167,7 +1168,7 @@ class ReasoningEngine:
 
                 # ==================== OBSERVE 阶段 ====================
                 logger.info(
-                    f"[ReAct] Iter {iteration+1} — OBSERVE: "
+                    f"[ReAct] {agent_identity_str} — Iter {iteration+1} — OBSERVE: "
                     f"{len(tool_results)} results from {executed or []}"
                 )
                 if state.cancelled:
@@ -1195,7 +1196,7 @@ class ReasoningEngine:
                     if isinstance(tr, dict):
                         t_id = tr.get("tool_use_id", "")
                         r_len = len(str(tr.get("content", "")))
-                        logger.info(f"[ReAct] Iter {iteration+1} — tool_result id={t_id} len={r_len}")
+                        logger.info(f"[ReAct] {agent_identity_str} — Iter {iteration+1} — tool_result id={t_id} len={r_len}")
                 react_trace.append(_iter_trace)
 
                 # 检查是否应该回滚
@@ -1513,9 +1514,10 @@ class ReasoningEngine:
                 return f"{name}({param_hash})"
 
             # ==================== 主循环 ====================
-            # logger.info(
-            #     f"[ReAct-Stream] === Loop started (max_iterations={max_iterations}, model={current_model}) ==="
-            # )
+            agent_identity_str = f"SubAgent '{agent_profile_id}'" if agent_profile_id and agent_profile_id != "default" else "Main Agent"
+            logger.info(
+                f"[ReAct-Stream] === Loop started ({agent_identity_str}, max_iterations={max_iterations}, model={current_model}) ==="
+            )
 
             for _iteration in range(max_iterations):
                 self._last_working_messages = working_messages
@@ -1570,9 +1572,9 @@ class ReasoningEngine:
                         recent_tool_signatures = []
                         no_confirmation_text_count = 0
 
-                # logger.info(
-                #     f"[ReAct-Stream] Iter {_iteration+1}/{max_iterations} — REASON (model={current_model})"
-                # )
+                logger.info(
+                    f"[ReAct-Stream] {agent_identity_str} — Iter {_iteration+1}/{max_iterations} — REASON (model={current_model})"
+                )
 
                 # --- 状态转换: REASONING（与 run() 一致） ---
                 if state.status != TaskStatus.REASONING:
@@ -1786,14 +1788,14 @@ class ReasoningEngine:
                 }
                 tool_names_log = [tc.get("name", "?") for tc in (decision.tool_calls or [])]
                 logger.info(
-                    f"[ReAct-Stream] Iter {_iteration+1} — decision={_iter_trace['decision_type']}, "
+                    f"[ReAct-Stream] {agent_identity_str} — Iter {_iteration+1} — decision={_iter_trace['decision_type']}, "
                     f"tools={tool_names_log}, tokens_in={_in_tokens}, tokens_out={_out_tokens}"
                 )
 
                 # ==================== stop_reason=max_tokens 检测（与 run() 一致）====================
                 if decision.stop_reason == "max_tokens":
                     logger.warning(
-                        f"[ReAct-Stream] Iter {_iteration+1} — ⚠️ LLM output truncated (stop_reason=max_tokens). "
+                        f"[ReAct-Stream] {agent_identity_str} — Iter {_iteration+1} — ⚠️ LLM output truncated (stop_reason=max_tokens). "
                         f"The response hit the max_tokens limit ({self._brain.max_tokens}). "
                         f"Tool calls may have incomplete JSON arguments."
                     )
@@ -1832,7 +1834,7 @@ class ReasoningEngine:
                         except ValueError:
                             state.status = TaskStatus.COMPLETED
                         logger.info(
-                            f"[ReAct-Stream] === COMPLETED after {_iteration+1} iterations ==="
+                            f"[ReAct-Stream] {agent_identity_str} === COMPLETED after {_iteration+1} iterations ==="
                         )
                         chunk_size = 20
                         for i in range(0, len(result), chunk_size):
@@ -1843,7 +1845,7 @@ class ReasoningEngine:
                     else:
                         # 验证不通过 → 继续循环
                         logger.info(
-                            f"[ReAct-Stream] Iter {_iteration+1} — VERIFY: incomplete, continuing loop"
+                            f"[ReAct-Stream] {agent_identity_str} — Iter {_iteration+1} — VERIFY: incomplete, continuing loop"
                         )
                         yield {"type": "chain_text", "content": "任务尚未完成，继续处理..."}
                         react_trace.append(_iter_trace)
@@ -2193,7 +2195,7 @@ class ReasoningEngine:
                         rollback_result = self._rollback(rb_reason)
                         if rollback_result:
                             working_messages, _ = rollback_result
-                            logger.info("[ReAct-Stream][Rollback] 回滚成功，将用不同方法重新推理")
+                            logger.info(f"[ReAct-Stream][Rollback] {agent_identity_str} — 回滚成功，将用不同方法重新推理")
                             continue
 
                     # 取消检查（升级为带 LLM 收尾的取消处理）
@@ -2253,7 +2255,7 @@ class ReasoningEngine:
                         _, cleaned_text = parse_intent_tag(cleaned_text)
                         if cleaned_text and cleaned_text.strip():
                             logger.info(
-                                f"[ReAct-Stream][LoopGuard] stop_reason=end_turn after {consecutive_tool_rounds} rounds"
+                                f"[ReAct-Stream][LoopGuard] {agent_identity_str} — stop_reason=end_turn after {consecutive_tool_rounds} rounds"
                             )
                             self._save_react_trace(
                                 react_trace, conversation_id, session_type,
@@ -2333,7 +2335,7 @@ class ReasoningEngine:
                 state.transition(TaskStatus.FAILED)
             except ValueError:
                 state.status = TaskStatus.FAILED
-            logger.info(f"[ReAct-Stream] === MAX_ITERATIONS reached ({max_iterations}) ===")
+            logger.info(f"[ReAct-Stream] {agent_identity_str} === MAX_ITERATIONS reached ({max_iterations}) ===")
             self._run_failure_analysis(
                 react_trace, "max_iterations",
                 task_description=task_description,

@@ -443,7 +443,12 @@ class AgentOrchestrator:
         if profile is None:
             return f"⚠️ 无法找到 Agent Profile: {agent_profile_id}"
 
+        agent_name = profile.get_display_name() if hasattr(profile, "get_display_name") else getattr(profile, "name", agent_profile_id)
+        logger.info(f"[Orchestrator] Retrieving or creating SubAgent '{agent_name}' (ID: {profile.id}) for session {session.id}")
+        
         agent = await self._pool.get_or_create(session.id, profile)
+        logger.info(f"[Orchestrator] Successfully got SubAgent instance '{agent_name}' (ID: {profile.id})")
+        
         gw = self._gateway if pass_gateway else None
 
         task = asyncio.create_task(

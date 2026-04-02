@@ -314,6 +314,23 @@ class Agent:
         else:
             tls[key] = value
 
+    @property
+    def _agent_profile(self):
+        return getattr(self, "__agent_profile", None)
+
+    @_agent_profile.setter
+    def _agent_profile(self, profile):
+        self.__agent_profile = profile
+        if hasattr(self, "brain") and self.brain:
+            self.brain.agent_identity_str = self.agent_identity_str
+
+    @property
+    def agent_identity_str(self) -> str:
+        """获取当前 Agent 的身份标识字符串（如 'SubAgent \'coder\'' 或 'Main Agent'）"""
+        profile = getattr(self, "__agent_profile", None)
+        profile_id = profile.id if profile else "default"
+        return f"SubAgent '{profile_id}'" if profile_id != "default" else "Main Agent"
+
     def __init__(
         self,
         name: str | None = None,
@@ -324,6 +341,7 @@ class Agent:
         # 初始化核心组件
         self.identity = Identity()
         self.brain = Brain(api_key=api_key)
+        self.brain.agent_identity_str = "Main Agent"  # 默认标识
         self.ralph = RalphLoop(
             max_iterations=settings.max_iterations,
             on_iteration=self._on_iteration,
@@ -475,6 +493,7 @@ class Agent:
         self._last_finalized_trace: list[dict] = []
 
         # Agent profile and custom prompt (set by AgentFactory)
+        # 默认为 None，setter 会同步设置 self.brain.agent_identity_str
         self._agent_profile = None
         self._custom_prompt_suffix: str = ""
         self._preferred_endpoint: str | None = None
@@ -720,7 +739,7 @@ class Agent:
                     result_str = str(result) if result is not None else "操作已完成"
                     result_content = result_str
 
-                logger.info(f"[Tool] {tool_name} → {result_str}")
+                logger.info(f"[{self.agent_identity_str}][Tool] {tool_name} → {result_str}")
 
                 if capture_delivery_receipts and tool_name == "deliver_artifacts" and result_str:
                     try:
@@ -742,7 +761,7 @@ class Agent:
             except Exception as e:
                 success = False
                 result_str = str(e)
-                logger.info(f"[Tool] {tool_name} ❌ 错误: {result_str}")
+                logger.info(f"[{self.agent_identity_str}][Tool] {tool_name} ❌ 错误: {result_str}")
                 out = {
                     "type": "tool_result",
                     "tool_use_id": tool_use_id,
@@ -1086,7 +1105,10 @@ class Agent:
 
         # Best Practice tools (conditional: only if best_practice/ directory exists)
         try:
-            if init_bp_system():
+            from ..main import _orchestrator
+            profile_store = _orchestrator._profile_store if _orchestrator else None
+            
+            if init_bp_system(profile_store=profile_store):
                 bp_handler = get_bp_handler()
                 if bp_handler:
                     from ..bestpractice.tool_definitions import (
@@ -5677,7 +5699,7 @@ NEXT: 建议的下一步（如有）"""
 
                     if should_retry:
                         logger.info(
-                            f"[LLM] Will retry (attempt {task_monitor.retry_count}, "
+                            f"[{self.agent_identity_str}][LLM] Will retry (attempt {task_monitor.retry_count}, "
                             f"global {_total_llm_retries}/{MAX_TOTAL_LLM_RETRIES})"
                         )
                         try:
@@ -5761,7 +5783,7 @@ NEXT: 建议的下一步（如有）"""
             _stop_reason = getattr(response, "stop_reason", "")
             if str(_stop_reason) == "max_tokens":
                 logger.warning(
-                    f"[Agent] ⚠️ LLM output truncated (stop_reason=max_tokens). "
+                    f"[{self.agent_identity_str}] ⚠️ LLM output truncated (stop_reason=max_tokens). "
                     f"The response hit the max_tokens limit ({self.brain.max_tokens}). "
                     f"Tool call JSON may be incomplete."
                 )
@@ -6579,7 +6601,7 @@ NEXT: 建议的下一步（如有）"""
         Returns:
             工具执行结果（包含执行期间的警告/错误日志）
         """
-        logger.info(f"Executing tool: {tool_name} with {tool_input}")
+        logger.info(f"[{self.agent_identity_str}] Executing tool: {tool_name} with {tool_input}")
 
         # ============================================
         # Plan 模式强制检查
@@ -6669,7 +6691,7 @@ NEXT: 建议的下一步（如有）"""
         if not self._initialized:
             await self.initialize()
 
-        logger.info(f"Executing task: {task.description}")
+        logger.info(f"[{self.agent_identity_str}] Executing task: {task.description}")
 
         # === 创建任务监控器 ===
         task_monitor = TaskMonitor(
@@ -6772,7 +6794,7 @@ NEXT: 建议的下一步（如有）"""
                     return "✅ 任务已停止。"
 
                 iteration += 1
-                logger.info(f"Task iteration {iteration}")
+                logger.info(f"[{self.agent_identity_str}] Task iteration {iteration}")
 
                 # 任务监控：开始迭代
                 task_monitor.begin_iteration(iteration, current_model)
@@ -6784,7 +6806,7 @@ NEXT: 建议的下一步（如有）"""
                     _task_switch_count += 1
                     if _task_switch_count > MAX_TASK_MODEL_SWITCHES:
                         logger.error(
-                            f"[Task:{task.id}] Exceeded max model switches "
+                            f"[{self.agent_identity_str}][Task:{task.id}] Exceeded max model switches "
                             f"({MAX_TASK_MODEL_SWITCHES}), aborting task"
                         )
                         return (
@@ -6879,7 +6901,7 @@ NEXT: 建议的下一步（如有）"""
                     _total_llm_retries += 1
                     if _total_llm_retries > MAX_TOTAL_LLM_RETRIES:
                         logger.error(
-                            f"[Task:{task.id}] Global retry limit reached "
+                            f"[{self.agent_identity_str}][Task:{task.id}] Global retry limit reached "
                             f"({_total_llm_retries}/{MAX_TOTAL_LLM_RETRIES}), aborting"
                         )
                         return (
@@ -6896,7 +6918,7 @@ NEXT: 建议的下一步（如有）"""
                         if not _already:
                             stripped, did_strip = ReasoningEngine._strip_heavy_content(messages)
                             if did_strip:
-                                logger.warning(f"[Task:{task.id}] Structural error: stripping heavy content, retrying once")
+                                logger.warning(f"[{self.agent_identity_str}][Task:{task.id}] Structural error: stripping heavy content, retrying once")
                                 self._task_structural_stripped = True
                                 messages.clear()
                                 messages.extend(stripped)
@@ -6904,7 +6926,7 @@ NEXT: 建议的下一步（如有）"""
                                 if llm_client:
                                     llm_client.reset_all_cooldowns(include_structural=True)
                                 continue
-                        logger.error(f"[Task:{task.id}] Structural error, aborting: {str(e)[:200]}")
+                        logger.error(f"[{self.agent_identity_str}][Task:{task.id}] Structural error, aborting: {str(e)[:200]}")
                         return (
                             f"❌ API 请求格式错误，无法恢复。\n"
                             f"错误: {str(e)[:200]}\n"
@@ -6916,7 +6938,7 @@ NEXT: 建议的下一步（如有）"""
 
                     if should_retry:
                         logger.info(
-                            f"[LLM] Will retry (attempt {task_monitor.retry_count}, "
+                            f"[{self.agent_identity_str}][LLM] Will retry (attempt {task_monitor.retry_count}, "
                             f"global {_total_llm_retries}/{MAX_TOTAL_LLM_RETRIES})"
                         )
                         try:
@@ -6930,7 +6952,7 @@ NEXT: 建议的下一步（如有）"""
                         _task_switch_count += 1
                         if _task_switch_count > MAX_TASK_MODEL_SWITCHES:
                             logger.error(
-                                f"[Task:{task.id}] Exceeded max model switches "
+                                f"[{self.agent_identity_str}][Task:{task.id}] Exceeded max model switches "
                                 f"({MAX_TASK_MODEL_SWITCHES}), aborting task"
                             )
                             return (
@@ -6995,7 +7017,7 @@ NEXT: 建议的下一步（如有）"""
                 _task_stop = getattr(response, "stop_reason", "")
                 if str(_task_stop) == "max_tokens":
                     logger.warning(
-                        f"[Task:{task.id}] ⚠️ LLM output truncated (stop_reason=max_tokens, limit={self.brain.max_tokens})"
+                        f"[{self.agent_identity_str}][Task:{task.id}] ⚠️ LLM output truncated (stop_reason=max_tokens, limit={self.brain.max_tokens})"
                     )
 
                 # 处理响应
@@ -7124,7 +7146,7 @@ NEXT: 建议的下一步（如有）"""
                 # 注意：不在工具执行后检查 stop_reason，让循环继续获取 LLM 的最终总结
             # 循环结束后，如果 final_response 为空，尝试让 LLM 生成一个总结
             if not final_response or len(final_response.strip()) < 10:
-                logger.info("Task completed but no final response, requesting summary...")
+                logger.info(f"[{self.agent_identity_str}] Task completed but no final response, requesting summary...")
                 try:
                     # 请求 LLM 生成任务完成总结
                     messages.append(
@@ -7177,7 +7199,7 @@ NEXT: 建议的下一步（如有）"""
             asyncio.create_task(
                 self._do_task_retrospect_background(task_monitor, task.session_id or task.id)
             )
-            logger.info(f"[Task:{task.id}] Retrospect scheduled (background)")
+            logger.info(f"[{self.agent_identity_str}][Task:{task.id}] Retrospect scheduled (background)")
 
         task.mark_completed(final_response)
 

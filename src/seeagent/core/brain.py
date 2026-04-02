@@ -1035,6 +1035,7 @@ class Brain:
             debug_data: dict[str, Any] = {
                 "timestamp": datetime.now().isoformat(),
                 "caller": caller,
+                "agent_identity": getattr(self, "agent_identity_str", "Main Agent"),
                 "llm_request": {
                     "system": system,
                     "messages": serializable_messages,
@@ -1105,6 +1106,7 @@ class Brain:
             debug_data: dict[str, Any] = {
                 "timestamp": datetime.now().isoformat(),
                 "caller": caller,
+                "agent_identity": getattr(self, "agent_identity_str", "Main Agent"),
                 "request_id": request_id,
             }
             

@@ -99,6 +99,24 @@ def init_bp_system(
     _bp_context_bridge = ContextBridge(state_manager=_bp_state_manager)
     _bp_prompt_loader = PromptTemplateLoader()
 
+    # 获取 profile_store
+    if profile_store is None:
+        try:
+            from seeagent.main import _init_orchestrator, _orchestrator
+            import asyncio
+            if _orchestrator is None:
+                # Synchronous call is not possible for async _init_orchestrator, but we can try to initialize it or just grab it
+                # Actually, orchestrator initialization might be async, let's just try to instantiate one if none
+                from seeagent.agents.orchestrator import AgentOrchestrator
+                temp_orch = AgentOrchestrator()
+                temp_orch._ensure_deps()
+                profile_store = temp_orch._profile_store
+            else:
+                _orchestrator._ensure_deps()
+                profile_store = _orchestrator._profile_store
+        except Exception as e:
+            logger.debug(f"[BP] Could not get orchestrator profile_store: {e}")
+
     # 加载配置 + profiles
     _bp_config_loader = BPConfigLoader(
         search_paths=paths,

@@ -1,0 +1,120 @@
+id: "camera-frame-search"
+name: "基于特征查找摄像头图像帧"
+description: "根据场景描述或地点搜索摄像头，并通过视频预处理及特征检索查找相关的图像帧，最后出图展示。"
+default_run_mode: manual
+
+final_output_schema:
+  type: object
+  properties:
+    title: { type: string, description: "最终报告的标题" }
+    frame_results:
+      type: array
+      description: "特征检索命中的图像帧列表"
+      items: 
+        type: object
+        properties:
+          camera_id: { type: string, description: "相机 ID" }
+          camera_name: { type: string, description: "相机名称" }
+          location: { type: string, description: "相机位置" }
+          image_url: { type: string, description: "帧图片 URL" }
+          timestamp: { type: integer, description: "帧时间戳（毫秒）" }
+        required: [camera_id, camera_name, location, image_url, timestamp]
+    visual_report_path: { type: string, description: "生成的可视化报告绝对路径" }
+    summary: { type: string, description: "执行结果的总结描述" }
+  required: [title, frame_results, visual_report_path]
+
+triggers:
+  - type: command
+    pattern: "执行相机特征检索"
+  - type: context
+    conditions: ["特征", "查找摄像头", "图像帧"]
+
+subtasks:
+  - id: "camera-search"
+    name: "摄像头搜索"
+    description: "根据特征描述或地点搜索相关的候选摄像头列表。"
+    agent_profile: "camera-searcher"
+    input_schema:
+      type: object
+      oneOf:
+        - title: "语义搜索 (向量检索)"
+          description: "基于自然语言描述进行摄像头的向量相似度搜索"
+          properties:
+            query:
+              type: string
+              description: "跟地理位置相关的自然语言描述，如'园区东门摄像头'"
+            limit:
+              type: integer
+              description: "返回数量，如果没有明确指定，默认返回20个"
+              default: 20
+          required: [query]
+        - title: "POI 范围检索"
+          description: "基于具体的地点关键词及半径进行空间检索"
+          properties:
+            keyword:
+              type: string
+              description: "POI 关键词或具体的地址文本，如'环球贸易中心'，如果没有提供，则不进行提取，走ask_user模式"
+            radius_m:
+              type: number
+              description: "检索半径（米）"
+              default: 1000
+            region:
+              type: string
+              description: "可选区域限制"
+            types:
+              type: string
+              description: "POI 类型限制"
+            limit:
+              type: integer
+              description: "返回数量"
+              default: 20
+          required: [keyword]
+
+  - id: "frame-search"
+    name: "摄像头处理和检索"
+    description: "对选定的摄像头创建预处理任务截取帧，查询任务状态，并执行图像帧的特征检索。"
+    agent_profile: "frame-searcher"
+    input_schema:
+      type: object
+      properties:
+        camera_ids:
+          type: array
+          items: { type: string }
+          description: "从上一步获取的摄像头 ID 列表"
+        start_time:
+          type: string
+          description: "截帧开始时间 (ISO8601格式)"
+        end_time:
+          type: string
+          description: "截帧结束时间 (ISO8601格式)"
+        feature_text:
+          type: string
+          description: "要在帧中检索的自然语言特征描述，如'找东门入口'"
+      required: [camera_ids, start_time, end_time, feature_text]
+      upstream: [camera_ids]
+
+  - id: "result-visualize"
+    name: "检索结果画图"
+    description: "将特征检索的结果（包含图像URL）渲染为可视化展示文档。"
+    agent_profile: "result-visualizer"
+    input_schema:
+      type: object
+      properties:
+        frame_results:
+          type: array
+          description: "包含图像帧URL、时间戳和摄像头信息的检索结果数组"
+          items: 
+            type: object
+            properties:
+              camera_id: { type: string, description: "相机 ID" }
+              camera_name: { type: string, description: "相机名称" }
+              location: { type: string, description: "相机位置" }
+              image_url: { type: string, description: "帧图片 URL" }
+              timestamp: { type: integer, description: "帧时间戳（毫秒）" }
+            required: [camera_id, camera_name, location, image_url, timestamp]
+        output_report_path:
+          type: string
+          description: "输出的可视化报告文件路径"
+          default: "result_report.md"
+      required: [frame_results]
+      upstream: [frame_results]

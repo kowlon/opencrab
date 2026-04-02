@@ -1,7 +1,7 @@
 {
   "id": "result-visualizer",
-  "name": "结果出图员",
-  "description": "负责将特征检索输出转换为含缩略图的表格图片并返回图片路径。",
+  "name": "检索结果画图员",
+  "description": "负责将图像帧检索结果格式化为包含图片缩略图的 Markdown/HTML 报告文件，提供可视化结果。",
   "type": "custom",
   "skills": [
     "seeagent/skills@gen-image"
@@ -9,10 +9,9 @@
   "skills_mode": "inclusive",
   "custom_prompt": "",
   "prompt_file": "prompts/result-visualizer.md",
-  "icon": "🖼️",
-  "color": "#10B981",
+  "icon": "📊",
+  "color": "#F59E0B",
   "category": "bestpractice",
   "fallback_profile_id": "default",
-  "preferred_endpoint": null,
   "created_by": "bestpractice"
 }
