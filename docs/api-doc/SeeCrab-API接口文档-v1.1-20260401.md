@@ -1160,6 +1160,7 @@ BP 存储未初始化 (HTTP 500):
 | `session_id` | string | 否 | — | 按会话过滤。有值时走内存优先（含自动恢复逻辑） |
 | `status` | string | 否 | — | 按状态过滤: `active`/`suspended`/`completed`/`cancelled` |
 | `bp_id` | string | 否 | — | 按 BP 模板 ID 过滤 |
+| `keyword` | string | 否 | — | 按 `initial_input` 模糊搜索（大小写不敏感） |
 | `limit` | number | 否 | 50 | 分页大小 |
 | `offset` | number | 否 | 0 | 分页偏移 |
 

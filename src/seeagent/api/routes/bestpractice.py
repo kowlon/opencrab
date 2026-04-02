@@ -252,6 +252,7 @@ async def get_bp_instances(
     session_id: str | None = None,
     status: str | None = None,
     bp_id: str | None = None,
+    keyword: str = "",
     limit: int = 50,
     offset: int = 0,
 ):
@@ -278,6 +279,12 @@ async def get_bp_instances(
             ]
         if bp_id:
             snapshots = [s for s in snapshots if s.bp_id == bp_id]
+        if keyword:
+            kw = keyword.lower()
+            snapshots = [
+                s for s in snapshots
+                if kw in json.dumps(s.initial_input, ensure_ascii=False).lower()
+            ]
 
         total = len(snapshots)
         page = snapshots[offset: offset + limit]
@@ -302,24 +309,52 @@ async def get_bp_instances(
             })
 
         storage = sm._storage
-        if status and bp_id:
-            total = await storage.count_instances(status=status, bp_id=bp_id)
-            rows = await storage.load_instances_by_status_and_bp_id(
-                status, bp_id, limit=limit, offset=offset,
-            )
-        elif status:
-            total = await storage.count_instances(status=status)
-            rows = await storage.load_instances_by_status(
-                status, limit=limit, offset=offset,
-            )
-        elif bp_id:
-            total = await storage.count_instances(bp_id=bp_id)
-            rows = await storage.load_instances_by_bp_id(
-                bp_id, limit=limit, offset=offset,
-            )
+        if keyword:
+            # keyword search requires in-memory filtering; load all matching
+            # rows first, filter, then paginate.
+            max_rows = 10000
+            if status and bp_id:
+                rows = await storage.load_instances_by_status_and_bp_id(
+                    status, bp_id, limit=max_rows, offset=0,
+                )
+            elif status:
+                rows = await storage.load_instances_by_status(
+                    status, limit=max_rows, offset=0,
+                )
+            elif bp_id:
+                rows = await storage.load_instances_by_bp_id(
+                    bp_id, limit=max_rows, offset=0,
+                )
+            else:
+                rows = await storage.load_all_instances(limit=max_rows, offset=0)
+            kw = keyword.lower()
+            rows = [
+                r for r in rows
+                if kw in json.dumps(
+                    r.get("initial_input", {}), ensure_ascii=False,
+                ).lower()
+            ]
+            total = len(rows)
+            rows = rows[offset: offset + limit]
         else:
-            total = await storage.count_instances()
-            rows = await storage.load_all_instances(limit=limit, offset=offset)
+            if status and bp_id:
+                total = await storage.count_instances(status=status, bp_id=bp_id)
+                rows = await storage.load_instances_by_status_and_bp_id(
+                    status, bp_id, limit=limit, offset=offset,
+                )
+            elif status:
+                total = await storage.count_instances(status=status)
+                rows = await storage.load_instances_by_status(
+                    status, limit=limit, offset=offset,
+                )
+            elif bp_id:
+                total = await storage.count_instances(bp_id=bp_id)
+                rows = await storage.load_instances_by_bp_id(
+                    bp_id, limit=limit, offset=offset,
+                )
+            else:
+                total = await storage.count_instances()
+                rows = await storage.load_all_instances(limit=limit, offset=offset)
 
         sids = {r["session_id"] for r in rows}
         title_map = _resolve_session_titles(request, sids)
