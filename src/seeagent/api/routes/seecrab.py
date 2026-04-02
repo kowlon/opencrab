@@ -1089,14 +1089,21 @@ async def list_sessions(
     request: Request,
     limit: int = 50,
     offset: int = 0,
+    title: str = "",
 ):
-    """List conversation sessions with pagination."""
+    """List conversation sessions with pagination and optional title search."""
     sm = getattr(request.app.state, "session_manager", None)
     if sm is None:
         return JSONResponse({"total": 0, "limit": limit, "offset": offset, "sessions": []})
     try:
         sessions = sm.list_sessions(channel="seecrab")
         sessions.sort(key=lambda s: s.last_active, reverse=True)
+        if title:
+            keyword = title.lower()
+            sessions = [
+                s for s in sessions
+                if keyword in s.metadata.get("title", s.chat_id).lower()
+            ]
         total = len(sessions)
         sessions = sessions[offset: offset + limit]
         result = []
