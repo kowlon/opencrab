@@ -264,7 +264,9 @@ class StepAggregator:
         self.state = AggregatorState.SKILL_ABSORB
         self.timer.start_step(step_id)
         # Fire async LLM title generation
-        skill_meta = args if isinstance(args, dict) else {}
+        skill_meta = dict(args) if isinstance(args, dict) else {}
+        if "name" not in skill_meta:
+            skill_meta["name"] = tool_name
         self.pending_card.title_task = asyncio.create_task(
             self._resolve_skill_title(step_id, skill_meta)
         )

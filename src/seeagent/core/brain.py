@@ -297,6 +297,8 @@ class Brain:
         client = self._compiler_client if use_compiler else self._llm_client
         client_name = "compiler" if use_compiler else "main"
 
+        import time
+        start_time = time.monotonic()
         try:
             response = await client.chat(
                 messages=messages,
@@ -320,9 +322,10 @@ class Brain:
                 client_name = "main_fallback"
             else:
                 raise
+        duration = time.monotonic() - start_time
 
         # 保存响应
-        self._dump_llm_response(response, caller=f"think_lightweight_{client_name}", request_id=req_id)
+        self._dump_llm_response(response, caller=f"think_lightweight_{client_name}", request_id=req_id, duration=duration)
 
         self._record_usage(response)
         return self._llm_response_to_response(response)
@@ -419,6 +422,8 @@ class Brain:
 
         conversation_id = kwargs.get("conversation_id")
 
+        import time
+        start_time = time.monotonic()
         # 调用 LLMClient
         try:
             response = asyncio.get_event_loop().run_until_complete(
@@ -445,9 +450,10 @@ class Brain:
                     conversation_id=conversation_id,
                 )
             )
+        duration = time.monotonic() - start_time
 
         # 保存响应到调试文件
-        self._dump_llm_response(response, caller="messages_create", request_id=req_id)
+        self._dump_llm_response(response, caller="messages_create", request_id=req_id, duration=duration)
 
         # 记录 token 用量
         self._record_usage(response)
@@ -481,6 +487,8 @@ class Brain:
         extra_params = kwargs.get("extra_params")
 
         try:
+            import time
+            start_time = time.monotonic()
             response = await self._llm_client.chat(
                 messages=llm_messages,
                 system=system,
@@ -491,6 +499,7 @@ class Brain:
                 conversation_id=conversation_id,
                 extra_params=extra_params,
             )
+            duration = time.monotonic() - start_time
             _choices = getattr(response, 'choices', None) or []
             _content = getattr(response, 'content', None) or []
             logger.info(
@@ -501,7 +510,7 @@ class Brain:
             logger.error(f"[Brain] messages_create_async FAILED: {type(e).__name__}: {e}")
             raise
 
-        self._dump_llm_response(response, caller="messages_create_async", request_id=req_id)
+        self._dump_llm_response(response, caller="messages_create_async", request_id=req_id, duration=duration)
 
         # 记录 token 用量
         self._record_usage(response)
@@ -910,6 +919,8 @@ class Brain:
         req_id = self._dump_llm_request(sys_prompt, llm_messages, llm_tools, caller="_chat_with_llm_client")
 
         # 调用 LLMClient
+        import time
+        start_time = time.monotonic()
         response = await self._llm_client.chat(
             messages=llm_messages,
             system=sys_prompt,
@@ -918,9 +929,10 @@ class Brain:
             enable_thinking=self.is_thinking_enabled(),
             thinking_depth=thinking_depth,
         )
+        duration = time.monotonic() - start_time
 
         # 保存响应到调试文件
-        self._dump_llm_response(response, caller="_chat_with_llm_client", request_id=req_id)
+        self._dump_llm_response(response, caller="_chat_with_llm_client", request_id=req_id, duration=duration)
 
         self._record_usage(response)
 
@@ -1069,7 +1081,7 @@ class Brain:
             return uuid.uuid4().hex[:8]  # 即使保存失败也返回一个 ID 供 response 关联
 
     def _dump_llm_response(
-        self, response, caller: str = "unknown", request_id: str = ""
+        self, response, caller: str = "unknown", request_id: str = "", duration: float | None = None
     ) -> None:
         """
         保存 LLM 响应到调试文件（与 _dump_llm_request 对称）
@@ -1078,6 +1090,7 @@ class Brain:
             response: LLMResponse 对象
             caller: 调用方标识
             request_id: 对应的请求 ID（用于关联 request 文件）
+            duration: 耗时（秒）
         """
         try:
             debug_dir = Path("data/llm_debug")
@@ -1093,19 +1106,23 @@ class Brain:
                 "timestamp": datetime.now().isoformat(),
                 "caller": caller,
                 "request_id": request_id,
-                "llm_response": {
-                    "model": getattr(response, "model", ""),
-                    "stop_reason": str(getattr(response, "stop_reason", "")),
-                    "usage": {
-                        "input_tokens": getattr(response.usage, "input_tokens", 0)
-                        if hasattr(response, "usage")
-                        else 0,
-                        "output_tokens": getattr(response.usage, "output_tokens", 0)
-                        if hasattr(response, "usage")
-                        else 0,
-                    },
-                    "content": content_blocks,
+            }
+            
+            if duration is not None:
+                debug_data["duration_seconds"] = round(duration, 3)
+
+            debug_data["llm_response"] = {
+                "model": getattr(response, "model", ""),
+                "stop_reason": str(getattr(response, "stop_reason", "")),
+                "usage": {
+                    "input_tokens": getattr(response.usage, "input_tokens", 0)
+                    if hasattr(response, "usage")
+                    else 0,
+                    "output_tokens": getattr(response.usage, "output_tokens", 0)
+                    if hasattr(response, "usage")
+                    else 0,
                 },
+                "content": content_blocks,
             }
             if self._trace_context:
                 debug_data["context"] = dict(self._trace_context)
@@ -1142,6 +1159,10 @@ class Brain:
         - tool_use: name/id 完整保留，input 完整保留（便于诊断截断问题）
         """
         blocks = []
+
+        # 处理独立的 reasoning_content
+        if hasattr(response, "reasoning_content") and response.reasoning_content:
+            blocks.append({"type": "thinking", "thinking": str(response.reasoning_content)})
 
         # LLMResponse 对象
         if hasattr(response, "text") and not hasattr(response, "content"):
