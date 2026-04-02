@@ -113,6 +113,8 @@ export interface AskUserState {
 export interface Session {
   id: string
   title: string
+  pinned: boolean
+  icon: string
   lastMessage: string
   updatedAt: number
   messageCount: number

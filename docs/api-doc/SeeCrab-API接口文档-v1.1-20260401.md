@@ -250,6 +250,8 @@ Agent 未初始化:
     {
       "id": "seecrab_a1b2c3d4e5f6",
       "title": "帮我分析一下市场趋势",
+      "pinned": false,
+      "icon": "",
       "updated_at": 1711267200000,
       "message_count": 8,
       "last_message": "根据最新数据分析，2024年市场呈现以下趋势：1. 数字化转型加速..."
@@ -257,6 +259,8 @@ Agent 未初始化:
     {
       "id": "seecrab_f7e8d9c0b1a2",
       "title": "写一份项目计划",
+      "pinned": false,
+      "icon": "",
       "updated_at": 1711180800000,
       "message_count": 3,
       "last_message": "好的，我来帮你制定项目计划。首先需要明确几个关键信息..."
@@ -282,7 +286,9 @@ Session Manager 不可用或无会话时返回空列表:
 | `limit` | number | 分页大小 |
 | `offset` | number | 分页偏移 |
 | `sessions[].id` | string | 会话 ID (chat_id) |
-| `sessions[].title` | string | 会话标题 |
+| `sessions[].title` | string | 会话标题，未设置时为空字符串 `""` |
+| `sessions[].pinned` | boolean | 是否置顶，默认 `false` |
+| `sessions[].icon` | string | 会话图标标识，默认 `""` |
 | `sessions[].updated_at` | number | 最后活跃时间 (毫秒时间戳) |
 | `sessions[].message_count` | number | 消息数量 |
 | `sessions[].last_message` | string | 最近消息预览 (≤80 字符) |
@@ -329,6 +335,8 @@ Session Manager 不可用或无会话时返回空列表:
 {
   "session_id": "seecrab_a1b2c3d4e5f6",
   "title": "帮我分析一下市场趋势",
+  "pinned": false,
+  "icon": "",
   "messages": [
     {
       "role": "user",
@@ -379,6 +387,8 @@ Session Manager 不可用或无会话时返回空列表:
 {
   "session_id": "seecrab_f7e8d9c0b1a2",
   "title": "帮我做一份市场分析报告",
+  "pinned": false,
+  "icon": "",
   "messages": [
     {
       "role": "user",
@@ -506,6 +516,8 @@ Session Manager 不可用 (HTTP 503):
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `title` | string \| null | 否 | 新标题 |
+| `pinned` | boolean \| null | 否 | 是否置顶 |
+| `icon` | string \| null | 否 | 会话图标标识 |
 
 **Response 返回示例:**
 

@@ -1121,7 +1121,9 @@ async def list_sessions(
                         last_msg = m.get("content", "")[:80]
             result.append({
                 "id": s.chat_id,
-                "title": s.metadata.get("title", s.chat_id),
+                "title": s.metadata.get("title", ""),
+                "pinned": s.metadata.get("pinned", False),
+                "icon": s.metadata.get("icon", ""),
                 "updated_at": getattr(s, "last_active", datetime.now()).timestamp() * 1000,
                 "message_count": len(messages),
                 "last_message": last_msg,
@@ -1165,7 +1167,9 @@ async def get_session(session_id: str, request: Request):
                 messages.append(msg_dict)
         return JSONResponse({
             "session_id": session_id,
-            "title": session.metadata.get("title", session_id),
+            "title": session.metadata.get("title", ""),
+            "pinned": session.metadata.get("pinned", False),
+            "icon": session.metadata.get("icon", ""),
             "messages": messages,
         })
     except Exception as e:
@@ -1207,6 +1211,10 @@ async def update_session(
         return JSONResponse({"error": "Session not found"}, status_code=404)
     if body.title is not None:
         session.set_metadata("title", body.title)
+    if body.pinned is not None:
+        session.set_metadata("pinned", body.pinned)
+    if body.icon is not None:
+        session.set_metadata("icon", body.icon)
     sm.mark_dirty()
     return JSONResponse({"status": "ok"})
 
