@@ -87,7 +87,15 @@ class TaskScheduler(ABC):
             # 未配置 upstream 或 upstream=[] → 上游不需要给下游输出
             return None
 
-        all_props = schema.get("properties", {})
+        all_props = schema.get("properties", {}).copy()
+        
+        # 兼容多分支 (oneOf/anyOf) 的预填充：从所有分支中收集可能的 properties
+        for branch_key in ("oneOf", "anyOf"):
+            branches = schema.get(branch_key) or []
+            for branch in branches:
+                if isinstance(branch, dict) and "properties" in branch:
+                    all_props.update(branch["properties"])
+
         filtered_props = {k: v for k, v in all_props.items() if k in upstream}
         return {
             "type": "object",

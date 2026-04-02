@@ -857,18 +857,15 @@ class BPEngine:
 
     @staticmethod
     def _schema_to_example(schema: dict[str, Any]) -> str:
-        """Convert a JSON Schema to an example JSON template with placeholders.
+        """Convert a JSON Schema to an example JSON template with placeholders."""
+        branches = schema.get("oneOf") or schema.get("anyOf")
+        if branches:
+            examples = []
+            for i, branch in enumerate(branches):
+                title = branch.get("title", f"分支 {i+1}")
+                examples.append(f"// {title}\n{BPEngine._schema_to_example(branch)}")
+            return "\n\n或\n\n".join(examples)
 
-        Instead of showing the raw schema definition (which is confusing for
-        LLMs), this produces a human-readable template that shows the expected
-        keys and value type hints.  Example output::
-
-            {
-              "insights": [{"...": "object items"}],
-              "trends": ["string items"],
-              "recommendations": ["string items"]
-            }
-        """
         props = schema.get("properties", {})
         if not props:
             return json.dumps(schema, ensure_ascii=False, indent=2)
@@ -971,6 +968,7 @@ class BPEngine:
         """检查 input_schema.required 字段是否都在 input_data 中。
         如果是单分支，检查 required。
         如果是多分支 (oneOf/anyOf)，找到匹配度最高的分支，检查其 required。
+        匹配策略：优先选择输入数据中命中 properties 最多的分支；若命中数相同，则选择缺失 required 最少的分支。
         返回: (缺失字段列表, 匹配到的单分支schema)
         """
         schema = subtask.input_schema
@@ -985,16 +983,25 @@ class BPEngine:
 
         best_match = None
         best_missing = []
+        max_provided_count = -1
         min_missing_count = float('inf')
 
         for branch in branches:
+            props = branch.get("properties", {})
             req = branch.get("required", [])
+            
+            # 1. 命中的已有字段数量（在这个分支定义的 properties 中）
+            provided_count = sum(1 for field in input_data if field in props)
+            # 2. 缺失的必填字段数量
             missing = [field for field in req if field not in input_data]
+            
             if len(missing) == 0:
                 # 完美匹配，直接返回
                 return [], branch
             
-            if len(missing) < min_missing_count:
+            # 优先级：先看哪个分支命中的已有字段多，如果一样多，看哪个缺失的少
+            if provided_count > max_provided_count or (provided_count == max_provided_count and len(missing) < min_missing_count):
+                max_provided_count = provided_count
                 min_missing_count = len(missing)
                 best_missing = missing
                 best_match = branch
@@ -1151,7 +1158,15 @@ class BPEngine:
         if not required:
             return cleaned
 
-        props = schema.get("properties", {})
+        props = schema.get("properties", {}).copy()
+        
+        # 兼容多分支 (oneOf/anyOf)：从所有分支中收集可能的 properties 以获取默认值
+        for branch_key in ("oneOf", "anyOf"):
+            branches = schema.get(branch_key) or []
+            for branch in branches:
+                if isinstance(branch, dict) and "properties" in branch:
+                    props.update(branch["properties"])
+
         merged = dict(cleaned)
         for field in required:
             if field in merged:

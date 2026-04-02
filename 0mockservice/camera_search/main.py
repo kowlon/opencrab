@@ -94,7 +94,11 @@ app.mount("/static", StaticFiles(directory=IMAGE_DIR), name="images")
 
 
 class CameraSearchRequest(BaseModel):
-    query: str
+    query: str | None = None
+    location: str | None = None
+    center: str | None = None
+    radius: str | None = None
+    time_range: str | None = None
 
 
 class CameraItem(BaseModel):
@@ -224,8 +228,12 @@ async def _run_preprocess(task_id: str) -> None:
 @app.post("/api/v1/cameras/search", response_model=CameraSearchResponse)
 async def search_cameras(req: CameraSearchRequest):
     matched: list[CameraItem] = []
+    
+    # 决定要搜索的词
+    search_q = req.query or req.location or req.center or ""
+    
     for camera in cameras_db.values():
-        if _query_match(req.query, camera):
+        if _query_match(search_q, camera):
             matched.append(
                 CameraItem(
                     id=camera["id"],
