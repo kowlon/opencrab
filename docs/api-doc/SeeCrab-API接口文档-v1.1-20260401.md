@@ -229,12 +229,22 @@ Agent 未初始化:
 |------|------|
 | **URL** | `GET /api/seecrab/sessions` |
 
+**查询参数:**
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `limit` | number | 否 | 50 | 分页大小 |
+| `offset` | number | 否 | 0 | 分页偏移 |
+
 **Response 返回示例:**
 
 成功 (HTTP 200) — 包含多个会话:
 
 ```json
 {
+  "total": 2,
+  "limit": 50,
+  "offset": 0,
   "sessions": [
     {
       "id": "seecrab_a1b2c3d4e5f6",
@@ -258,17 +268,23 @@ Session Manager 不可用或无会话时返回空列表:
 
 ```json
 {
+  "total": 0,
+  "limit": 50,
+  "offset": 0,
   "sessions": []
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `id` | string | 会话 ID (chat_id) |
-| `title` | string | 会话标题 |
-| `updated_at` | number | 最后活跃时间 (毫秒时间戳) |
-| `message_count` | number | 消息数量 |
-| `last_message` | string | 最近消息预览 (≤80 字符) |
+| `total` | number | 匹配条件的会话总数 |
+| `limit` | number | 分页大小 |
+| `offset` | number | 分页偏移 |
+| `sessions[].id` | string | 会话 ID (chat_id) |
+| `sessions[].title` | string | 会话标题 |
+| `sessions[].updated_at` | number | 最后活跃时间 (毫秒时间戳) |
+| `sessions[].message_count` | number | 消息数量 |
+| `sessions[].last_message` | string | 最近消息预览 (≤80 字符) |
 
 ---
 
@@ -1671,8 +1687,11 @@ await fetch('/api/chat/cancel', {
 > 源码位置: `src/api/http-client.ts:14` → `httpClient.listSessions()`
 
 ```typescript
-const { sessions } = await fetch('/api/seecrab/sessions').then(r => r.json())
-// sessions: [{ id, title, updated_at, message_count, last_message }]
+// 默认获取前 50 条
+const { total, sessions } = await fetch('/api/seecrab/sessions').then(r => r.json())
+// 分页获取
+const page2 = await fetch('/api/seecrab/sessions?limit=20&offset=20').then(r => r.json())
+// { total, limit, offset, sessions: [{ id, title, updated_at, message_count, last_message }] }
 ```
 
 ### 5.4 创建会话

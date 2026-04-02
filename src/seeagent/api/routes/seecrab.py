@@ -1085,14 +1085,20 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
 
 @router.get("/sessions")
-async def list_sessions(request: Request):
-    """List conversation sessions."""
+async def list_sessions(
+    request: Request,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """List conversation sessions with pagination."""
     sm = getattr(request.app.state, "session_manager", None)
     if sm is None:
-        return JSONResponse({"sessions": []})
+        return JSONResponse({"total": 0, "limit": limit, "offset": offset, "sessions": []})
     try:
         sessions = sm.list_sessions(channel="seecrab")
         sessions.sort(key=lambda s: s.last_active, reverse=True)
+        total = len(sessions)
+        sessions = sessions[offset: offset + limit]
         result = []
         for s in sessions:
             messages = s.context.messages if hasattr(s, "context") else []
@@ -1113,9 +1119,14 @@ async def list_sessions(request: Request):
                 "message_count": len(messages),
                 "last_message": last_msg,
             })
-        return JSONResponse({"sessions": result})
+        return JSONResponse({
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "sessions": result,
+        })
     except Exception:
-        return JSONResponse({"sessions": []})
+        return JSONResponse({"total": 0, "limit": limit, "offset": offset, "sessions": []})
 
 
 @router.get("/sessions/{session_id}")
