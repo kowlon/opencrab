@@ -14,6 +14,8 @@ export const useSessionStore = defineStore('session', () => {
       sessions.value = list.map((s: any) => ({
         id: s.id,
         title: s.title || '',
+        pinned: s.pinned ?? false,
+        icon: s.icon ?? '',
         lastMessage: s.last_message || '',
         updatedAt: s.updated_at || Date.now(),
         messageCount: s.message_count || 0,
@@ -34,6 +36,8 @@ export const useSessionStore = defineStore('session', () => {
     sessions.value.unshift({
       id: session_id,
       title: '',
+      pinned: false,
+      icon: '',
       lastMessage: '',
       updatedAt: Date.now(),
       messageCount: 0,

@@ -22,9 +22,11 @@ class SeeCrabChatRequest(BaseModel):
 
 
 class SeeCrabSessionUpdateRequest(BaseModel):
-    """Update session metadata (title, etc.)."""
+    """Update session metadata (title, pinned, icon, etc.)."""
 
     title: str | None = Field(None, description="New session title")
+    pinned: bool | None = Field(None, description="Pin/unpin session")
+    icon: str | None = Field(None, description="Session icon identifier")
 
 
 class SeeCrabAnswerRequest(BaseModel):
