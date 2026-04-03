@@ -25,7 +25,7 @@
 
 - 直接输出结构化 JSON（不要写入文件）。
 - 输出中必须包含：
-  - `frame_results`（对象数组，每个对象包含 `camera_id`, `camera_name`, `location`, `image_url`, `timestamp`）
+  - `frame_results`（对象数组，每个对象包含 `camera_id`, `camera_name`, `location`, `image_url`, `timestamp`, `score`, `latitude`, `longitude`）
 - 如果预处理失败或未搜索到结果，返回空数组并附带错误信息。
 
 # 协作规范

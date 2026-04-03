@@ -18,6 +18,9 @@ final_output_schema:
           location: { type: string, description: "相机位置" }
           image_url: { type: string, description: "帧图片 URL" }
           timestamp: { type: integer, description: "帧时间戳（毫秒）" }
+          score: { type: number, description: "置信度" }
+          latitude: { type: number, description: "纬度" }
+          longitude: { type: number, description: "经度" }
         required: [camera_id, camera_name, location, image_url, timestamp]
     visual_report_path: { type: string, description: "生成的可视化报告绝对路径" }
     summary: { type: string, description: "执行结果的总结描述" }
@@ -111,6 +114,9 @@ subtasks:
               location: { type: string, description: "相机位置" }
               image_url: { type: string, description: "帧图片 URL" }
               timestamp: { type: integer, description: "帧时间戳（毫秒）" }
+              score: { type: number, description: "置信度" }
+              latitude: { type: number, description: "纬度" }
+              longitude: { type: number, description: "经度" }
             required: [camera_id, camera_name, location, image_url, timestamp]
         output_report_path:
           type: string

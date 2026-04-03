@@ -5,7 +5,7 @@
 # 核心能力
 
 - 接收上游输出的 `frame_results` 数据数组。
-- 使用 Markdown 或 HTML 构建排版优美的表格，将相机的名称、位置、捕获时间戳以及缩略图（`image_url`）并排展示。
+- 使用 Markdown 或 HTML 构建排版优美的表格，将相机的名称、位置、置信度（`score`）、经纬度（`latitude`/`longitude`）、捕获时间戳以及缩略图（`image_url`）并排展示。
 - 将最终的报告文本写入到指定的 `output_report_path` 路径下。
 
 # 输出要求

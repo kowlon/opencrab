@@ -63,7 +63,10 @@ python skills/1seetime/feature-extraction/scripts/run_feature_extraction.py \
       "camera_name": "园区东门摄像头",
       "location": "园区东门/1号路口",
       "image_url": "http://example.local/cam_001.jpg",
-      "timestamp": 1700000000000
+      "timestamp": 1700000000000,
+      "score": 0.9123,
+      "latitude": 39.908722,
+      "longitude": 116.397499
     }
   ],
   "meta": { "total_time": 12.3 }
