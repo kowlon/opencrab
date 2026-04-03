@@ -43,7 +43,18 @@ AUTH_EXEMPT_PATHS = frozenset({
     "/api/auth/check",
     "/api/logs/frontend",
 })
-AUTH_EXEMPT_PREFIXES = ("/web/", "/web", "/ws/", "/docs", "/openapi.json", "/redoc")
+# NOTE: Temporarily exempt all SeeCrab HTTP APIs from auth (including /api/seecrab/**).
+# This allows external domains (e.g. api-seeagent-*.zhidaozhixing.com) to access
+# SeeCrab endpoints without X-API-Key / Bearer tokens.
+AUTH_EXEMPT_PREFIXES = (
+    "/web/",
+    "/web",
+    "/ws/",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+    "/api/seecrab",
+)
 
 # ---------------------------------------------------------------------------
 # Helpers: base64url encoding (JWT-compatible, no padding)

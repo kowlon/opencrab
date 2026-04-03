@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { BPInstanceState } from '@/types'
 
 const props = defineProps<{ bp: BPInstanceState }>()
