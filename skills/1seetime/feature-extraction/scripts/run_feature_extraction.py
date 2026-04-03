@@ -36,7 +36,7 @@ def main():
     parser.add_argument("--feature-text", required=True, help="Feature text to search")
     parser.add_argument("--start-time", required=True, help="Start time (ISO8601)")
     parser.add_argument("--end-time", required=True, help="End time (ISO8601)")
-    parser.add_argument("--base-url", default="http://10.11.0.131:19988", help="Base URL")
+    parser.add_argument("--base-url", default="https://api-platform-test.zhidaozhixing.com", help="Base URL")
     parser.add_argument("--poll-interval", type=int, default=5, help="Poll interval in seconds")
     parser.add_argument("--timeout", type=int, default=3600, help="Timeout in seconds")
     parser.add_argument("--top-k", type=int, default=20, help="Top K results")

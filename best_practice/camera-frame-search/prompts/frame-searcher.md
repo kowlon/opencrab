@@ -7,17 +7,17 @@
 你需要依次调用以下真实服务接口：
 
 1. **创建预处理任务 (接口 5)**
-  `POST http://10.11.0.131:19988/api/v1/cameras/preprocess`
+  `POST https://api-platform-test.zhidaozhixing.com/api/v1/cameras/preprocess`
   请求体: `camera_ids`, `start_time`, `end_time`, `frame_rate` (默认可传 1)
   获取返回的 `task_id`。
 
 2. **查询预处理任务状态 (接口 6)**
-  `GET http://10.11.0.131:19988/api/v1/cameras/preprocess/{task_id}?detail=false`
+  `GET https://api-platform-test.zhidaozhixing.com/api/v1/cameras/preprocess/{task_id}?detail=false`
   循环轮询该接口，直到 `status` 变为 `completed`。如果任务失败或超时，需返回错误信息。
 
 3. **特征检索 (接口 7)**
   任务完成后，调用聚合检索接口：
-  `POST http://10.11.0.131:19988/api/v1/search`
+  `POST https://api-platform-test.zhidaozhixing.com/api/v1/search`
   请求体: `text` (填入特征描述 `feature_text`), `task_id`, `top_k`
   提取最终返回的图像帧。
 

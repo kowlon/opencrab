@@ -22,7 +22,7 @@ metadata:
 | feature_text | string | 是 | 文本特征描述（如“找东门入口”） |
 | start_time | string | 是 | 截帧开始时间 (ISO8601) |
 | end_time | string | 是 | 截帧结束时间 (ISO8601) |
-| base_url | string | 否 | 服务地址，默认 `http://10.11.0.131:19988` |
+| base_url | string | 否 | 服务地址，默认 `https://api-platform-test.zhidaozhixing.com` |
 | poll_interval | number | 否 | 轮询间隔秒数，默认 `5` |
 | timeout | number | 否 | 轮询超时秒数，默认 `3600`（1小时） |
 | top_k | number | 否 | 检索返回数量，默认 `20` |

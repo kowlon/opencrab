@@ -8,12 +8,12 @@
 
 - **分支 1：语义搜索 (向量检索)**
   当输入包含 `query` 时，你应当调用接口 3：
-  `GET http://10.11.0.131:19988/api/v1/cameras/search`
+  `GET https://api-platform-test.zhidaozhixing.com/api/v1/cameras/search`
   参数: `query`, `limit`
 
 - **分支 2：POI 范围检索**
   当输入包含 `keyword` 时，你应当调用接口 4：
-  `GET http://10.11.0.131:19988/api/v1/cameras/search/poi`
+  `GET https://api-platform-test.zhidaozhixing.com/api/v1/cameras/search/poi`
   参数: `keyword`, `radius_m`, `region`, `types`, `limit`
 
 你可以使用 HTTP 客户端工具（如 `curl` 或 Python `requests`）去请求真实的测试服务并获取摄像头列表。
