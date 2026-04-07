@@ -19,7 +19,7 @@ BP_TOOL_DEFINITIONS: list[dict] = [
                 },
                 "input_data": {
                     "type": "object",
-                    "description": "初始输入数据 (根据BP模板的必需参数填写，必须尽可能从用户的自然语言描述中提取)",
+                    "description": "初始输入数据 (包含所有子任务需要的用户输入字段，必须尽可能从用户的自然语言描述中提取，不限于第一个子任务)",
                 },
                 "run_mode": {
                     "type": "string",

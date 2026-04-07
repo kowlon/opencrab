@@ -112,6 +112,9 @@ class BPEngine:
         if pending and not pending.target_instance_id:
             pending.target_instance_id = inst_id
 
+        # Pre-distribute initial_input fields to downstream subtasks
+        self._distribute_initial_input(inst_id, bp_config)
+
         await self.state_manager.persist_instance(inst_id)
         self.state_manager.persist_to_session(inst_id, session)
 
@@ -959,6 +962,48 @@ class BPEngine:
         if warning:
             result["warning"] = warning
         return result
+
+    # ── Input pre-distribution ──────────────────────────────────
+
+    def _distribute_initial_input(
+        self, instance_id: str, bp_config: BestPracticeConfig,
+    ) -> None:
+        """Pre-fill downstream subtasks' supplemented_inputs from initial_input.
+
+        For each subtask beyond the first, identify non-upstream fields.
+        If any of those fields exist in initial_input, copy them to
+        snap.supplemented_inputs[subtask_id].
+        """
+        snap = self.state_manager.get(instance_id)
+        if not snap or not snap.initial_input:
+            return
+
+        initial = snap.initial_input
+
+        for idx, subtask in enumerate(bp_config.subtasks):
+            if idx == 0:
+                continue
+            schema = subtask.input_schema
+            if not schema:
+                continue
+
+            upstream = set(schema.get("upstream", []))
+
+            candidate_fields: set[str] = set()
+            branches = schema.get("oneOf") or schema.get("anyOf")
+            if branches:
+                for branch in branches:
+                    candidate_fields.update(branch.get("properties", {}).keys())
+            candidate_fields.update(schema.get("properties", {}).keys())
+            candidate_fields -= upstream
+
+            prefill = {f: initial[f] for f in candidate_fields if f in initial}
+            if prefill:
+                snap.supplemented_inputs.setdefault(subtask.id, {}).update(prefill)
+                logger.info(
+                    "[BP] Pre-filled supplemented_inputs for %s: %s",
+                    subtask.id, list(prefill.keys()),
+                )
 
     # ── Input completeness ─────────────────────────────────────
 
