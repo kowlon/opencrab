@@ -51,19 +51,41 @@ class BPPromptBuilder:
             subtask_names = " → ".join(s.name for s in config.subtasks)
 
             required_inputs = ""
-            if config.subtasks and config.subtasks[0].input_schema:
-                schema = config.subtasks[0].input_schema
-                reqs = schema.get("required", [])
-                props = schema.get("properties", {})
-                if reqs:
-                    hints = [
-                        f"{req}({props.get(req, {}).get('description', '')})"
-                        for req in reqs
-                    ]
-                    required_inputs = (
-                        f"\n  必需参数: {', '.join(hints)} "
-                        f"(调用 bp_start 时放入 input_data)"
-                    )
+            grouped_hints: dict[str, list[str]] = {}
+            for subtask in config.subtasks:
+                schema = subtask.input_schema
+                if not schema:
+                    continue
+                upstream = set(schema.get("upstream", []))
+                branches = schema.get("oneOf") or schema.get("anyOf")
+                if branches:
+                    seen: set[str] = set()
+                    for branch in branches:
+                        props = branch.get("properties", {})
+                        for req in branch.get("required", []):
+                            if req not in upstream and req not in seen:
+                                seen.add(req)
+                                desc = props.get(req, {}).get("description", "")
+                                grouped_hints.setdefault(subtask.name, []).append(
+                                    f"{req}({desc})"
+                                )
+                else:
+                    props = schema.get("properties", {})
+                    for req in schema.get("required", []):
+                        if req not in upstream:
+                            desc = props.get(req, {}).get("description", "")
+                            grouped_hints.setdefault(subtask.name, []).append(
+                                f"{req}({desc})"
+                            )
+            if grouped_hints:
+                parts = [
+                    f"    [{name}]: {', '.join(hints)}"
+                    for name, hints in grouped_hints.items()
+                ]
+                required_inputs = (
+                    "\n  必需参数 (调用 bp_start 时尽量从用户消息中提取所有参数放入 input_data):\n"
+                    + "\n".join(parts)
+                )
 
             bp_list_lines.append(
                 f"- **{config.name}** (`{bp_id}`){triggers_desc}: "

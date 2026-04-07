@@ -685,6 +685,24 @@ def _persist_user_message(session, message: str, session_manager=None) -> None:
             pass
 
 
+def _build_combined_user_schema(bp_config) -> dict | None:
+    """Build a flat schema merging all subtasks' non-upstream properties."""
+    combined_props: dict = {}
+    for subtask in bp_config.subtasks:
+        schema = subtask.input_schema
+        if not schema:
+            continue
+        upstream = set(schema.get("upstream", []))
+        for name, info in schema.get("properties", {}).items():
+            if name not in upstream:
+                combined_props.setdefault(name, info)
+        for branch in (schema.get("oneOf") or schema.get("anyOf") or []):
+            for name, info in branch.get("properties", {}).items():
+                if name not in upstream:
+                    combined_props.setdefault(name, info)
+    return {"type": "object", "properties": combined_props} if combined_props else None
+
+
 def _persist_bp_to_session(
     session, instance_id: str, sm,
     *, reply_state: dict | None = None, full_reply: str = "",
@@ -750,15 +768,14 @@ async def bp_start(request: Request):
     # 当前端未传 input_data 时，从 pending_offer 中提取用户原始 query 并用 LLM 解析
     if not input_data and bp_config.subtasks:
         pending_offer = sm.get_pending_offer(session_id)
-        if pending_offer:
-            user_query = pending_offer.get("user_query", "")
-            first_schema = pending_offer.get("first_input_schema") or bp_config.subtasks[0].input_schema
-            if user_query and first_schema:
-                from seeagent.api.routes.seecrab import _extract_input_from_query
-                agent = getattr(request.app.state, "agent", None)
-                brain = getattr(agent, "brain", None) if agent else None
-                input_data = await _extract_input_from_query(brain, user_query, first_schema)
-                logger.info(f"[BP] Extracted input from pending offer query: {input_data}")
+        user_query = pending_offer.get("user_query", "") if pending_offer else ""
+        combined_schema = _build_combined_user_schema(bp_config) if user_query else None
+        if user_query and combined_schema:
+            from seeagent.api.routes.seecrab import _extract_input_from_query
+            agent = getattr(request.app.state, "agent", None)
+            brain = getattr(agent, "brain", None) if agent else None
+            input_data = await _extract_input_from_query(brain, user_query, combined_schema)
+            logger.info(f"[BP] Extracted input from pending offer query: {input_data}")
 
     run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
     session = _resolve_session(request, session_id, create_if_missing=True)
