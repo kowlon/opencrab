@@ -317,6 +317,85 @@ class TestValidateBpConfig:
         errors = validate_bp_config(bp)
         assert errors == []
 
+    def test_branch_upstream_valid_passes(self):
+        """分支内 upstream 字段存在于分支 properties 中 → 通过。"""
+        bp = BestPracticeConfig(
+            id="x", name="X",
+            subtasks=[
+                SubtaskConfig(id="s1", name="S1", agent_profile="a"),
+                SubtaskConfig(
+                    id="s2", name="S2", agent_profile="b",
+                    input_schema={
+                        "type": "object",
+                        "oneOf": [
+                            {
+                                "title": "A",
+                                "properties": {"cam": {"type": "array"}},
+                                "required": ["cam"],
+                                "upstream": ["cam"],
+                            },
+                            {
+                                "title": "B",
+                                "properties": {"area": {"type": "string"}},
+                                "required": ["area"],
+                                "upstream": ["area"],
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        errors = validate_bp_config(bp)
+        assert errors == []
+
+    def test_branch_upstream_missing_field_errors(self):
+        """分支内 upstream 引用不存在的字段 → 报错。"""
+        bp = BestPracticeConfig(
+            id="x", name="X",
+            subtasks=[
+                SubtaskConfig(id="s1", name="S1", agent_profile="a"),
+                SubtaskConfig(
+                    id="s2", name="S2", agent_profile="b",
+                    input_schema={
+                        "type": "object",
+                        "oneOf": [
+                            {
+                                "title": "A",
+                                "properties": {"cam": {"type": "array"}},
+                                "upstream": ["nonexistent"],
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        errors = validate_bp_config(bp)
+        assert len(errors) == 1
+        assert "nonexistent" in errors[0]
+        assert "branch 'A'" in errors[0]
+
+    def test_top_level_upstream_with_branch_properties_passes(self):
+        """顶层 upstream 引用分支内的 properties → 通过（collect_all_properties）。"""
+        bp = BestPracticeConfig(
+            id="x", name="X",
+            subtasks=[
+                SubtaskConfig(id="s1", name="S1", agent_profile="a"),
+                SubtaskConfig(
+                    id="s2", name="S2", agent_profile="b",
+                    input_schema={
+                        "type": "object",
+                        "oneOf": [
+                            {"properties": {"cam": {"type": "array"}}},
+                            {"properties": {"area": {"type": "string"}}},
+                        ],
+                        "upstream": ["cam"],
+                    },
+                ),
+            ],
+        )
+        errors = validate_bp_config(bp)
+        assert errors == []
+
 
 # ── BPInstanceSnapshot ─────────────────────────────────────────
 

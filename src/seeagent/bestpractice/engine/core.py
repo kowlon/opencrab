@@ -19,7 +19,13 @@ import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
-from ..models import BPStatus, RunMode, SubtaskStatus
+from ..models import (
+    BPStatus,
+    RunMode,
+    SubtaskStatus,
+    collect_all_properties,
+    collect_all_upstream,
+)
 from .event_formatter import BPEventFormatter
 
 if TYPE_CHECKING:
@@ -987,15 +993,8 @@ class BPEngine:
             if not schema:
                 continue
 
-            upstream = set(schema.get("upstream", []))
-
-            candidate_fields: set[str] = set()
-            branches = schema.get("oneOf") or schema.get("anyOf")
-            if branches:
-                for branch in branches:
-                    candidate_fields.update(branch.get("properties", {}).keys())
-            candidate_fields.update(schema.get("properties", {}).keys())
-            candidate_fields -= upstream
+            upstream = collect_all_upstream(schema)
+            candidate_fields = set(collect_all_properties(schema).keys()) - upstream
 
             prefill = {f: initial[f] for f in candidate_fields if f in initial}
             if prefill:
@@ -1152,7 +1151,6 @@ class BPEngine:
             # 从 LLM 回复中提取 JSON
             conformed = self._parse_output(text)
             if "_raw_output" not in conformed:
-                conformed = self._sanitize_output(conformed, output_schema)
                 conformed = self._ensure_required_fields(conformed, output_schema)
                 logger.debug(
                     f"[BP] _conform_output: mapped {list(raw_output.keys())} "
@@ -1167,7 +1165,7 @@ class BPEngine:
     @staticmethod
     def _sanitize_output(output: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
         required = set(schema.get("required", []))
-        properties = set(schema.get("properties", {}).keys())
+        properties = set(collect_all_properties(schema).keys())
         allowed = required | properties if properties else None
         cleaned: dict[str, Any] = {}
         for key, value in output.items():
@@ -1203,14 +1201,7 @@ class BPEngine:
         if not required:
             return cleaned
 
-        props = schema.get("properties", {}).copy()
-        
-        # 兼容多分支 (oneOf/anyOf)：从所有分支中收集可能的 properties 以获取默认值
-        for branch_key in ("oneOf", "anyOf"):
-            branches = schema.get(branch_key) or []
-            for branch in branches:
-                if isinstance(branch, dict) and "properties" in branch:
-                    props.update(branch["properties"])
+        props = collect_all_properties(schema)
 
         merged = dict(cleaned)
         for field in required:

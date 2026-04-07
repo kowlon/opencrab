@@ -353,3 +353,36 @@ class BPInstanceSnapshot:
             },
             bp_config=None,
         )
+
+
+# ── Schema utility functions ──────────────────────────────────
+
+
+def collect_all_properties(schema: dict[str, Any]) -> dict[str, Any]:
+    """从 schema 收集所有 properties（含 oneOf/anyOf 分支内的）。"""
+    props = dict(schema.get("properties", {}))
+    for key in ("oneOf", "anyOf"):
+        for branch in (schema.get(key) or []):
+            if isinstance(branch, dict) and "properties" in branch:
+                props.update(branch["properties"])
+    return props
+
+
+def collect_all_required(schema: dict[str, Any]) -> set[str]:
+    """从 schema 收集所有 required 字段名（含分支内的）。"""
+    result = set(schema.get("required", []))
+    for key in ("oneOf", "anyOf"):
+        for branch in (schema.get(key) or []):
+            if isinstance(branch, dict):
+                result.update(branch.get("required", []))
+    return result
+
+
+def collect_all_upstream(schema: dict[str, Any]) -> set[str]:
+    """从 schema 收集所有 upstream 字段名（顶层 + 分支内）。"""
+    result = set(schema.get("upstream") or [])
+    for key in ("oneOf", "anyOf"):
+        for branch in (schema.get(key) or []):
+            if isinstance(branch, dict):
+                result.update(branch.get("upstream") or [])
+    return result

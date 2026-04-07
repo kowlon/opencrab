@@ -687,19 +687,17 @@ def _persist_user_message(session, message: str, session_manager=None) -> None:
 
 def _build_combined_user_schema(bp_config) -> dict | None:
     """Build a flat schema merging all subtasks' non-upstream properties."""
+    from seeagent.bestpractice.models import collect_all_properties, collect_all_upstream
+
     combined_props: dict = {}
     for subtask in bp_config.subtasks:
         schema = subtask.input_schema
         if not schema:
             continue
-        upstream = set(schema.get("upstream", []))
-        for name, info in schema.get("properties", {}).items():
+        upstream = collect_all_upstream(schema)
+        for name, info in collect_all_properties(schema).items():
             if name not in upstream:
                 combined_props.setdefault(name, info)
-        for branch in (schema.get("oneOf") or schema.get("anyOf") or []):
-            for name, info in branch.get("properties", {}).items():
-                if name not in upstream:
-                    combined_props.setdefault(name, info)
     return {"type": "object", "properties": combined_props} if combined_props else None
 
 

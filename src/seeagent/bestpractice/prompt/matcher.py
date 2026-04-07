@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from ..models import TriggerType
+from ..models import TriggerType, collect_all_properties, collect_all_required
 
 if TYPE_CHECKING:
     from ..config import BPConfigLoader
@@ -87,8 +87,8 @@ class BPMatcher:
             first_schema = config.subtasks[0].input_schema if config.subtasks else {}
             params_desc = ""
             if first_schema:
-                props = first_schema.get("properties", {})
-                required = set(first_schema.get("required", []))
+                props = collect_all_properties(first_schema)
+                required = collect_all_required(first_schema)
                 param_lines = []
                 for pname, pinfo in props.items():
                     req_mark = "必填" if pname in required else "选填"

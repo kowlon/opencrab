@@ -13,6 +13,7 @@ from ..models import (
     SubtaskConfig,
     TriggerConfig,
     TriggerType,
+    collect_all_properties,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,23 +120,41 @@ def validate_bp_config(config: BestPracticeConfig) -> list[str]:
         if t.type == TriggerType.CRON and not t.cron:
             errors.append("CRON trigger requires cron expression")
 
-    # upstream 合法性校验
+    # upstream 合法性校验（顶层 + 分支内）
     for i, s in enumerate(config.subtasks):
         schema = s.input_schema
         if not schema:
             continue
-        upstream = schema.get("upstream")
-        if not upstream:
-            continue
         if i == 0:
-            # 首个 subtask 的 upstream 直接忽略（无上游输出源）
             continue
-        props = set(schema.get("properties", {}).keys())
-        for field in upstream:
-            if field not in props:
-                errors.append(
-                    f"subtask '{s.id}' upstream field '{field}' "
-                    f"not found in input_schema.properties"
-                )
+
+        # 顶层 upstream 校验
+        top_upstream = schema.get("upstream")
+        if top_upstream:
+            props = set(collect_all_properties(schema).keys())
+            for field in top_upstream:
+                if field not in props:
+                    errors.append(
+                        f"subtask '{s.id}' upstream field '{field}' "
+                        f"not found in input_schema.properties"
+                    )
+
+        # 分支内 upstream 校验（只检查本分支的 properties，不取并集——
+        # 分支的 upstream 字段必须在自己的 properties 中定义）
+        for branch_key in ("oneOf", "anyOf"):
+            for branch in (schema.get(branch_key) or []):
+                if not isinstance(branch, dict):
+                    continue
+                branch_upstream = branch.get("upstream")
+                if not branch_upstream:
+                    continue
+                branch_props = set(branch.get("properties", {}).keys())
+                for field in branch_upstream:
+                    if field not in branch_props:
+                        title = branch.get("title", "unnamed")
+                        errors.append(
+                            f"subtask '{s.id}' branch '{title}' upstream "
+                            f"field '{field}' not found in branch properties"
+                        )
 
     return errors

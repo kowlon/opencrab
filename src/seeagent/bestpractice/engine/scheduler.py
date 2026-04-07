@@ -8,7 +8,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from ..models import SubtaskStatus
+from ..models import SubtaskStatus, collect_all_properties, collect_all_upstream
 
 if TYPE_CHECKING:
     from ..models import BestPracticeConfig, BPInstanceSnapshot, SubtaskConfig
@@ -82,25 +82,17 @@ class TaskScheduler(ABC):
         if not schema:
             return None
 
-        upstream = schema.get("upstream")
+        # 顶层 upstream 优先（向后兼容），否则从分支收集并集
+        upstream = schema.get("upstream") or collect_all_upstream(schema)
         if not upstream:
-            # 未配置 upstream 或 upstream=[] → 上游不需要给下游输出
             return None
 
-        all_props = schema.get("properties", {}).copy()
-        
-        # 兼容多分支 (oneOf/anyOf) 的预填充：从所有分支中收集可能的 properties
-        for branch_key in ("oneOf", "anyOf"):
-            branches = schema.get(branch_key) or []
-            for branch in branches:
-                if isinstance(branch, dict) and "properties" in branch:
-                    all_props.update(branch["properties"])
-
-        filtered_props = {k: v for k, v in all_props.items() if k in upstream}
+        all_props = collect_all_properties(schema)
+        filtered = {k: v for k, v in all_props.items() if k in upstream}
         return {
             "type": "object",
-            "properties": filtered_props,
-            "required": list(upstream),
+            "properties": filtered,
+            "required": sorted(upstream),
         }
 
     def _find_subtask(self, subtask_id: str) -> SubtaskConfig | None:

@@ -275,3 +275,98 @@ class TestDeriveOutputSchemaWithUpstream:
         snap = _make_snapshot(subtask_ids=("s1", "s2", "s3"))
         sched = LinearScheduler(cfg, snap)
         assert sched.derive_output_schema("s1") is None
+
+
+def _make_config_with_branch_upstream():
+    """Build a config where s2 has oneOf branches with different upstream."""
+    s1 = SubtaskConfig(
+        id="s1", name="数据获取", agent_profile="default",
+        input_schema={
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+    )
+    s2 = SubtaskConfig(
+        id="s2", name="分析", agent_profile="default",
+        input_schema={
+            "type": "object",
+            "oneOf": [
+                {
+                    "title": "按相机分析",
+                    "properties": {
+                        "camera_ids": {"type": "array"},
+                        "feature_text": {"type": "string"},
+                    },
+                    "required": ["camera_ids", "feature_text"],
+                    "upstream": ["camera_ids"],
+                },
+                {
+                    "title": "按区域分析",
+                    "properties": {
+                        "area_code": {"type": "string"},
+                        "feature_text": {"type": "string"},
+                    },
+                    "required": ["area_code", "feature_text"],
+                    "upstream": ["area_code"],
+                },
+            ],
+        },
+    )
+    s3 = SubtaskConfig(
+        id="s3", name="可视化", agent_profile="default",
+        input_schema={
+            "type": "object",
+            "properties": {"result": {"type": "object"}},
+            "required": ["result"],
+            "upstream": ["result"],
+        },
+    )
+    return BestPracticeConfig(
+        id="test_branch_upstream", name="Test Branch Upstream",
+        subtasks=[s1, s2, s3],
+    )
+
+
+class TestDeriveOutputSchemaWithBranchUpstream:
+    def test_branch_upstream_union(self):
+        """分支内 upstream 取并集。"""
+        cfg = _make_config_with_branch_upstream()
+        snap = _make_snapshot(subtask_ids=("s1", "s2", "s3"))
+        sched = LinearScheduler(cfg, snap)
+        schema = sched.derive_output_schema("s1")
+        assert schema is not None
+        assert set(schema["properties"].keys()) == {"camera_ids", "area_code"}
+        assert set(schema["required"]) == {"camera_ids", "area_code"}
+
+    def test_top_level_upstream_takes_priority(self):
+        """顶层 upstream 优先于分支内 upstream。"""
+        cfg = _make_config_with_branch_upstream()
+        # 给 s2 加顶层 upstream，应该优先使用
+        cfg.subtasks[1].input_schema["upstream"] = ["camera_ids"]
+        snap = _make_snapshot(subtask_ids=("s1", "s2", "s3"))
+        sched = LinearScheduler(cfg, snap)
+        schema = sched.derive_output_schema("s1")
+        assert schema is not None
+        assert set(schema["properties"].keys()) == {"camera_ids"}
+        assert schema["required"] == ["camera_ids"]
+
+    def test_no_branch_upstream_returns_none(self):
+        """分支内无 upstream 时返回 None。"""
+        cfg = _make_config_with_branch_upstream()
+        # 去掉所有分支的 upstream
+        for branch in cfg.subtasks[1].input_schema["oneOf"]:
+            del branch["upstream"]
+        snap = _make_snapshot(subtask_ids=("s1", "s2", "s3"))
+        sched = LinearScheduler(cfg, snap)
+        assert sched.derive_output_schema("s1") is None
+
+    def test_flat_upstream_still_works(self):
+        """s3 有顶层 upstream，回归验证不受影响。"""
+        cfg = _make_config_with_branch_upstream()
+        snap = _make_snapshot(subtask_ids=("s1", "s2", "s3"))
+        sched = LinearScheduler(cfg, snap)
+        schema = sched.derive_output_schema("s2")
+        assert schema is not None
+        assert set(schema["properties"].keys()) == {"result"}
+        assert schema["required"] == ["result"]

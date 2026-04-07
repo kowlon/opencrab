@@ -229,7 +229,9 @@ async def _llm_extract_answer_fields(
     if not brain or not missing_fields:
         return {}
 
-    props = input_schema.get("properties", {})
+    from seeagent.bestpractice.models import collect_all_properties
+
+    props = collect_all_properties(input_schema)
     fields_desc = "\n".join(
         f"- {name}: {props.get(name, {}).get('description', '无描述')} "
         f"(type: {props.get(name, {}).get('type', 'string')})"

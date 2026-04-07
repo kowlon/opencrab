@@ -6,7 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
-from ..models import ArtifactKind, ContextEnvelope, TriggerType
+from ..models import ArtifactKind, ContextEnvelope, TriggerType, collect_all_upstream
 
 _DYNAMIC_OUTPUTS_BUDGET = 1000  # max chars for outputs_preview (~250-300 tokens)
 
@@ -56,7 +56,7 @@ class BPPromptBuilder:
                 schema = subtask.input_schema
                 if not schema:
                     continue
-                upstream = set(schema.get("upstream", []))
+                upstream = collect_all_upstream(schema)
                 branches = schema.get("oneOf") or schema.get("anyOf")
                 if branches:
                     seen: set[str] = set()
