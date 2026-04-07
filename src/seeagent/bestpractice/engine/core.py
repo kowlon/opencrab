@@ -351,14 +351,23 @@ class BPEngine:
                     self.state_manager.update_subtask_status(
                         instance_id, subtask.id, SubtaskStatus.WAITING_INPUT,
                     )
-                    yield {
+                    from seeagent.config import settings
+                    mode = getattr(settings, "bp_ask_user_mode", "card")
+
+                    event: dict[str, Any] = {
                         "type": "bp_ask_user",
+                        "mode": mode,
                         "instance_id": instance_id,
                         "subtask_id": subtask.id,
                         "subtask_name": subtask.name,
                         "missing_fields": missing,
                         "input_schema": matched_schema or subtask.input_schema,
                     }
+                    if mode == "message":
+                        event["message"] = self._build_ask_user_nl_message(
+                            subtask, missing, matched_schema or subtask.input_schema
+                        )
+                    yield event
                     return
 
                 # Mark CURRENT and yield subtask_start
@@ -1003,6 +1012,41 @@ class BPEngine:
                     "[BP] Pre-filled supplemented_inputs for %s: %s",
                     subtask.id, list(prefill.keys()),
                 )
+
+    # ── ask_user message generation ──────────────────────────────
+
+    def _build_ask_user_nl_message(
+        self,
+        subtask: SubtaskConfig,
+        missing_fields: list[str],
+        schema: dict[str, Any],
+    ) -> str:
+        """根据 input_schema 生成自然语言提问文本（模板拼接，不调用 LLM）。"""
+        properties = schema.get("properties", {})
+        lines = [f"要执行「{subtask.name}」子任务，还需要你提供以下信息：\n"]
+        type_labels = {
+            "string": "文本", "number": "数字", "integer": "整数",
+            "boolean": "是/否", "array": "列表", "object": "JSON 对象",
+        }
+        for field in missing_fields:
+            prop = properties.get(field, {})
+            desc = prop.get("description", field)
+            field_type = prop.get("type", "string")
+            type_hint = type_labels.get(field_type, field_type)
+            line = f"- **{desc}**（{type_hint}）"
+            # 从 description 中正则提取示例
+            # 匹配: 如'xxx' / 如：xxx / 例如xxx / 例如：xxx（避免句中孤立"如"误匹配）
+            example_match = re.search(
+                r"(?:例如[：:]?|如[：:]|如(?=['\"\u2018\u201c]))\s*['\"\u2018\u201c]?([^'\"\u2019\u201d，。）)\n]+)",
+                desc,
+            )
+            if example_match:
+                line += f"，例如：{example_match.group(1).strip()}"
+            elif prop.get("default") is not None:
+                line += f"，默认值：{prop['default']}"
+            lines.append(line)
+        lines.append("\n请直接回复以上所需信息。")
+        return "\n".join(lines)
 
     # ── Input completeness ─────────────────────────────────────
 

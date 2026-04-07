@@ -196,12 +196,20 @@ export const useChatStore = defineStore('chat', () => {
 
       case 'bp_ask_user': {
         const e = event as any
+        const mode = e.mode ?? 'card'
+
+        // message 模式：将 message 内容追加到 summaryText，由 SummaryOutput 渲染
+        if (mode === 'message' && e.message) {
+          reply.summaryText += (reply.summaryText ? '\n\n' : '') + e.message
+        }
+
         reply.bpAskUser = {
           instanceId: e.instance_id,
           subtaskId: e.subtask_id,
           subtaskName: e.subtask_name,
           missingFields: e.missing_fields,
           inputSchema: e.input_schema,
+          mode,
         }
         break
       }
@@ -352,7 +360,9 @@ export const useChatStore = defineStore('chat', () => {
           thinkingDone: true,
           planChecklist: rs?.plan_checklist ?? null,
           stepCards: (rs?.step_cards ?? []).map(_mapStepCard),
-          summaryText: m.content,
+          summaryText: (rs?.bp_ask_user?.mode === 'message' && rs?.bp_ask_user?.message)
+            ? (m.content ? m.content + '\n\n' + rs.bp_ask_user.message : rs.bp_ask_user.message)
+            : m.content,
           agentSummaries: rs?.agent_summaries ?? {},
           agentThinking: _mapAgentThinking(rs?.agent_thinking),
           timer: {
@@ -386,6 +396,7 @@ export const useChatStore = defineStore('chat', () => {
             subtaskName: rs.bp_ask_user.subtask_name,
             missingFields: rs.bp_ask_user.missing_fields ?? [],
             inputSchema: rs.bp_ask_user.input_schema,
+            mode: rs.bp_ask_user.mode ?? 'card',
           } : null,
           bpOffer: null,
           isDone: true,

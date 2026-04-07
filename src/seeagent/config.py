@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Literal
 
 os.environ.setdefault("SEEAGENT", "1")
 
@@ -62,6 +63,12 @@ class Settings(BaseSettings):
     force_tool_call_max_retries: int = Field(
         default=1,
         description="当模型未调用工具时，最多追问要求调用工具的次数（0=禁用）",
+    )
+
+    # === BP ask_user 交互模式 ===
+    bp_ask_user_mode: Literal["card", "message"] = Field(
+        default="card",
+        description="bp_ask_user 交互模式: card=表单卡片, message=自然语言消息",
     )
 
     # === 工具并行执行 ===

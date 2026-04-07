@@ -53,6 +53,7 @@ export interface ReplyState {
     subtaskName: string
     missingFields: string[]
     inputSchema?: Record<string, unknown>
+    mode?: 'card' | 'message'
   } | null
   bpOffer: BPOfferInfo | null
   errorMessage?: string
@@ -182,11 +183,13 @@ export interface BPInstanceCreatedEvent {
 
 export interface BPAskUserEvent {
   type: 'bp_ask_user'
+  mode?: 'card' | 'message'
   instance_id: string
   subtask_id: string
   subtask_name: string
   missing_fields: string[]
   input_schema?: Record<string, unknown>
+  message?: string
 }
 
 export interface BPOfferInfo {

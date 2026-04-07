@@ -11,7 +11,7 @@
     <ThinkingBlock v-if="preCardThinking" :content="preCardThinking.content" :done="preCardThinking.done" />
     <PlanChecklist v-if="reply.planChecklist" :steps="reply.planChecklist" />
     <StepCardList v-if="reply.stepCards.length" :cards="reply.stepCards" :agent-summaries="reply.agentSummaries" :agent-thinking="reply.agentThinking" />
-    <SummaryOutput v-if="reply.summaryText && !reply.bpSubtaskOutput" :content="reply.summaryText" />
+    <SummaryOutput v-if="reply.summaryText && (!reply.bpSubtaskOutput || reply.bpAskUser?.mode === 'message')" :content="reply.summaryText" />
     <SubtaskCompleteBlock
       v-if="reply.bpSubtaskOutput && (reply.bpProgress?.runMode === 'manual' || isLastSubtask)"
       :subtask-name="reply.bpProgress?.subtasks.find(s => s.id === reply.bpSubtaskOutput?.subtaskId)?.name ?? ''"
@@ -26,7 +26,7 @@
       @edit="handleEdit"
     />
     <BPAskUserBlock
-      v-if="reply.bpAskUser"
+      v-if="reply.bpAskUser && reply.bpAskUser.mode !== 'message'"
       :ask-user="reply.bpAskUser"
       @submit="handleBpAnswer"
     />
