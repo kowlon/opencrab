@@ -1527,7 +1527,9 @@ class ReasoningEngine:
                 if state.cancelled:
                     logger.info(f"[ReAct-Stream] Task cancelled at iteration start: {state.cancel_reason}")
                     self._save_react_trace(react_trace, conversation_id, session_type, "cancelled", _trace_started_at)
-                    yield {"type": "text_delta", "content": "✅ 任务已停止。"}
+                    # BP confirmation gate 取消时静默退出，不显示 "任务已停止"
+                    if "BP confirmation gate" not in (state.cancel_reason or ""):
+                        yield {"type": "text_delta", "content": "✅ 任务已停止。"}
                     yield {"type": "done"}
                     return
 
@@ -2670,6 +2672,11 @@ class ReasoningEngine:
         if user_text:
             logger.info(f"[ReAct-Stream][CancelFarewell] 回传用户指令文本: {user_text!r}")
             yield {"type": "user_insert", "content": user_text}
+
+        # BP confirmation gate 取消时静默退出，不显示 farewell 文本，
+        # 也不发起后台 LLM 收尾（前端已有 bp_offer 卡片引导用户操作）。
+        if "BP confirmation gate" in cancel_reason:
+            return
 
         default_farewell = "✅ 好的，已停止当前任务。"
         yield {"type": "text_delta", "content": default_farewell}

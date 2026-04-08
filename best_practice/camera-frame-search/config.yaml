@@ -52,7 +52,7 @@ subtasks:
               default: 20
           required: [query]
         - title: "POI 范围检索"
-          description: "基于具体的地点关键词及半径进行空间检索"
+          description: "基于具体的地点附近、周边等关键词及半径进行空间检索"
           properties:
             keyword:
               type: string

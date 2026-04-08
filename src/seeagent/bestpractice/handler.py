@@ -77,6 +77,69 @@ class BPToolHandler:
             available = ", ".join(self.config_registry.keys())
             return f"❌ Best Practice '{bp_id}' 不存在。可用: {available}"
 
+        # ── Confirmation gate ──────────────────────────────────
+        # Agent 直接调 bp_start 时，若该 BP 尚未经过 bp_offer 确认，
+        # 则向前端发送 bp_offer 事件，等待用户选择后再启动。
+        # 这保证与 "关键词/LLM 匹配 → bp_offer → 用户确认 → bp_start" 行为一致。
+        if not self.state_manager.is_bp_offered(session.id, bp_id):
+            bus = (
+                getattr(session.context, "_sse_event_bus", None)
+                if hasattr(session, "context") else None
+            )
+            if bus:
+                subtasks = [{"id": s.id, "name": s.name} for s in bp_config.subtasks]
+                await bus.put({
+                    "type": "bp_offer",
+                    "bp_id": bp_id,
+                    "bp_name": bp_config.name,
+                    "subtasks": subtasks,
+                    "default_run_mode": bp_config.default_run_mode.value,
+                })
+                self.state_manager.mark_bp_offered(session.id, bp_id)
+
+                # pending_offer 供前端确认后 /api/bp/start 提取 input
+                ext_sid = getattr(agent, "_current_session_id", None) or session.id
+                user_query = ""
+                if hasattr(session, "context") and hasattr(session.context, "messages"):
+                    for msg in reversed(session.context.messages):
+                        if msg.get("role") == "user":
+                            user_query = msg.get("content", "")
+                            break
+                self.state_manager.set_pending_offer(ext_sid, {
+                    "bp_id": bp_id,
+                    "bp_name": bp_config.name,
+                    "subtasks": subtasks,
+                    "default_run_mode": bp_config.default_run_mode.value,
+                    "user_query": user_query,
+                    "first_input_schema": (
+                        bp_config.subtasks[0].input_schema
+                        if bp_config.subtasks else None
+                    ),
+                    "extracted_input": params.get("input_data", {}),
+                })
+
+                logger.info(
+                    f"[BP] Confirmation gate: emitted bp_offer for "
+                    f"'{bp_config.name}' (bp_id={bp_id}), waiting for user choice"
+                )
+
+                # 取消当前 agent task，使 ReAct 循环在下一轮迭代退出。
+                # 这样前端会收到 bp_offer + done，不会出现 thinking 不停或 agent 继续调用 bp 工具。
+                # 必须用 cancel_current_task 而非 agent_state.cancel_task，
+                # 因为前者会用多个 key fallback 查找 task。
+                if hasattr(agent, "cancel_current_task"):
+                    agent.cancel_current_task(
+                        "BP confirmation gate — 等待用户确认后由前端启动",
+                    )
+
+                return (
+                    f"⏳ 已向用户发送「{bp_config.name}」最佳实践的确认请求。"
+                    "请等待用户选择「最佳实践模式」或「自由模式」。"
+                    "在用户确认之前，不要再次调用 bp_start 或其他 BP 工具。"
+                )
+            # No event bus (IM 通道等)：标记为已 offer 后直接启动
+            self.state_manager.mark_bp_offered(session.id, bp_id)
+
         # Prevent duplicate: same BP already active
         existing = self.state_manager.get_active(session.id)
         if existing and existing.bp_id == bp_id:
