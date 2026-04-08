@@ -5,10 +5,13 @@ DAGScheduler 预留接口，后续扩展。
 """
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 from ..models import SubtaskStatus, collect_all_properties, collect_all_upstream
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..models import BestPracticeConfig, BPInstanceSnapshot, SubtaskConfig
@@ -39,24 +42,41 @@ class TaskScheduler(ABC):
         """
         subtask = self._find_subtask(subtask_id)
         if not subtask:
+            logger.warning(f"[BP] resolve_input: subtask not found subtask_id={subtask_id}")
             return {}
 
         if subtask.input_mapping:
             base: dict[str, Any] = {}
             for field, upstream_id in subtask.input_mapping.items():
                 base[field] = self._snap.subtask_outputs.get(upstream_id, {})
+            logger.debug(
+                f"[BP] resolve_input: subtask={subtask_id} source=input_mapping "
+                f"keys={list(subtask.input_mapping.keys())}"
+            )
         else:
             idx = self._get_subtask_index(subtask_id)
             if idx == 0:
                 base = dict(self._snap.initial_input)
+                logger.debug(
+                    f"[BP] resolve_input: subtask={subtask_id} "
+                    f"source=initial_input keys={list(base.keys())}"
+                )
             else:
                 prev_id = self._config.subtasks[idx - 1].id
                 base = dict(self._snap.subtask_outputs.get(prev_id, {}))
+                logger.debug(
+                    f"[BP] resolve_input: subtask={subtask_id} "
+                    f"source=prev_output prev={prev_id} keys={list(base.keys())}"
+                )
 
         # 统一合并 supplemented_inputs
         supplement = self._snap.supplemented_inputs.get(subtask_id, {})
         if supplement:
             base.update(supplement)
+            logger.debug(
+                f"[BP] resolve_input: subtask={subtask_id} "
+                f"supplemented keys={list(supplement.keys())}"
+            )
 
         return base
 

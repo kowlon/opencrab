@@ -94,8 +94,13 @@ class LLMCompression(CompressionStrategy):
             max_chars=budget,
         )
 
+        logger.debug(
+            f"[BP] LLMCompression: bp_name={bp_name} "
+            f"step={current_index}/{total} budget={budget}"
+        )
         resp = await self._brain.think_lightweight(prompt, max_tokens=512)
         text = resp.content if hasattr(resp, "content") else str(resp)
+        logger.debug(f"[BP] LLMCompression: result_len={len(text.strip()[:budget])}")
         return text.strip()[:budget]
 
 
@@ -121,6 +126,10 @@ class MechanicalCompression(CompressionStrategy):
                 continue
             parts.append(f"[{role}] {text[:300]}")
         result = "\n".join(parts[-10:])
+        logger.debug(
+            f"[BP] MechanicalCompression: input_msgs={len(messages or [])} "
+            f"parts={len(parts)} result_len={len(result[:budget])}"
+        )
         return result[:budget]
 
 
@@ -143,6 +152,10 @@ class TruncationCompression(CompressionStrategy):
             chunk = f"[{a.key}] {a.content[:remaining]}"
             parts.append(chunk)
             total += len(chunk)
+        logger.debug(
+            f"[BP] TruncationCompression: artifacts={len(artifacts)} "
+            f"total_chars={total} budget={budget}"
+        )
         return "\n".join(parts)[:budget]
 
 

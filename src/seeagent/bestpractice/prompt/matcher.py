@@ -37,16 +37,28 @@ class BPMatcher:
         Respects cooldown and skips if an active BP instance already exists.
         """
         if self._state_manager.get_cooldown(session_id) > 0:
+            logger.debug(f"[BP] match_keyword: skipped, cooldown active session={session_id}")
             return None
         if self._state_manager.get_active(session_id):
+            logger.debug(
+                f"[BP] match_keyword: skipped, active instance exists session={session_id}"
+            )
             return None
 
         for bp_id, config in self._config_loader.configs.items():
             if self._state_manager.is_bp_offered(session_id, bp_id):
+                logger.debug(
+                    f"[BP] match_keyword: skipped bp_id={bp_id}, "
+                    f"already offered session={session_id}"
+                )
                 continue
             for trigger in config.triggers:
                 if trigger.type == TriggerType.CONTEXT:
                     if any(kw in user_message for kw in trigger.conditions):
+                        logger.info(
+                            f"[BP] match_keyword: matched bp_id={bp_id} "
+                            f"session={session_id}"
+                        )
                         first_input_schema = (
                             config.subtasks[0].input_schema if config.subtasks else None
                         )
@@ -62,6 +74,10 @@ class BPMatcher:
                             "user_query": user_message,
                             "first_input_schema": first_input_schema,
                         }
+        logger.debug(
+            f"[BP] match_keyword: no match session={session_id} "
+            f"candidates={len(self._config_loader.configs)}"
+        )
         return None
 
     # ── LLM fallback matching ─────────────────────────────────
@@ -108,6 +124,10 @@ class BPMatcher:
         if not bp_list_lines:
             return None
 
+        logger.debug(
+            f"[BP] match_llm: attempting session={session_id} "
+            f"candidates={len(bp_list_lines)}"
+        )
         bp_list = "\n".join(bp_list_lines)
 
         try:
@@ -123,6 +143,10 @@ class BPMatcher:
                 return None
 
             if not parsed.get("matched") or parsed.get("confidence", 0) < 0.7:
+                logger.debug(
+                    f"[BP] match_llm: rejected, confidence={parsed.get('confidence')} "
+                    f"session={session_id}"
+                )
                 return None
 
             bp_id = parsed.get("bp_id", "")
@@ -133,6 +157,10 @@ class BPMatcher:
             if self._state_manager.is_bp_offered(session_id, bp_id):
                 return None
 
+            logger.info(
+                f"[BP] match_llm: matched bp_id={bp_id} "
+                f"confidence={parsed.get('confidence')} session={session_id}"
+            )
             first_input_schema = config.subtasks[0].input_schema if config.subtasks else None
             return {
                 "bp_id": bp_id,

@@ -68,6 +68,7 @@ class BPToolHandler:
 
     async def _handle_start(self, params: dict, agent: Any, session: Any) -> str:
         bp_id = (params.get("bp_id") or "").strip()
+        logger.info(f"[BP] handle_start: bp_id={bp_id} session={session.id}")
         if not bp_id:
             return "❌ bp_id is required"
 
@@ -105,6 +106,10 @@ class BPToolHandler:
                 target = max(suspended_same, key=lambda s: s.suspended_at or 0.0)
             new_input_differs = bool(input_data) and input_data != (target.initial_input or {})
             if not new_input_differs:
+                logger.info(
+                    f"[BP] handle_start: resuming suspended "
+                    f"instance={target.instance_id} bp_id={bp_id}"
+                )
                 result = await self.engine.switch(target.instance_id, session)
                 if result.get("success"):
                     await self._relay_events(
@@ -135,6 +140,10 @@ class BPToolHandler:
         changes = params.get("changes", {})
         if not changes:
             return "❌ changes is required"
+        logger.info(
+            f"[BP] handle_edit_output: instance={instance_id} "
+            f"subtask={subtask_id} change_keys={list(changes.keys())}"
+        )
 
         snap = self.state_manager.get(instance_id)
         if not snap:
@@ -153,6 +162,10 @@ class BPToolHandler:
             await self.state_manager.persist_subtask_output(instance_id, subtask_id)
             await self.state_manager.persist_subtask_progress(instance_id)
             if result.get("stale_subtasks"):
+                logger.info(
+                    f"[BP] handle_edit_output: stale_subtasks="
+                    f"{result['stale_subtasks']} instance={instance_id}"
+                )
                 await self.engine._emit_stale(
                     instance_id,
                     result["stale_subtasks"],
@@ -217,8 +230,13 @@ class BPToolHandler:
         snap = self.state_manager.get(instance_id)
         if not snap:
             return "❌ BP 实例不存在"
+        logger.info(f"[BP] handle_next: instance={instance_id} session={session.id}")
         resume = await self.engine.resume_if_needed(instance_id, session)
         if not resume.get("success"):
+            logger.warning(
+                f"[BP] handle_next: resume failed instance={instance_id} "
+                f"code={resume.get('code')}"
+            )
             if resume.get("code") == "conflict":
                 active_id = resume.get("active_instance_id")
                 return (
@@ -238,8 +256,16 @@ class BPToolHandler:
         data = params.get("data", {})
         if not instance_id or not subtask_id or not data:
             return "❌ 需要 subtask_id 和 data 参数"
+        logger.info(
+            f"[BP] handle_answer: instance={instance_id} "
+            f"subtask={subtask_id} data_keys={list(data.keys())}"
+        )
         resume = await self.engine.resume_if_needed(instance_id, session)
         if not resume.get("success"):
+            logger.warning(
+                f"[BP] handle_answer: resume failed instance={instance_id} "
+                f"code={resume.get('code')}"
+            )
             if resume.get("code") == "conflict":
                 active_id = resume.get("active_instance_id")
                 return (
@@ -263,6 +289,10 @@ class BPToolHandler:
         if not snap:
             return "❌ BP 实例不存在"
         bp_name = snap.bp_config.name if snap.bp_config else snap.bp_id
+        logger.info(
+            f"[BP] handle_cancel: instance={instance_id} "
+            f"bp_name={bp_name} session={session.id}"
+        )
         await self._relay_events(self.engine.cancel(instance_id, session), session)
         return f"✅ 已取消最佳实践任务「{bp_name}」(id={instance_id})"
 

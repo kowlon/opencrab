@@ -184,12 +184,17 @@ class BPEngine:
         """Resume a suspended instance when safe, or report the conflict."""
         snap = self.state_manager.get(instance_id)
         if not snap:
+            logger.warning(f"[BP] resume_if_needed: instance not found id={instance_id}")
             return {"success": False, "error": "Instance not found", "code": "not_found"}
 
         ctx = getattr(session, "context", None) if session else None
         current_active = self.state_manager.get_active(snap.session_id)
         if snap.status == BPStatus.SUSPENDED:
             if current_active and current_active.instance_id != instance_id:
+                logger.info(
+                    f"[BP] resume_if_needed: conflict instance={instance_id} "
+                    f"active={current_active.instance_id}"
+                )
                 return {
                     "success": False,
                     "error": "Another BP instance is already active",
@@ -201,9 +206,17 @@ class BPEngine:
             if ctx is not None and getattr(ctx, "_bp_cancelled_instance", None) == instance_id:
                 ctx._bp_cancelled_instance = None
             self.state_manager.persist_to_session(instance_id, session)
+            logger.info(
+                f"[BP] resume_if_needed: resumed instance={instance_id} "
+                f"bp_id={snap.bp_id}"
+            )
             return {"success": True, "resumed": True}
 
         if current_active and current_active.instance_id != instance_id:
+            logger.info(
+                f"[BP] resume_if_needed: conflict instance={instance_id} "
+                f"active={current_active.instance_id}"
+            )
             return {
                 "success": False,
                 "error": "Another BP instance is already active",
@@ -213,6 +226,7 @@ class BPEngine:
 
         if ctx is not None and getattr(ctx, "_bp_cancelled_instance", None) == instance_id:
             ctx._bp_cancelled_instance = None
+        logger.debug(f"[BP] resume_if_needed: already active instance={instance_id}")
         return {"success": True, "resumed": False}
 
     async def switch(self, target_id: str, session: Any) -> dict[str, Any]:
@@ -336,6 +350,10 @@ class BPEngine:
             if not ready:
                 # No tasks ready — might already be done
                 if scheduler.is_done():
+                    logger.info(
+                        f"[BP] advance: completed instance={instance_id} "
+                        f"bp_id={bp_config.id}"
+                    )
                     self.state_manager.complete(instance_id)
                     await self.state_manager.persist_status_change(instance_id)
                     await self._persist_state(instance_id, session)
@@ -348,6 +366,10 @@ class BPEngine:
                 output_schema = scheduler.derive_output_schema(subtask.id)
                 missing, matched_schema = self._check_input_completeness(subtask, input_data)
                 if missing:
+                    logger.info(
+                        f"[BP] advance: waiting_input instance={instance_id} "
+                        f"subtask={subtask.id} missing={missing}"
+                    )
                     self.state_manager.update_subtask_status(
                         instance_id, subtask.id, SubtaskStatus.WAITING_INPUT,
                     )
