@@ -31,7 +31,6 @@ class MemoryType(Enum):
     CONTEXT = "context"  # 保留向后兼容, 新系统中转为情节记忆
     RULE = "rule"
     ERROR = "error"
-    PERSONA_TRAIT = "persona_trait"
     EXPERIENCE = "experience"  # 任务经验教训（可复用的流程/方法/踩坑总结）
 
 

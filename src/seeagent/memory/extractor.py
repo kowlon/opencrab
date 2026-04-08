@@ -987,7 +987,6 @@ duration 参考:
                 "ERROR": MemoryType.ERROR,
                 "RULE": MemoryType.RULE,
                 "CONTEXT": MemoryType.CONTEXT,
-                "PERSONA_TRAIT": MemoryType.PERSONA_TRAIT,
             }
 
             for item in data:

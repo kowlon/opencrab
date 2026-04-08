@@ -11,7 +11,7 @@ PROFILE_TOOLS = [
     {
         "name": "update_user_profile",
         "category": "Profile",
-        "description": "Update structured user profile fields (name, work_field, os, ide, timezone, etc.) when user shares personal info. When you need to: (1) Save user preferences to a structured field, (2) Remember user's work domain, (3) Provide personalized service. NOTE: For persona/communication-style preferences (sticker_preference, emoji_usage, humor, formality, etc.), use update_persona_trait instead. For free-form observations, lessons, or patterns that don't map to a profile field, use add_memory instead.",
+        "description": "Update structured user profile fields (name, work_field, os, ide, timezone, etc.) when user shares personal info. When you need to: (1) Save user preferences to a structured field, (2) Remember user's work domain, (3) Provide personalized service. For free-form observations, lessons, or patterns that don't map to a profile field, use add_memory instead.",
         "detail": """更新用户档案信息。
 
 **适用场景**：
@@ -37,7 +37,7 @@ PROFILE_TOOLS = [
 - emoji_preference: 表情偏好
 - care_topics: 关心话题
 
-**注意**：表情包偏好(sticker_preference)、表情使用(emoji_usage)、幽默感(humor)、正式程度(formality)等沟通风格相关偏好属于人格系统，应使用 `update_persona_trait` 工具更新，而非此工具。""",
+""",
         "input_schema": {
             "type": "object",
             "properties": {

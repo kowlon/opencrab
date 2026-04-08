@@ -34,7 +34,6 @@ class PromptAssembler:
         memory_manager: Any,
         profile_manager: Any,
         brain: Any,
-        persona_manager: Any = None,
     ) -> None:
         self._tool_catalog = tool_catalog
         self._skill_catalog = skill_catalog
@@ -42,7 +41,6 @@ class PromptAssembler:
         self._memory_manager = memory_manager
         self._profile_manager = profile_manager
         self._brain = brain
-        self._persona_manager = persona_manager
 
         self._mcp_catalog_text: str = ""
 
@@ -169,7 +167,6 @@ class PromptAssembler:
             task_description=task_description,
             include_tools_guide=True,
             session_type=session_type,
-            persona_manager=self._persona_manager,
             bp_session_id=bp_session_id,
         )
 
@@ -194,7 +191,6 @@ class PromptAssembler:
             task_description=task_description,
             include_tools_guide=True,
             session_type=session_type,
-            persona_manager=self._persona_manager,
         )
 
     def _generate_tools_text(self, tools: list[dict]) -> str:

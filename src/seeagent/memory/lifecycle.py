@@ -6,7 +6,6 @@
 - O(n log n) 聚类去重 (替代 O(n²))
 - 衰减计算与归档
 - 刷新 MEMORY.md / USER.md
-- 晋升 PERSONA_TRAIT
 """
 
 from __future__ import annotations
@@ -191,7 +190,6 @@ class LifecycleManager:
             "SKILL": MemoryType.SKILL,
             "ERROR": MemoryType.ERROR,
             "RULE": MemoryType.RULE,
-            "PERSONA_TRAIT": MemoryType.PERSONA_TRAIT,
         }
         mem_type = type_map.get(item.get("type", "FACT"), MemoryType.FACT)
         importance = item.get("importance", 0.5)

@@ -6,9 +6,7 @@
   "skills": [
     "seeagent/skills@chinese-writing",
     "seeagent/skills@content-research-writer",
-    "jimliu/baoyu-skills@baoyu-format-markdown",
-    "seeagent/skills@xiaohongshu-creator",
-    "seeagent/skills@wechat-article"
+    "jimliu/baoyu-skills@baoyu-format-markdown"
   ],
   "skills_mode": "inclusive",
   "custom_prompt": "",

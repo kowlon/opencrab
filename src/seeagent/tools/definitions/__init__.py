@@ -46,17 +46,13 @@ from .filesystem import FILESYSTEM_TOOLS
 from .im_channel import IM_CHANNEL_TOOLS
 from .mcp import MCP_TOOLS
 from .memory import MEMORY_TOOLS
-from .persona import PERSONA_TOOLS
 from .plan import PLAN_TOOLS
 from .profile import PROFILE_TOOLS
 from .scheduled import SCHEDULED_TOOLS
 from .skills import SKILLS_TOOLS
-from .sticker import STICKER_TOOLS
 from .system import SYSTEM_TOOLS
 from .agent import AGENT_TOOLS
-from .agent_hub import AGENT_HUB_TOOLS
 from .agent_package import AGENT_PACKAGE_TOOLS
-from .skill_store import SKILL_STORE_TOOLS
 from .web_search import WEB_SEARCH_TOOLS
 
 # 合并所有工具定义
@@ -72,12 +68,8 @@ BASE_TOOLS = (
     + MCP_TOOLS
     + PLAN_TOOLS
     + WEB_SEARCH_TOOLS
-    + PERSONA_TOOLS
-    + STICKER_TOOLS
     + CONFIG_TOOLS
     + AGENT_PACKAGE_TOOLS
-    + AGENT_HUB_TOOLS
-    + SKILL_STORE_TOOLS
 )
 
 __all__ = [
@@ -98,9 +90,7 @@ __all__ = [
     # 工具列表
     "BASE_TOOLS",
     "AGENT_TOOLS",
-    "AGENT_HUB_TOOLS",
     "AGENT_PACKAGE_TOOLS",
-    "SKILL_STORE_TOOLS",
     "BROWSER_TOOLS",
     "FILESYSTEM_TOOLS",
     "SKILLS_TOOLS",
@@ -112,7 +102,5 @@ __all__ = [
     "MCP_TOOLS",
     "PLAN_TOOLS",
     "WEB_SEARCH_TOOLS",
-    "PERSONA_TOOLS",
-    "STICKER_TOOLS",
     "CONFIG_TOOLS",
 ]

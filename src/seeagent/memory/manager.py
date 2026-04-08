@@ -441,7 +441,6 @@ class MemoryManager:
             "SKILL": MemoryType.SKILL,
             "ERROR": MemoryType.ERROR,
             "RULE": MemoryType.RULE,
-            "PERSONA_TRAIT": MemoryType.PERSONA_TRAIT,
             "EXPERIENCE": MemoryType.EXPERIENCE,
         }
         mem_type = type_map.get(item.get("type", "FACT"), MemoryType.FACT)

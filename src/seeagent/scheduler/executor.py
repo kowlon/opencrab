@@ -41,46 +41,7 @@ class TaskExecutor:
         self.agent_factory = agent_factory
         self.gateway = gateway
         self.timeout_seconds = timeout_seconds
-        # 可选：由 Agent 设置，用于活人感心跳等系统任务
-        self.persona_manager = None
         self.memory_manager = None
-        self.proactive_engine = None  # 复用 agent 上的实例，保留 _last_user_interaction 状态
-
-    def _escape_telegram_chars(self, text: str) -> str:
-        """
-        转义 Telegram MarkdownV2 全部特殊字符
-
-        官方文档规定必须转义的 18 个字符:
-        _ * [ ] ( ) ~ ` > # + - = | { } . !
-
-        策略: 全部转义，确保消息能正常发送
-        """
-        # MarkdownV2 必须转义的全部字符
-        escape_chars = [
-            "_",
-            "*",
-            "[",
-            "]",
-            "(",
-            ")",
-            "~",
-            "`",
-            ">",
-            "#",
-            "+",
-            "-",
-            "=",
-            "|",
-            "{",
-            "}",
-            ".",
-            "!",
-        ]
-
-        for char in escape_chars:
-            text = text.replace(char, "\\" + char)
-
-        return text
 
     async def execute(self, task: ScheduledTask) -> tuple[bool, str]:
         """
@@ -441,7 +402,6 @@ class TaskExecutor:
         支持的系统任务:
         - system:daily_memory - 每日记忆整理
         - system:daily_selfcheck - 每日系统自检
-        - system:proactive_heartbeat - 活人感心跳
         - system:workspace_backup - 定时工作区备份
         """
         action = task.action
@@ -453,9 +413,6 @@ class TaskExecutor:
 
             elif action == "system:daily_selfcheck":
                 return await self._system_daily_selfcheck()
-
-            elif action == "system:proactive_heartbeat":
-                return await self._system_proactive_heartbeat(task)
 
             elif action == "system:workspace_backup":
                 return await self._system_workspace_backup()
@@ -540,96 +497,6 @@ class TaskExecutor:
 
         except Exception as e:
             logger.error(f"Memory consolidation failed: {e}")
-            return False, str(e)
-
-    async def _system_proactive_heartbeat(self, task: "ScheduledTask") -> tuple[bool, str]:
-        """
-        执行活人感心跳
-
-        每 30 分钟触发一次，大多数时候只是检查然后跳过。
-        只有满足所有条件时才真正生成并发送消息。
-
-        优先复用 agent 上的 ProactiveEngine 实例（保留 _last_user_interaction 状态），
-        仅在实例不存在时 fallback 新建（此时 idle_chat 不可用）。
-        """
-        try:
-            from ..config import settings
-
-            engine = self.proactive_engine
-            if not engine:
-                # 无 engine 实例时，先检查 settings 决定是否值得新建
-                if not settings.proactive_enabled:
-                    return True, "Proactive mode disabled, skipping heartbeat"
-
-                # fallback: 新建实例（idle_chat 不可用）
-                from ..core.proactive import ProactiveConfig, ProactiveEngine
-
-                config = ProactiveConfig(
-                    enabled=settings.proactive_enabled,
-                    max_daily_messages=settings.proactive_max_daily_messages,
-                    min_interval_minutes=settings.proactive_min_interval_minutes,
-                    quiet_hours_start=settings.proactive_quiet_hours_start,
-                    quiet_hours_end=settings.proactive_quiet_hours_end,
-                    idle_threshold_hours=settings.proactive_idle_threshold_hours,
-                )
-
-                feedback_file = settings.project_root / "data" / "proactive_feedback.json"
-                engine = ProactiveEngine(
-                    config=config,
-                    feedback_file=feedback_file,
-                    persona_manager=self.persona_manager,
-                    memory_manager=self.memory_manager,
-                )
-                logger.debug("ProactiveEngine fallback: created new instance (idle_chat unavailable)")
-
-            # 执行心跳
-            result = await engine.heartbeat()
-
-            if not result:
-                return True, "Heartbeat check passed, no message needed"
-
-            # 发送消息
-            msg_content = result.get("content", "")
-            msg_type = result.get("type", "unknown")
-
-            if msg_content and self.gateway:
-                # 查找活跃的 IM 通道
-                targets = self._find_all_im_targets()
-                for channel, chat_id in targets:
-                    try:
-                        await self.gateway.send(
-                            channel=channel,
-                            chat_id=chat_id,
-                            text=msg_content,
-                        )
-
-                        # 如果需要发送表情包
-                        sticker_mood = result.get("sticker_mood")
-                        if sticker_mood and settings.sticker_enabled:
-                            try:
-                                from ..tools.sticker import StickerEngine
-
-                                sticker_engine = StickerEngine(settings.sticker_data_path)
-                                await sticker_engine.initialize()
-                                sticker = await sticker_engine.get_random_by_mood(sticker_mood)
-                                if sticker:
-                                    local_path = await sticker_engine.download_and_cache(sticker["url"])
-                                    if local_path:
-                                        adapter = self.gateway.get_adapter(channel)
-                                        if adapter:
-                                            await adapter.send_image(chat_id, str(local_path))
-                            except Exception as e:
-                                logger.debug(f"Failed to send sticker with proactive message: {e}")
-
-                        logger.info(f"Sent proactive message ({msg_type}) to {channel}/{chat_id}")
-                        return True, f"Sent {msg_type} message: {msg_content[:50]}..."
-                    except Exception as e:
-                        logger.warning(f"Failed to send proactive message to {channel}/{chat_id}: {e}")
-
-            return True, f"Generated {msg_type} message but no active IM channel"
-
-        except Exception as e:
-            logger.error(f"Proactive heartbeat failed: {e}")
             return False, str(e)
 
     async def _system_daily_selfcheck(self) -> tuple[bool, str]:

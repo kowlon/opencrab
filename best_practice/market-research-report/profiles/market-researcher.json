@@ -5,8 +5,7 @@
   "type": "custom",
   "skills": [
     "seeagent/skills@content-research-writer",
-    "seeagent/skills@summarizer",
-    "seeagent/skills@apify-scraper"
+    "seeagent/skills@summarizer"
   ],
   "skills_mode": "inclusive",
   "custom_prompt": "",

@@ -72,15 +72,12 @@ Use `get_tool_info(tool_name)` to see full parameters before calling.
         "Memory",
         "Web Search",
         "Browser",
-        "Desktop",
         "Scheduled",
         "IM Channel",
         "Profile",
         "System",
         "MCP",
         "Plan",
-        "Persona",
-        "Sticker",
         "Config",
         "Best Practice",
     ]
@@ -88,7 +85,6 @@ Use `get_tool_info(tool_name)` to see full parameters before calling.
     # 分类显示名映射（内部名 -> 系统提示中的显示名）
     # 未在此映射中的分类直接使用内部名
     CATEGORY_DISPLAY_NAMES = {
-        "Desktop": "Desktop (Windows)",
         "Skills": "Skills Management",
         "Scheduled": "Scheduled Tasks",
         "Profile": "User Profile",

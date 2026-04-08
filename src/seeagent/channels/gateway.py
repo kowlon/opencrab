@@ -1799,12 +1799,12 @@ class MessageGateway:
         根据 gateway session_key 找到 AgentState._tasks 中匹配的 task session_id。
 
         session_key 格式:
-          三段式: "telegram:1241684312:tg_1241684312"  (channel:chat_id:user_id)
-          四段式: "telegram:1241684312:tg_1241684312:thread_abc"  (channel:chat_id:user_id:thread_id)
+          三段式: "feishu:chat_id:user_id"  (channel:chat_id:user_id)
+          四段式: "feishu:chat_id:user_id:thread_abc"  (channel:chat_id:user_id:thread_id)
 
         task key 可能是两种格式（取决于 _resolve_conversation_id 的返回）:
-          a) session.id 格式: "telegram_1241684312_20260219031213_xxx"（下划线分隔）
-          b) gateway session_key 格式: "telegram:1241684312:tg_1241684312[:thread_id]"（冒号分隔）
+          a) session.id 格式: "feishu_chat_id_20260219031213_xxx"（下划线分隔）
+          b) gateway session_key 格式: "feishu:chat_id:user_id[:thread_id]"（冒号分隔）
         """
         if not agent_ref:
             return None
@@ -2523,7 +2523,7 @@ class MessageGateway:
 
         while True:
             await self._send_typing(message)
-            await asyncio.sleep(4)  # Telegram typing 状态持续约 5 秒
+            await asyncio.sleep(4)
 
     async def _call_agent(self, session: Session, message: UnifiedMessage) -> str:
         """
@@ -2724,25 +2724,20 @@ class MessageGateway:
             return f"处理出错: {str(e)}"
 
     # 各渠道单条消息最大字符数（留余量）
-    # - telegram: API 硬限制 4096，留余量 → 4000
     # - wework:   流式/response_url 模式下 send_message 会覆写而非追加，不应分片
     # - dingtalk:  Webhook 文本/Markdown ≈20000
     # - feishu:    卡片消息 ≈30000
-    # - onebot/qqbot: 一般无严格限制
+    # - qqbot:     一般无严格限制
     _CHANNEL_MAX_LENGTH: dict[str, int] = {
-        "telegram": 4000,
         "wework":   0,       # 0 = 不分片，整条发送
         "dingtalk":  18000,
         "feishu":    28000,
-        "onebot":    20000,
         "qqbot":     20000,
     }
     _DEFAULT_MAX_LENGTH = 4000
 
     # 分片间发送间隔（秒），避免触发平台限流
-    _SPLIT_SEND_INTERVAL: dict[str, float] = {
-        "telegram": 0.5,
-    }
+    _SPLIT_SEND_INTERVAL: dict[str, float] = {}
     _DEFAULT_SPLIT_INTERVAL = 0.15
 
     @staticmethod
@@ -2791,7 +2786,7 @@ class MessageGateway:
             return
 
         channel = original.channel
-        # 提取基础渠道名（兼容 "telegram_bot2" 等多实例命名）
+        # 提取基础渠道名（兼容 "feishu_bot2" 等多实例命名）
         base_channel = channel.split("_")[0] if "_" in channel else channel
 
         max_length = self._CHANNEL_MAX_LENGTH.get(
@@ -2937,7 +2932,7 @@ class MessageGateway:
                 full_text = header + report_md
                 _meta = {"is_group": message.metadata.get("is_group", message.chat_type == "group")}
 
-                # 分段发送（兼容 Telegram 4096 限制）
+                # 分段发送
                 max_len = 3500
                 text = full_text
                 while text:

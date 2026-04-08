@@ -21,7 +21,6 @@ import json
 import logging
 import os
 import re
-import sys
 import time
 import uuid
 from datetime import datetime
@@ -48,23 +47,18 @@ from ..tools.file import FileTool
 from ..tools.handlers import SystemHandlerRegistry
 from ..tools.handlers.browser import create_handler as create_browser_handler
 from ..tools.handlers.config import create_handler as create_config_handler
-from ..tools.handlers.desktop import create_handler as create_desktop_handler
 from ..tools.handlers.filesystem import create_handler as create_filesystem_handler
 from ..tools.handlers.im_channel import create_handler as create_im_channel_handler
 from ..tools.handlers.mcp import create_handler as create_mcp_handler
 from ..tools.handlers.memory import create_handler as create_memory_handler
-from ..tools.handlers.persona import create_handler as create_persona_handler
 from ..tools.handlers.plan import create_plan_handler
 from ..tools.handlers.profile import create_handler as create_profile_handler
 from ..tools.handlers.scheduled import create_handler as create_scheduled_handler
 from ..tools.handlers.skills import create_handler as create_skills_handler
-from ..tools.handlers.sticker import create_handler as create_sticker_handler
 from ..tools.handlers.system import create_handler as create_system_handler
 from ..tools.handlers.agent import create_handler as create_agent_tool_handler
-from ..tools.handlers.agent_hub import create_handler as create_agent_hub_handler
 from ..bestpractice.facade import init_bp_system, get_bp_handler
 from ..tools.handlers.agent_package import create_handler as create_agent_package_handler
-from ..tools.handlers.skill_store import create_handler as create_skill_store_handler
 from ..tools.handlers.web_search import create_handler as create_web_search_handler
 
 # MCP 系统
@@ -97,29 +91,6 @@ from .token_tracking import (
 from .tool_executor import OVERFLOW_MARKER, ToolExecutor
 from .user_profile import get_profile_manager
 
-_DESKTOP_AVAILABLE: bool | None = None  # None = not yet checked
-_desktop_tool_handler = None
-
-
-def _ensure_desktop():
-    """延迟加载桌面自动化模块。
-
-    pyautogui 在部分 Windows 环境下初始化极慢甚至卡死，
-    通过环境变量 SEEAGENT_SKIP_DESKTOP=1 可完全跳过。
-    """
-    global _DESKTOP_AVAILABLE, _desktop_tool_handler
-    if _DESKTOP_AVAILABLE is not None:
-        return _DESKTOP_AVAILABLE
-    if sys.platform != "win32" or os.environ.get("SEEAGENT_SKIP_DESKTOP", ""):
-        _DESKTOP_AVAILABLE = False
-        return False
-    try:
-        from ..tools.desktop import DESKTOP_TOOLS, DesktopToolHandler  # noqa: F811
-        _desktop_tool_handler = DesktopToolHandler()
-        _DESKTOP_AVAILABLE = True
-    except ImportError:
-        _DESKTOP_AVAILABLE = False
-    return _DESKTOP_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
@@ -382,9 +353,6 @@ class Agent:
 
         # 系统工具目录（渐进式披露）
         _all_tools = list(BASE_TOOLS)
-        if _ensure_desktop():
-            from ..tools.desktop import DESKTOP_TOOLS as _DT
-            _all_tools.extend(_DT)
         if settings.multi_agent_enabled:
             from ..tools.definitions.agent import AGENT_TOOLS
             _all_tools.extend(AGENT_TOOLS)
@@ -410,51 +378,9 @@ class Agent:
         # 用户档案管理器
         self.profile_manager = get_profile_manager()
 
-        # ==================== 人格系统 + 活人感 + 表情包 ====================
-        from ..tools.sticker import StickerEngine
-        from .persona import PersonaManager
-        from .proactive import ProactiveConfig, ProactiveEngine
-        from .trait_miner import TraitMiner
-
-        # 人格管理器
-        self.persona_manager = PersonaManager(
-            personas_dir=settings.personas_path,
-            active_preset=settings.persona_name,
-        )
-
-        # 偏好挖掘引擎（传入 brain，由 LLM 分析偏好而非关键词匹配）
-        self.trait_miner = TraitMiner(persona_manager=self.persona_manager, brain=self.brain)
-
-        # 活人感引擎
-        proactive_config = ProactiveConfig(
-            enabled=settings.proactive_enabled,
-            max_daily_messages=settings.proactive_max_daily_messages,
-            min_interval_minutes=settings.proactive_min_interval_minutes,
-            quiet_hours_start=settings.proactive_quiet_hours_start,
-            quiet_hours_end=settings.proactive_quiet_hours_end,
-            idle_threshold_hours=settings.proactive_idle_threshold_hours,
-        )
-        self.proactive_engine = ProactiveEngine(
-            config=proactive_config,
-            feedback_file=settings.project_root / "data" / "proactive_feedback.json",
-            persona_manager=self.persona_manager,
-            memory_manager=self.memory_manager,
-        )
-
-        # 表情包引擎
-        self.sticker_engine = StickerEngine(
-            data_dir=settings.sticker_data_path,
-        ) if settings.sticker_enabled else None
-
         # 动态工具列表（基础工具 + 技能工具）
         self._tools = list(BASE_TOOLS)
         self._skill_tool_names: set[str] = set()
-
-        # Add desktop tools on Windows (lazy load to avoid slow pyautogui init)
-        if _ensure_desktop():
-            from ..tools.desktop import DESKTOP_TOOLS as _DT2
-            self._tools.extend(_DT2)
-            logger.info(f"Desktop automation tools enabled ({len(_DT2)} tools)")
 
         # Multi-agent tools (only when enabled)
         if settings.multi_agent_enabled:
@@ -505,10 +431,10 @@ class Agent:
 
         # === 工具并行执行基础设施（默认不开启并行，tool_max_parallel=1）===
         # 并行执行只影响“同一轮模型返回多个 tool_use/tool_calls”的工具批处理阶段。
-        # 注意：browser/desktop/mcp 等状态型工具默认互斥，避免并发踩踏状态。
+        # 注意：browser/mcp 等状态型工具默认互斥，避免并发踩踏状态。
         self._tool_semaphore = asyncio.Semaphore(max(1, settings.tool_max_parallel))
         self._tool_handler_locks: dict[str, asyncio.Lock] = {}
-        for hn in ("browser", "desktop", "mcp"):
+        for hn in ("browser", "mcp"):
             self._tool_handler_locks[hn] = asyncio.Lock()
         self._task_monitor_lock = asyncio.Lock()
 
@@ -549,7 +475,6 @@ class Agent:
             memory_manager=self.memory_manager,
             profile_manager=self.profile_manager,
             brain=self.brain,
-            persona_manager=self.persona_manager,
         )
 
         # 推理引擎（替代 _chat_with_tools_and_context）
@@ -596,7 +521,7 @@ class Agent:
         并行策略：
         - 默认串行（settings.tool_max_parallel=1 或启用中断检查时）
         - 当 tool_max_parallel>1 且不需要“工具间中断检查”时，允许并行执行
-        - browser/desktop/mcp handler 默认互斥锁（即使并行也不会并发执行同 handler）
+        - browser/mcp handler 默认互斥锁（即使并行也不会并发执行同 handler）
         """
         executed_tool_names: list[str] = []
         delivery_receipts: list | None = None
@@ -821,12 +746,6 @@ class Agent:
         # 初始化 token 用量追踪
         init_token_tracking(str(settings.db_full_path))
 
-        # 自动生成/加载设备 ID（用于平台认证）
-        if not settings.hub_device_id:
-            from seeagent.hub.device import get_or_create_device_id
-            data_dir = Path(settings.project_root) / "data"
-            settings.hub_device_id = get_or_create_device_id(data_dir)
-
         # 加载身份文档
         self.identity.load()
 
@@ -878,25 +797,6 @@ class Agent:
         except Exception as e:
             # 预热失败不应影响启动（例如 chromadb 未安装时会自动禁用）
             logger.debug(f"[Prewarm] skipped/failed: {e}")
-
-        # === 表情包引擎初始化 ===
-        if self.sticker_engine:
-            try:
-                await self.sticker_engine.initialize()
-            except Exception as e:
-                logger.debug(f"[Sticker] initialization skipped/failed: {e}")
-
-        # === 从记忆系统加载 PERSONA_TRAIT ===
-        try:
-            persona_memories = [
-                m.to_dict() for m in self.memory_manager._memories.values()
-                if m.type.value == "persona_trait"
-            ]
-            if persona_memories:
-                self.persona_manager.load_traits_from_memories(persona_memories)
-                logger.info(f"Loaded {len(persona_memories)} persona traits from memory")
-        except Exception as e:
-            logger.debug(f"[Persona] trait loading skipped: {e}")
 
         # === browser_task 依赖的 LLM 配置注入 ===
         self._inject_browser_use_llm_config()
@@ -1035,20 +935,6 @@ class Agent:
             ["web_search", "news_search"],
         )
 
-        # 人格系统
-        self.handler_registry.register(
-            "persona",
-            create_persona_handler(self),
-            ["switch_persona", "update_persona_trait", "toggle_proactive", "get_persona_profile"],
-        )
-
-        # 表情包
-        self.handler_registry.register(
-            "sticker",
-            create_sticker_handler(self),
-            ["send_sticker"],
-        )
-
         # 系统配置
         self.handler_registry.register(
             "config",
@@ -1062,38 +948,6 @@ class Agent:
             create_agent_package_handler(self),
             ["export_agent", "import_agent", "list_exportable_agents", "inspect_agent_package"],
         )
-
-        # Agent Hub（平台 Agent Store 交互）
-        self.handler_registry.register(
-            "agent_hub",
-            create_agent_hub_handler(self),
-            ["search_hub_agents", "install_hub_agent", "publish_agent", "get_hub_agent_detail"],
-        )
-
-        # Skill Store（平台 Skill Store 交互）
-        self.handler_registry.register(
-            "skill_store",
-            create_skill_store_handler(self),
-            ["search_store_skills", "install_store_skill", "get_store_skill_detail", "submit_skill_repo"],
-        )
-
-        # 桌面工具（仅 Windows 且依赖可用时注册，与 _tools/ToolCatalog 保持一致）
-        if _ensure_desktop():
-            self.handler_registry.register(
-                "desktop",
-                create_desktop_handler(self),
-                [
-                    "desktop_screenshot",
-                    "desktop_find_element",
-                    "desktop_click",
-                    "desktop_type",
-                    "desktop_hotkey",
-                    "desktop_scroll",
-                    "desktop_window",
-                    "desktop_wait",
-                    "desktop_inspect",
-                ],
-            )
 
         # Multi-agent tools (only when multi_agent_enabled)
         if settings.multi_agent_enabled:
@@ -1736,10 +1590,7 @@ class Agent:
 
             # 创建执行器（gateway 稍后通过 set_scheduler_gateway 设置）
             self._task_executor = TaskExecutor(timeout_seconds=settings.scheduler_task_timeout)
-            # 预设 persona/memory/proactive 引用，供活人感心跳等系统任务使用
-            self._task_executor.persona_manager = getattr(self, "persona_manager", None)
             self._task_executor.memory_manager = getattr(self, "memory_manager", None)
-            self._task_executor.proactive_engine = getattr(self, "proactive_engine", None)
 
             # 创建调度器
             self.task_scheduler = TaskScheduler(
@@ -1880,28 +1731,7 @@ class Agent:
                 if changed:
                     self.task_scheduler._save_tasks()
 
-        # 任务 3: 活人感心跳（每 30 分钟触发）
-        try:
-            if "system_proactive_heartbeat" not in existing_ids:
-                heartbeat_task = ScheduledTask(
-                    id="system_proactive_heartbeat",
-                    name="活人感心跳",
-                    trigger_type=TriggerType.INTERVAL,
-                    trigger_config={"interval_minutes": 30},
-                    action="system:proactive_heartbeat",
-                    prompt="检查是否需要发送主动消息（问候/提醒/跟进）",
-                    description="定时检查并发送主动消息",
-                    task_type=TaskType.TASK,
-                    enabled=True,
-                    deletable=False,
-                    metadata={"notify_on_start": False, "notify_on_complete": False},
-                )
-                await self.task_scheduler.add_task(heartbeat_task)
-                logger.info("Registered system task: proactive_heartbeat (every 30 min)")
-        except Exception as e:
-            logger.warning(f"Failed to register proactive_heartbeat task: {e}")
-
-        # 任务 4: 工作区定时备份（根据用户设置）
+        # 任务 3: 工作区定时备份（根据用户设置）
         try:
             from ..workspace.backup import read_backup_settings
             bs = read_backup_settings(settings.project_root)
@@ -3542,51 +3372,10 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
 
         logger.info(f"[Session:{session_id}] User: {message}")
 
-        # 4. Proactive engine: 记录用户互动时间
-        if hasattr(self, "proactive_engine") and self.proactive_engine:
-            self.proactive_engine.update_user_interaction()
-
-        # 5. User turn memory record
+        # 4. User turn memory record
         self.memory_manager.record_turn("user", message)
 
-        # 6. Trait mining
-        if hasattr(self, "trait_miner") and self.trait_miner and self.trait_miner.brain:
-            try:
-                mined_traits = await asyncio.wait_for(
-                    self.trait_miner.mine_from_message(message, role="user"),
-                    timeout=10,
-                )
-                for trait in mined_traits:
-                    store = getattr(self.memory_manager, "store", None)
-                    if store:
-                        existing = store.query_semantic(memory_type="persona_trait", limit=50)
-                        found = False
-                        for old in existing:
-                            if old.content.startswith(f"{trait.dimension}="):
-                                store.update_semantic(old.id, {
-                                    "content": f"{trait.dimension}={trait.preference}",
-                                    "importance_score": max(old.importance_score, trait.confidence),
-                                })
-                                found = True
-                                break
-                        if found:
-                            continue
-                    from ..memory.types import Memory, MemoryPriority, MemoryType
-                    mem = Memory(
-                        type=MemoryType.PERSONA_TRAIT,
-                        priority=MemoryPriority.LONG_TERM,
-                        content=f"{trait.dimension}={trait.preference}",
-                        source=trait.source,
-                        tags=[f"dimension:{trait.dimension}", f"preference:{trait.preference}"],
-                        importance_score=trait.confidence,
-                    )
-                    self.memory_manager.add_memory(mem)
-                if mined_traits:
-                    logger.debug(f"[TraitMiner] Mined {len(mined_traits)} traits from user message")
-            except Exception as e:
-                logger.debug(f"[TraitMiner] Mining failed (non-critical): {e}")
-
-        # 7. Prompt Compiler (两段式第一阶段)
+        # 5. Prompt Compiler (两段式第一阶段)
         compiled_message = message
         compiler_output = ""
         compiler_summary = ""
@@ -7361,10 +7150,7 @@ NEXT: 建议的下一步（如有）"""
         """
         if hasattr(self, "_task_executor") and self._task_executor:
             self._task_executor.gateway = gateway
-            # 同时传递 persona/memory/proactive 引用，供活人感心跳等系统任务使用
-            self._task_executor.persona_manager = getattr(self, "persona_manager", None)
             self._task_executor.memory_manager = getattr(self, "memory_manager", None)
-            self._task_executor.proactive_engine = getattr(self, "proactive_engine", None)
             logger.info("Scheduler gateway configured")
 
     async def shutdown(

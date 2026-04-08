@@ -354,19 +354,6 @@ class Settings(BaseSettings):
     # IM 多 Bot 配置（多Agent模式下支持同一通道类型多个Bot实例）
     im_bots: list[dict] = Field(default_factory=list)
 
-    # === 人格系统配置 ===
-    persona_name: str = Field(
-        default="default", description="当前激活的人格预设名称 (default/business/tech_expert/butler/girlfriend/boyfriend/family/jarvis)"
-    )
-
-    # === 活人感引擎配置 ===
-    proactive_enabled: bool = Field(default=True, description="是否启用活人感模式")
-    proactive_max_daily_messages: int = Field(default=3, description="每日最多主动消息数")
-    proactive_min_interval_minutes: int = Field(default=120, description="两条主动消息最短间隔（分钟）")
-    proactive_quiet_hours_start: int = Field(default=23, description="安静时段开始（小时，0-23）")
-    proactive_quiet_hours_end: int = Field(default=7, description="安静时段结束（小时，0-23）")
-    proactive_idle_threshold_hours: int = Field(default=3, description="用户空闲多久后触发闲聊问候（小时），AI 会根据反馈动态调整")
-
     # === UI 偏好配置 ===
     ui_theme: str = Field(
         default="system",
@@ -386,10 +373,6 @@ class Settings(BaseSettings):
         default=True,
         description="桌面通知是否播放系统提示音",
     )
-
-    # === 表情包配置 ===
-    sticker_enabled: bool = Field(default=True, description="是否启用表情包功能")
-    sticker_data_dir: str = Field(default="data/sticker", description="表情包数据目录")
 
     # === Bug Report / Feedback 配置 ===
     # 以下三个值是公开标识（类似 reCAPTCHA site key），不是密钥。
@@ -520,16 +503,6 @@ class Settings(BaseSettings):
         return self.identity_path / "MEMORY.md"
 
     @property
-    def personas_path(self) -> Path:
-        """人格预设目录路径"""
-        return self.identity_path / "personas"
-
-    @property
-    def sticker_data_path(self) -> Path:
-        """表情包数据目录路径"""
-        return self.project_root / self.sticker_data_dir
-
-    @property
     def seeagent_home(self) -> Path:
         """用户数据根目录，优先使用 SEEAGENT_ROOT 环境变量，默认 ~/.seeagent"""
         import os
@@ -626,19 +599,13 @@ class Settings(BaseSettings):
 # ---------------------------------------------------------------------------
 # 运行时状态持久化
 # ---------------------------------------------------------------------------
-# 用于保存用户通过对话动态修改的设置（角色、活人感开关等），
+# 用于保存用户通过对话动态修改的设置，
 # 使其在 Agent 重启后依然生效。
 # 存储位置: data/runtime_state.json
 # ---------------------------------------------------------------------------
 
 # 需要持久化的 settings 字段名
 _PERSISTABLE_KEYS: list[str] = [
-    "persona_name",
-    "proactive_enabled",
-    "proactive_max_daily_messages",
-    "proactive_min_interval_minutes",
-    "proactive_quiet_hours_start",
-    "proactive_quiet_hours_end",
     "ui_theme",
     "ui_language",
     "multi_agent_enabled",

@@ -61,9 +61,6 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn>=0.27.0",
 
-    # IM Channels - Telegram (default)
-    "python-telegram-bot>=21.0",
-
     # Browser automation (built-in)
     "playwright>=1.40.0",
     "browser-use>=0.11.8",
@@ -90,27 +87,13 @@ wework = [
     "pycryptodome>=3.19.0",
 ]
 
-# OneBot 协议通道 (NapCat/Lagrange 等)
-onebot = [
-    "websockets>=15.0.1",
-]
-
 # QQ 官方机器人
 qqbot = [
     "qq-botpy>=1.1.5",
     "pilk>=0.2.1",              # SILK 语音编解码（QQ 语音格式）
 ]
 
-# Windows 桌面自动化
-windows = [
-    "mss>=9.0.0",
-    "pyautogui>=0.9.54",
-    "pywinauto>=0.6.8; platform_system == 'Windows'",
-    "pyperclip>=1.8.2",
-    "psutil>=5.9.0",
-]
-
-# 全部可选依赖（core + 所有 IM 通道 + 桌面自动化）
+# 全部可选依赖（core + 所有 IM 通道）
 all = [
     # -- IM 通道 --
     "lark-oapi>=1.2.0",
@@ -120,12 +103,6 @@ all = [
     "websockets>=15.0.1",
     "qq-botpy>=1.1.5",
     "pilk>=0.2.1",
-    # -- 桌面自动化 --
-    "mss>=9.0.0",
-    "pyautogui>=0.9.54",
-    "pywinauto>=0.6.8; platform_system == 'Windows'",
-    "pyperclip>=1.8.2",
-    "psutil>=5.9.0",
 ]
 
 # 开发依赖

@@ -2,7 +2,7 @@
 SeeAgent CLI 入口
 
 使用 Typer 和 Rich 提供交互式命令行界面
-支持同时运行 CLI 和 IM 通道（Telegram、飞书等）
+支持同时运行 CLI 和 IM 通道（飞书、钉钉、企微等）
 支持多 Agent 协同模式（通过 ORCHESTRATION_ENABLED 配置）
 """
 
@@ -112,8 +112,6 @@ _CHANNEL_DEPS: dict[str, list[tuple[str, str]]] = {
     "dingtalk": [("dingtalk_stream", "dingtalk-stream")],
     "wework": [("aiohttp", "aiohttp"), ("Crypto", "pycryptodome")],
     "wework_ws": [("websockets", "websockets")],
-    "onebot": [("websockets", "websockets")],
-    "onebot_reverse": [("websockets", "websockets")],
     "qqbot": [("botpy", "qq-botpy"), ("pilk", "pilk")],
 }
 
@@ -221,7 +219,6 @@ def _ensure_channel_deps() -> None:
     环境完全隔离，避免版本冲突。该目录会被 ``inject_module_paths()``
     自动扫描并注入 sys.path。
 
-    Telegram 为核心依赖，始终包含在安装包中，不需检查。
     """
     _patch_backports_zstd()
     patch_simplejson_jsondecodeerror(logger=logger)
@@ -240,8 +237,6 @@ def _ensure_channel_deps() -> None:
         enabled_channels.append("wework")
     if settings.wework_ws_enabled:
         enabled_channels.append("wework_ws")
-    if settings.onebot_enabled:
-        enabled_channels.append("onebot")
     if settings.qqbot_enabled:
         enabled_channels.append("qqbot")
 
@@ -489,13 +484,6 @@ def _create_bot_adapter(bot_type: str, creds: dict, *, channel_name: str, bot_id
             app_secret=creds.get("app_secret", ""),
             channel_name=channel_name, bot_id=bot_id, agent_profile_id=agent_profile_id,
         )
-    elif bot_type == "telegram":
-        from .channels.adapters import TelegramAdapter
-        return TelegramAdapter(
-            bot_token=creds.get("bot_token", ""),
-            webhook_url=creds.get("webhook_url") or None,
-            channel_name=channel_name, bot_id=bot_id, agent_profile_id=agent_profile_id,
-        )
     elif bot_type == "dingtalk":
         from .channels.adapters import DingTalkAdapter
         return DingTalkAdapter(
@@ -521,23 +509,6 @@ def _create_bot_adapter(bot_type: str, creds: dict, *, channel_name: str, bot_id
             ws_url=creds.get("ws_url", "wss://openws.work.weixin.qq.com"),
             channel_name=channel_name, bot_id_alias=bot_id, agent_profile_id=agent_profile_id,
             webhook_url=creds.get("webhook_url", ""),
-        )
-    elif bot_type == "onebot":
-        from .channels.adapters import OneBotAdapter
-        return OneBotAdapter(
-            ws_url=creds.get("ws_url", "ws://127.0.0.1:8080"),
-            access_token=creds.get("access_token") or None,
-            mode=creds.get("mode", "forward"),
-            channel_name=channel_name, bot_id=bot_id, agent_profile_id=agent_profile_id,
-        )
-    elif bot_type == "onebot_reverse":
-        from .channels.adapters import OneBotAdapter
-        return OneBotAdapter(
-            access_token=creds.get("access_token") or None,
-            mode="reverse",
-            reverse_host=creds.get("reverse_host", "0.0.0.0"),
-            reverse_port=int(creds.get("reverse_port", 6700)),
-            channel_name=channel_name, bot_id=bot_id, agent_profile_id=agent_profile_id,
         )
     elif bot_type == "qqbot":
         from .channels.adapters import QQBotAdapter
@@ -654,12 +625,10 @@ async def start_im_channels(agent_or_master):
 
     # 检查是否有任何通道启用
     any_enabled = (
-        settings.telegram_enabled
-        or settings.feishu_enabled
+        settings.feishu_enabled
         or settings.wework_enabled
         or settings.wework_ws_enabled
         or settings.dingtalk_enabled
-        or settings.onebot_enabled
         or settings.qqbot_enabled
         or any(b.get("enabled", True) for b in (settings.im_bots or []))
     )
@@ -715,25 +684,6 @@ async def start_im_channels(agent_or_master):
 
     # 注册启用的适配器
     adapters_started = []
-
-    # Telegram
-    if settings.telegram_enabled and settings.telegram_bot_token:
-        try:
-            from .channels.adapters import TelegramAdapter
-
-            telegram = TelegramAdapter(
-                bot_token=settings.telegram_bot_token,
-                webhook_url=settings.telegram_webhook_url or None,
-                media_dir=settings.project_root / "data" / "media" / "telegram",
-                pairing_code=settings.telegram_pairing_code or None,
-                require_pairing=settings.telegram_require_pairing,
-                proxy=settings.telegram_proxy or None,
-            )
-            await _message_gateway.register_adapter(telegram)
-            adapters_started.append("telegram")
-            logger.info("Telegram adapter registered")
-        except Exception as e:
-            logger.error(f"Failed to start Telegram adapter: {e}")
 
     # 飞书
     if settings.feishu_enabled and settings.feishu_app_id:
@@ -830,25 +780,6 @@ async def start_im_channels(agent_or_master):
             logger.info("DingTalk adapter registered")
         except Exception as e:
             logger.error(f"Failed to start DingTalk adapter: {e}")
-
-    # OneBot (通用协议)
-    if settings.onebot_enabled:
-        try:
-            from .channels.adapters import OneBotAdapter
-
-            onebot = OneBotAdapter(
-                mode=settings.onebot_mode,
-                ws_url=settings.onebot_ws_url,
-                reverse_host=settings.onebot_reverse_host,
-                reverse_port=settings.onebot_reverse_port,
-                access_token=settings.onebot_access_token or None,
-            )
-            await _message_gateway.register_adapter(onebot)
-            adapters_started.append("onebot")
-            _mode_label = "reverse" if settings.onebot_mode == "reverse" else "forward"
-            logger.info(f"OneBot adapter registered (mode={_mode_label})")
-        except Exception as e:
-            logger.error(f"Failed to start OneBot adapter: {e}")
 
     # QQ 官方机器人
     if settings.qqbot_enabled and settings.qqbot_app_id:
@@ -1040,14 +971,10 @@ def show_channels():
     table.add_column("状态", style="yellow")
 
     channels = [
-        ("Telegram", settings.telegram_enabled, settings.telegram_bot_token),
         ("飞书", settings.feishu_enabled, settings.feishu_app_id),
         ("企业微信(HTTP)", settings.wework_enabled, settings.wework_corp_id),
         ("企业微信(WS)", settings.wework_ws_enabled, settings.wework_ws_bot_id),
         ("钉钉", settings.dingtalk_enabled, settings.dingtalk_client_id),
-        ("OneBot", settings.onebot_enabled,
-         settings.onebot_ws_url if settings.onebot_mode == "forward"
-         else f"{settings.onebot_reverse_host}:{settings.onebot_reverse_port}"),
         ("QQ 官方机器人", settings.qqbot_enabled, settings.qqbot_app_id),
     ]
 

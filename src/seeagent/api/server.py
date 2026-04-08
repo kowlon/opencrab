@@ -36,7 +36,6 @@ from .routes import (
     config,
     files,
     health,
-    hub,
     identity,
     im,
     logs,
@@ -298,7 +297,6 @@ def create_app(
     app.include_router(upload.router, tags=["文件"])
     app.include_router(workspace_io.router, tags=["工作区"])
     app.include_router(ws_routes.router, tags=["WebSocket"])
-    app.include_router(hub.router, tags=["Hub"])
     app.include_router(identity.router, tags=["身份"])
     app.include_router(orgs.router, tags=["组织编排"])
     app.include_router(orgs.inbox_router, tags=["组织消息中心"])
