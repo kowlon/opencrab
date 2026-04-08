@@ -85,11 +85,20 @@ class ContextBridge:
             if suspended:
                 suspended.context_summary = summary
                 await self._state_manager.persist_context_summary(suspended.instance_id)
+                logger.info(
+                    f"[BP] context_switch: compressed "
+                    f"instance={switch.suspended_instance_id} "
+                    f"summary_len={len(summary)}"
+                )
 
         # 2. Restore target instance context
         target = self._state_manager.get(switch.target_instance_id)
         if target and messages is not None:
             self._restore_context(messages, target)
+            logger.info(
+                f"[BP] context_switch: restored target={switch.target_instance_id} "
+                f"messages_count={len(messages)}"
+            )
 
         self._persist_session_state(session_id, session)
 
@@ -186,6 +195,10 @@ class ContextBridge:
             semantic_summary, compression_method = await self._run_compression_chain(
                 artifacts, brain=brain, compress_kwargs=compress_kwargs,
             )
+            logger.debug(
+                f"[BP] compress_context: method={compression_method} "
+                f"summary_len={len(semantic_summary)} artifacts={len(artifacts)}"
+            )
             if semantic_summary:
                 artifacts.append(ContextArtifact(
                     kind=ArtifactKind.SEMANTIC_SUMMARY,
@@ -211,6 +224,10 @@ class ContextBridge:
             if snap.context_summary:
                 if snap.context_summary.strip().startswith("{"):
                     # Backward compat: old JSON ContextEnvelope format
+                    logger.debug(
+                        f"[BP] restore_context: format=json_envelope "
+                        f"instance={getattr(snap, 'instance_id', '?')}"
+                    )
                     envelope = self._load_envelope(snap.context_summary)
                     if self._has_recovery_data(envelope):
                         recovery_msg = self._build_recovery_prompt(envelope, snap)
@@ -218,8 +235,16 @@ class ContextBridge:
                         recovery_msg = self._build_snapshot_recovery_prompt(snap)
                 else:
                     # New format: plain-text semantic summary, restore from snapshot
+                    logger.debug(
+                        f"[BP] restore_context: format=snapshot "
+                        f"instance={getattr(snap, 'instance_id', '?')}"
+                    )
                     recovery_msg = self._build_snapshot_recovery_prompt(snap)
             else:
+                logger.debug(
+                    f"[BP] restore_context: format=minimal "
+                    f"instance={getattr(snap, 'instance_id', '?')}"
+                )
                 recovery_msg = self._build_minimal_recovery(snap)
                 if not recovery_msg:
                     return
@@ -371,8 +396,13 @@ class ContextBridge:
                 )
                 continue
             if summary:
+                logger.debug(
+                    f"[BP] compression_chain: selected={name} "
+                    f"summary_len={len(summary[:budget])}"
+                )
                 return summary[:budget], name
 
+        logger.warning("[BP] compression_chain: all strategies failed, returning empty summary")
         return "", "none"
 
     @staticmethod

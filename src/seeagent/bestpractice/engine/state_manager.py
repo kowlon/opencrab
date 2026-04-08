@@ -75,27 +75,50 @@ class BPStateManager:
         if snap and snap.status == BPStatus.ACTIVE:
             snap.status = BPStatus.SUSPENDED
             snap.suspended_at = time.time()
+            logger.info(f"[BP] suspend: instance={instance_id} bp_id={snap.bp_id}")
+        else:
+            logger.debug(
+                f"[BP] suspend: no-op instance={instance_id} "
+                f"status={snap.status.value if snap else 'not_found'}"
+            )
 
     def resume(self, instance_id: str) -> None:
         snap = self._instances.get(instance_id)
         if snap and snap.status == BPStatus.SUSPENDED:
             snap.status = BPStatus.ACTIVE
             snap.suspended_at = None
+            reset_ids = []
             for st_id, status in snap.subtask_statuses.items():
                 if status == SubtaskStatus.CURRENT.value:
                     snap.subtask_statuses[st_id] = SubtaskStatus.PENDING.value
+                    reset_ids.append(st_id)
+            logger.info(
+                f"[BP] resume: instance={instance_id} bp_id={snap.bp_id} "
+                f"reset_subtasks={reset_ids}"
+            )
+        else:
+            logger.debug(
+                f"[BP] resume: no-op instance={instance_id} "
+                f"status={snap.status.value if snap else 'not_found'}"
+            )
 
     def complete(self, instance_id: str) -> None:
         snap = self._instances.get(instance_id)
         if snap:
             snap.status = BPStatus.COMPLETED
             snap.completed_at = time.time()
+            logger.info(f"[BP] complete: instance={instance_id} bp_id={snap.bp_id}")
 
     def cancel(self, instance_id: str) -> None:
         snap = self._instances.get(instance_id)
         if snap and snap.status in (BPStatus.ACTIVE, BPStatus.SUSPENDED):
+            prev_status = snap.status.value
             snap.status = BPStatus.CANCELLED
             snap.completed_at = time.time()
+            logger.info(
+                f"[BP] cancel: instance={instance_id} bp_id={snap.bp_id} "
+                f"prev_status={prev_status}"
+            )
 
     # ── Subtask operations ─────────────────────────────────────
 
