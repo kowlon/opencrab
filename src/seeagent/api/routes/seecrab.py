@@ -981,8 +981,8 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
                     yield 'data: {"type": "done"}\n\n'
                     return  # Skip LLM stream — wait for user choice
-            except Exception:
-                pass  # Non-critical, don't block chat
+            except Exception as e:
+                logger.warning(f"[BP] match phase failed: {e}", exc_info=True)
 
             brain = getattr(agent, "brain", None)
             adapter = SeeCrabAdapter(brain=brain, user_messages=user_messages)

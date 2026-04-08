@@ -1137,18 +1137,20 @@ class BPEngine:
             except json.JSONDecodeError:
                 pass
 
-        # Strategy 3: find last JSON object in text
-        last_brace = result.rfind("{")
-        if last_brace >= 0:
+        # Strategy 3: find JSON objects in text (try last-to-first to prefer
+        # the final result over earlier examples, but unlike the old rfind
+        # approach, continue to earlier braces when an inner object is too small)
+        brace_positions = [i for i, c in enumerate(result) if c == "{"]
+        for start in reversed(brace_positions):
             depth = 0
-            for i in range(last_brace, len(result)):
+            for i in range(start, len(result)):
                 if result[i] == "{":
                     depth += 1
                 elif result[i] == "}":
                     depth -= 1
                     if depth == 0:
                         try:
-                            parsed = json.loads(result[last_brace : i + 1])
+                            parsed = json.loads(result[start : i + 1])
                             if isinstance(parsed, dict) and len(parsed) > 1:
                                 return parsed
                         except json.JSONDecodeError:

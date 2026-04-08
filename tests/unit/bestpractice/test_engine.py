@@ -156,6 +156,29 @@ class TestParseOutput:
         result = BPEngine._parse_output("plain text response")
         assert result["_raw_output"] == "plain text response"
 
+    def test_nested_json_in_text(self):
+        """嵌套 JSON：外层是完整结果，内层是 extracted_input 子对象。
+        rfind 曾只找到内层 { 导致解析失败。"""
+        text = (
+            '分析结果: {"matched": true, "bp_id": "camera-frame-search", '
+            '"confidence": 0.9, "extracted_input": {"query": "衡州大道"}}'
+        )
+        result = BPEngine._parse_output(text)
+        assert result["matched"] is True
+        assert result["bp_id"] == "camera-frame-search"
+        assert result["extracted_input"] == {"query": "衡州大道"}
+
+    def test_multiple_json_fragments_prefers_last(self):
+        """多个独立 JSON 片段：前面是示例/解释，后面才是最终结果。
+        应优先选后面的对象。"""
+        text = (
+            '示例: {"matched": true, "bp_id": "wrong", "confidence": 0.5}\n'
+            '结果: {"matched": true, "bp_id": "correct", "confidence": 0.9}'
+        )
+        result = BPEngine._parse_output(text)
+        assert result["bp_id"] == "correct"
+        assert result["confidence"] == 0.9
+
 
 # ── Delegation message with partial results ──────────────────
 
