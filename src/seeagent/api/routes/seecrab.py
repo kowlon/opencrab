@@ -629,6 +629,10 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
         adapter = None
 
         try:
+            # SSE comment heartbeat — forces the first byte out immediately,
+            # preventing HTTP/2 proxies / LBs from timing out during init.
+            yield ": heartbeat\n\n"
+
             # Resolve session
             session_messages: list[dict] = []
             user_messages: list[str] = []
@@ -1115,7 +1119,6 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )

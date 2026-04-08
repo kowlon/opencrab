@@ -555,7 +555,6 @@ def _bp_clear_busy(session_id: str, lock_id: str) -> None:
 # ── SSE Helpers ────────────────────────────────────────────────
 _SSE_HEADERS = {
     "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
     "X-Accel-Buffering": "no",
 }
 
