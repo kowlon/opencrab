@@ -295,7 +295,8 @@ async def _stream_bp_start_from_chat(
         yield {"type": "error", "message": f"BP '{bp_id}' not found", "code": "bp"}
         yield {"type": "done"}
         return
-    if not await _bp_mark_busy(session_id, "seecrab_bp_start"):
+    lock_id = uuid.uuid4().hex
+    if not await _bp_mark_busy(session_id, "seecrab_bp_start", lock_id):
         yield {"type": "error", "message": "Session is busy", "code": "bp"}
         yield {"type": "done"}
         return
@@ -349,7 +350,7 @@ async def _stream_bp_start_from_chat(
                     yield {"type": "error", "message": str(e), "code": "bp"}
                     yield {"type": "done"}
                 finally:
-                    _bp_clear_busy(session_id)
+                    _bp_clear_busy(session_id, lock_id)
                 return
 
     try:
@@ -379,7 +380,7 @@ async def _stream_bp_start_from_chat(
         yield {"type": "error", "message": str(e), "code": "bp"}
         yield {"type": "done"}
     finally:
-        _bp_clear_busy(session_id)
+        _bp_clear_busy(session_id, lock_id)
 
 
 async def _stream_bp_next_from_chat(
@@ -418,7 +419,8 @@ async def _stream_bp_next_from_chat(
         yield {"type": "ai_text", "content": "当前最佳实践已完成或没有下一步可执行。"}
         yield {"type": "done"}
         return
-    if not await _bp_mark_busy(session_id, "seecrab_bp_next"):
+    lock_id = uuid.uuid4().hex
+    if not await _bp_mark_busy(session_id, "seecrab_bp_next", lock_id):
         yield {"type": "error", "message": "Session is busy", "code": "bp"}
         yield {"type": "done"}
         return
@@ -431,7 +433,7 @@ async def _stream_bp_next_from_chat(
             "active_instance_id": resume.get("active_instance_id"),
         }
         yield {"type": "done"}
-        _bp_clear_busy(session_id)
+        _bp_clear_busy(session_id, lock_id)
         return
 
     reply_state = _new_reply_state()
@@ -460,7 +462,7 @@ async def _stream_bp_next_from_chat(
         yield {"type": "error", "message": str(e), "code": "bp"}
         yield {"type": "done"}
     finally:
-        _bp_clear_busy(session_id)
+        _bp_clear_busy(session_id, lock_id)
 
 
 async def _cancel_bp_from_chat(
@@ -525,7 +527,8 @@ async def _stream_bp_answer_from_chat(
         return
 
     # Use bestpractice.py's _bp_busy_locks for concurrency safety with UI path
-    if not await _bp_mark_busy(session_id, "seecrab_bp_answer"):
+    lock_id = uuid.uuid4().hex
+    if not await _bp_mark_busy(session_id, "seecrab_bp_answer", lock_id):
         yield {"type": "error", "message": "Session is busy", "code": "bp"}
         yield {"type": "done"}
         return
@@ -538,7 +541,7 @@ async def _stream_bp_answer_from_chat(
             "active_instance_id": resume.get("active_instance_id"),
         }
         yield {"type": "done"}
-        _bp_clear_busy(session_id)
+        _bp_clear_busy(session_id, lock_id)
         return
 
     reply_state = _new_reply_state()
@@ -564,7 +567,7 @@ async def _stream_bp_answer_from_chat(
         yield {"type": "error", "message": str(e), "code": "bp"}
         yield {"type": "done"}
     finally:
-        _bp_clear_busy(session_id)
+        _bp_clear_busy(session_id, lock_id)
 
 
 @router.post("/chat")
@@ -608,7 +611,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                         _bp_engine = _get_bp_engine()
                         _bp_sm = _get_bp_sm()
                         _bp_active = _resolve_chat_bp_instance(
-                            _bp_sm, conversation_id,
+                            _bp_sm, session.id if session else conversation_id,
                         ) if _bp_sm else None
                         if _bp_engine and _bp_active:
                             await _bp_engine.request_suspend(
@@ -646,8 +649,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                             )
                             _bp_sm = _get_bp_sm()
                             if _bp_sm:
-                                _bp_sid = f"seecrab_{conversation_id}"
-                                _bp_active = _bp_sm.get_active(_bp_sid)
+                                _bp_active = _bp_sm.get_active(session.id)
                                 if _bp_active:
                                     from seeagent.api.routes.bestpractice import (
                                         _persist_bp_to_session,
@@ -739,11 +741,11 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     return
 
                 if bp_cmd == "cancel":
-                    active = bp_sm.get_active(bp_session_id) if bp_sm else None
+                    active = bp_sm.get_active(_sm_sid) if bp_sm else None
                     if active:
                         bp_name = active.bp_config.name if active.bp_config else active.bp_id
                         async for event in _cancel_bp_from_chat(
-                            session_id=bp_session_id,
+                            session_id=_sm_sid,
                             instance_id=active.instance_id,
                             bp_name=bp_name,
                             sm=bp_sm,
@@ -759,7 +761,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                         return
 
                 if bp_cmd in ("next", "next_loose"):
-                    current_bp = _resolve_chat_bp_instance(bp_sm, bp_session_id)
+                    current_bp = _resolve_chat_bp_instance(bp_sm, _sm_sid)
                     # next_loose without resumable BP → fall through to agent
                     if bp_cmd == "next_loose" and not current_bp:
                         pass  # fall through
@@ -802,7 +804,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             if not bp_sm:
                 from seeagent.bestpractice.facade import get_bp_state_manager
                 bp_sm = get_bp_state_manager()
-            current_bp = _resolve_chat_bp_instance(bp_sm, bp_session_id)
+            current_bp = _resolve_chat_bp_instance(bp_sm, _sm_sid)
             if current_bp:
                 waiting_subtask_id = None
                 for st_id, st_status in current_bp.subtask_statuses.items():
@@ -851,7 +853,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
                     async for event in _stream_bp_answer_from_chat(
                         request,
-                        session_id=bp_session_id,
+                        session_id=_sm_sid,
                         instance_id=current_bp.instance_id,
                         subtask_id=waiting_subtask_id,
                         data=data,
@@ -947,7 +949,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     from seeagent.bestpractice.facade import get_bp_state_manager
                     bp_sm = get_bp_state_manager()
                     if bp_sm:
-                        bp_sm.mark_bp_offered(bp_session_id, bp_id)
+                        bp_sm.mark_bp_offered(_sm_sid, bp_id)
                         bp_sm.set_pending_offer(
                             bp_session_id,
                             {
