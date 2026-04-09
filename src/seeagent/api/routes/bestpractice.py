@@ -827,9 +827,15 @@ async def bp_start(request: Request):
         watcher = asyncio.create_task(_disconnect_watcher())
 
         try:
-            async for event in engine.start(bp_config, session, input_data, run_mode):
+            from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+            yield _HEARTBEAT_COMMENT
+
+            async for event in sse_heartbeat_stream(engine.start(bp_config, session, input_data, run_mode)):
                 if disconnect_event.is_set():
                     break
+                if event is None:
+                    yield _HEARTBEAT_COMMENT
+                    continue
                 if event.get("type") == "bp_instance_created":
                     instance_id = event.get("instance_id")
                 yield _sse(event)
@@ -915,9 +921,15 @@ async def bp_next(request: Request):
         watcher = asyncio.create_task(_disconnect_watcher())
 
         try:
-            async for event in engine.advance(instance_id, session):
+            from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+            yield _HEARTBEAT_COMMENT
+
+            async for event in sse_heartbeat_stream(engine.advance(instance_id, session)):
                 if disconnect_event.is_set():
                     break
+                if event is None:
+                    yield _HEARTBEAT_COMMENT
+                    continue
                 yield _sse(event)
                 _collect_reply_state(event, reply_state, full_reply)
                 if event.get("type") in ("bp_subtask_complete", "bp_progress"):
@@ -1001,9 +1013,15 @@ async def bp_answer(request: Request):
         watcher = asyncio.create_task(_disconnect_watcher())
 
         try:
-            async for event in engine.answer(instance_id, subtask_id, data, session):
+            from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+            yield _HEARTBEAT_COMMENT
+
+            async for event in sse_heartbeat_stream(engine.answer(instance_id, subtask_id, data, session)):
                 if disconnect_event.is_set():
                     break
+                if event is None:
+                    yield _HEARTBEAT_COMMENT
+                    continue
                 yield _sse(event)
                 _collect_reply_state(event, reply_state, full_reply)
 

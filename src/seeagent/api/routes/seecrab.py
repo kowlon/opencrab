@@ -1039,9 +1039,14 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 "bp_subtask_output": None,
             }
 
-            async for event in adapter.transform(raw_stream, reply_id=reply_id, event_bus=event_bus):
+            from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+
+            async for event in sse_heartbeat_stream(adapter.transform(raw_stream, reply_id=reply_id, event_bus=event_bus)):
                 if disconnect_event.is_set():
                     break
+                if event is None:
+                    yield _HEARTBEAT_COMMENT
+                    continue
                 payload = json.dumps(event, ensure_ascii=False)
                 yield f"data: {payload}\n\n"
 

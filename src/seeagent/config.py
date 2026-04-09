@@ -93,6 +93,13 @@ class Settings(BaseSettings):
         default=False,
         description="IM 通道是否推送思维链进度（💭思考过程、工具调用等）给用户，关闭不影响内部保存。默认关闭以减少刷屏",
     )
+
+    # === SSE 心跳配置 ===
+    sse_heartbeat_interval: int = Field(
+        default=30,
+        ge=5,
+        description="SSE 流式心跳间隔（秒），防止 LB/CDN 因空闲超时断开连接。最小 5 秒",
+    )
     thinking_keywords: list = Field(
         default_factory=lambda: [
             "分析",
