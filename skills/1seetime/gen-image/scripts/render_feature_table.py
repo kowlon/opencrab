@@ -26,7 +26,11 @@ def load_data(input_path):
             return data["search"]
         elif "frame_results" in data and isinstance(data["frame_results"], list):
             return data["frame_results"]
-            
+        elif "result" in data and isinstance(data["result"], dict):
+            inner = data["result"].get("result", [])
+            if isinstance(inner, list):
+                return inner
+
     return []
 
 def get_image(url, size=(160, 90)):
@@ -116,7 +120,7 @@ def render_table(items, output_path, title):
         if ts:
             try:
                 dt = datetime.fromtimestamp(ts / 1000.0).strftime('%Y-%m-%d %H:%M:%S')
-            except:
+            except (ValueError, TypeError, OSError):
                 dt = str(ts)
         else:
             dt = "N/A"

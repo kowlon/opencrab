@@ -72,19 +72,21 @@ metadata:
 
 ## Request Example
 
+**使用 `run_shell` 执行 curl 命令调用 API（此技能无脚本，直接调 API）：**
+
 ### 示例 1：语义搜索 (向量检索)
-当用户输入 `{"query": "园区东门的摄像头", "limit": 5}` 时，执行：
+当输入包含 `query` 时，执行：
 ```bash
-curl -X GET 'https://api-platform-test.zhidaozhixing.com/api/v1/cameras/search?query=%E5%9B%AD%E5%8C%BA%E4%B8%9C%E9%97%A8%E7%9A%84%E6%91%84%E5%83%8F%E5%A4%B4&limit=5' \
-  -H 'Content-Type: application/json'
+curl -s -X GET 'https://api-platform-test.zhidaozhixing.com/api/v1/cameras/search?query=园区东门的摄像头&limit=5'
 ```
 
 ### 示例 2：POI 范围检索
-当用户输入 `{"keyword": "停车场", "radius_m": 500, "limit": 10}` 时，执行：
+当输入包含 `keyword` 且包含"附近""周边"等关键词时，执行：
 ```bash
-curl -X GET 'https://api-platform-test.zhidaozhixing.com/api/v1/cameras/search/poi?keyword=%E5%81%9C%E8%BD%A6%E5%9C%BA&radius_m=500&limit=10' \
-  -H 'Content-Type: application/json'
+curl -s -X GET 'https://api-platform-test.zhidaozhixing.com/api/v1/cameras/search/poi?keyword=停车场&radius_m=500&limit=10'
 ```
+
+**注意**：API 返回格式为 `{"code": 200, "result": {"cameras": [...]}}`，摄像头列表在 `result.cameras` 字段中。
 
 ## Response Example
 

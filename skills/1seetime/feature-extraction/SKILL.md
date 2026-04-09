@@ -29,25 +29,25 @@ metadata:
 
 ## Orchestration Flow
 
-1. 调用 `POST /api/v1/cameras/preprocess` 创建预处理任务（接口 5）。
-   - body: `{"camera_ids": [...], "start_time": "...", "end_time": "...", "frame_rate": 1}`
-   - 解析返回的 `task_id`
-2. 每隔 `poll_interval`（默认 5s）轮询 `GET /api/v1/cameras/preprocess/{task_id}`（接口 6）。
-   - 检查 `status` 和 `progress` 字段，直至 `status` 变为 `completed` 或者 `progress` 达到 `100`。若为 `failed` 则直接终止。
-3. 状态变为 `completed` 或进度达到 `100` 后，调用 `POST /api/v1/search` 进行特征检索（接口 7）。
-   - body: `{"text": "{feature_text}", "task_id": "{task_id}", "top_k": 20}`
-4. 返回 `result.result` 中的图像帧列表。
+**以下流程已封装在脚本 `run_feature_extraction.py` 中，直接通过 `run_skill_script` 一次调用即可完成全部步骤，无需手动逐步调用 API：**
+
+1. 创建预处理任务（接口 5）：`POST /api/v1/cameras/preprocess`
+2. 轮询任务状态（接口 6）：`GET /api/v1/cameras/preprocess/{task_id}`，直至 `completed`
+3. 特征检索（接口 7）：`POST /api/v1/search`
+4. 返回 `result.result` 中的图像帧列表
 
 ## Script
 
 脚本位于 `scripts/run_feature_extraction.py`，无额外第三方依赖，使用标准库实现。
 
-```bash
-python skills/1seetime/feature-extraction/scripts/run_feature_extraction.py \
-  --camera-ids cam_001,cam_002 \
-  --feature-text "找东门入口" \
-  --start-time "2024-01-15T08:30:00" \
-  --end-time "2024-01-15T09:30:00"
+**必须使用 `run_skill_script` 执行，禁止通过 `run_shell` 手动拼路径：**
+
+```
+run_skill_script(
+  skill_name="feature-extraction",
+  script_name="run_feature_extraction.py",
+  args=["--camera-ids", "cam_001,cam_002", "--feature-text", "找东门入口", "--start-time", "2024-01-15T08:30:00", "--end-time", "2024-01-15T09:30:00"]
+)
 ```
 
 ## Output

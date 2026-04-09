@@ -84,6 +84,7 @@ def main():
 
         status_res = get_json(status_url)
         if status_res.get("code") != 200:
+            print(f"Poll warning: {status_res.get('msg', 'unknown error')}", file=sys.stderr)
             time.sleep(args.poll_interval)
             continue
 

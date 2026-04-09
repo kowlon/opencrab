@@ -498,6 +498,8 @@ class SkillLoader:
             return False, f"Skill not found: {name}"
 
         script_path = self._resolve_script_path(skill, script_name)
+        if script_path:
+            script_path = script_path.resolve()
         if not script_path:
             available = self._list_available_scripts(skill)
             if available:
