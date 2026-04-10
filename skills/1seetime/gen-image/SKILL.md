@@ -47,11 +47,14 @@ pip install pillow requests
 
 **必须使用 `run_skill_script` 执行，禁止通过 `run_shell` 手动拼路径：**
 
+（注：生成图片时可按需传入 `timeout` 延长执行时间）
+
 ```
 run_skill_script(
   skill_name="gen-image",
   script_name="render_feature_table.py",
-  args=["--input", "/path/to/feature_result.json", "--output", "/path/to/result_report.png", "--title", "园区东门特征检索结果"]
+  args=["--input", "/path/to/feature_result.json", "--output", "/path/to/result_report.png", "--title", "园区东门特征检索结果"],
+  timeout=300
 )
 ```
 

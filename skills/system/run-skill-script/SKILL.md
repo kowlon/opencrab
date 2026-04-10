@@ -18,6 +18,8 @@ category: Skills Management
 | skill_name | string | 是 | 技能名称 |
 | script_name | string | 是 | 脚本文件名（如 get_time.py） |
 | args | array | 否 | 命令行参数 |
+| cwd | string | 否 | 工作目录 |
+| timeout | integer | 否 | 超时时间（秒），默认 300，长任务可适当延长 |
 
 ## Workflow
 

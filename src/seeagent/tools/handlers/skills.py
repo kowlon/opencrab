@@ -234,9 +234,10 @@ class SkillsHandler:
         script_name = params["script_name"]
         args = params.get("args", [])
         cwd = params.get("cwd")
+        timeout = params.get("timeout", 300)
 
         success, output = self.agent.skill_loader.run_script(
-            skill_name, script_name, args, cwd=Path(cwd) if cwd else None
+            skill_name, script_name, args, cwd=Path(cwd) if cwd else None, timeout=timeout
         )
 
         if success:

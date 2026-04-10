@@ -480,6 +480,7 @@ class SkillLoader:
         script_name: str,
         args: list[str] | None = None,
         cwd: Path | None = None,
+        timeout: int = 300,
     ) -> tuple[bool, str]:
         """
         运行技能脚本
@@ -489,6 +490,7 @@ class SkillLoader:
             script_name: 脚本文件名
             args: 命令行参数
             cwd: 工作目录
+            timeout: 超时时间（秒），默认 300
 
         Returns:
             (成功, 输出) 元组
@@ -563,7 +565,7 @@ class SkillLoader:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=60,
+                timeout=timeout,
                 **extra,
             )
 

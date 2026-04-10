@@ -85,6 +85,7 @@ SKILLS_TOOLS = [
                 "script_name": {"type": "string", "description": "脚本文件名（如 get_time.py）"},
                 "args": {"type": "array", "items": {"type": "string"}, "description": "命令行参数"},
                 "cwd": {"type": "string", "description": "脚本执行的工作目录（可选，默认为技能目录。处理用户文件时建议传入文件所在目录）"},
+                "timeout": {"type": "integer", "description": "超时时间（秒），默认 300 秒，处理长耗时任务时可适当延长"},
             },
             "required": ["skill_name", "script_name"],
         },

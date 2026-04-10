@@ -32,21 +32,23 @@ class TestSkillRegistry:
 class TestSkillEntry:
     def test_create_entry(self):
         entry = SkillEntry(
+            skill_id="test-skill",
             name="test-skill",
             description="A test skill",
             system=False,
         )
         assert entry.name == "test-skill"
-        assert entry.system is False
+        assert not entry.system
 
     def test_to_tool_schema(self):
         entry = SkillEntry(
+            skill_id="search-tool",
             name="search-tool",
             description="Search the web",
             tool_name="web_search",
         )
         schema = entry.to_tool_schema()
-        assert isinstance(schema, dict)
+        assert schema["name"] == "skill_search_tool"
 
 
 class TestSkillLoader:
