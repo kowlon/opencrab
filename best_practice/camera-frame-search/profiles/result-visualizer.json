@@ -13,5 +13,6 @@
   "color": "#F59E0B",
   "category": "bestpractice",
   "fallback_profile_id": "default",
-  "created_by": "bestpractice"
+  "created_by": "bestpractice",
+  "enable_experience": false
 }

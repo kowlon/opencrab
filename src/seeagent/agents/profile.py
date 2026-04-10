@@ -97,6 +97,9 @@ class AgentProfile:
     ephemeral: bool = False
     inherit_from: str | None = None
 
+    # 记忆隔离：是否加载/继承全局的 Experience 和 Error 记忆
+    enable_experience: bool = True
+
     def __post_init__(self):
         if isinstance(self.type, str):
             self.type = AgentType(self.type)

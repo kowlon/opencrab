@@ -40,17 +40,12 @@ metadata:
 
 脚本位于 `scripts/run_feature_extraction.py`，无额外第三方依赖，使用标准库实现。
 
-**必须使用 `run_skill_script` 执行，禁止通过 `run_shell` 手动拼路径：**
+**使用 `run_shell` 工具执行脚本：**
 
-（注：如果需要处理时间较长，可以在 `run_skill_script` 的参数中传入 `timeout=3600`，放宽底层执行超时限制）
+（注：如果需要处理时间较长，可以在 `run_shell` 的参数中传入 `"timeout": 3600`，放宽底层执行超时限制）
 
-```
-run_skill_script(
-  skill_name="feature-extraction",
-  script_name="run_feature_extraction.py",
-  args=["--camera-ids", "cam_001,cam_002", "--feature-text", "找东门入口", "--start-time", "2024-01-15T08:30:00", "--end-time", "2024-01-15T09:30:00"],
-  timeout=3600
-)
+```bash
+python scripts/run_feature_extraction.py --camera-ids cam_001,cam_002 --feature-text "找东门入口" --start-time "2024-01-15T08:30:00" --end-time "2024-01-15T09:30:00"
 ```
 
 ## Output

@@ -661,7 +661,7 @@ class BPEngine:
             while True:
                 try:
                     event = await asyncio.wait_for(event_bus.get(), timeout=1.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Check session-level cancellation signal (fastest path)
                     _cancelled_id = getattr(
                         getattr(session, "context", None),
@@ -765,7 +765,7 @@ class BPEngine:
             logger.info(f"[BP] awaiting delegate_task cancel: instance={instance_id} subtask={subtask.id}")
             try:
                 raw_result = await asyncio.wait_for(delegate_task, timeout=5.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     f"[BP] delegate_task cancel timed out: instance={instance_id} subtask={subtask.id}"
                 )
@@ -789,7 +789,7 @@ class BPEngine:
                     await asyncio.wait_for(
                         asyncio.shield(delegate_task), timeout=3.0,
                     )
-                except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                except (TimeoutError, asyncio.CancelledError, Exception):
                     pass
             if hasattr(session, "context"):
                 # Another request may have already attached a fresh event bus or
@@ -881,7 +881,7 @@ class BPEngine:
             f"- 禁止使用 ask_user 工具，所有信息已在输入数据中提供\n"
             f"- JSON 必须严格符合输出格式要求，包含上述所有字段\n"
             f"- **总结**行必须在 JSON 代码块之前\n"
-            f"- 不要把结果写入文件，直接在回复中输出 JSON"
+            f"- 不要把最终输出的 JSON 存入文件，必须直接在回复中以代码块形式输出。如果你需要生成其他产物文件（如图片、报告），请正常生成并在 JSON 中返回文件路径"
         )
 
     @staticmethod
@@ -1084,7 +1084,7 @@ class BPEngine:
         schema = subtask.input_schema
         if not schema:
             return [], None
-            
+
         branches = schema.get("oneOf") or schema.get("anyOf")
         if not branches:
             required = schema.get("required", [])
@@ -1099,16 +1099,16 @@ class BPEngine:
         for branch in branches:
             props = branch.get("properties", {})
             req = branch.get("required", [])
-            
+
             # 1. 命中的已有字段数量（在这个分支定义的 properties 中）
             provided_count = sum(1 for field in input_data if field in props)
             # 2. 缺失的必填字段数量
             missing = [field for field in req if field not in input_data]
-            
+
             if len(missing) == 0:
                 # 完美匹配，直接返回
                 return [], branch
-            
+
             # 优先级：先看哪个分支命中的已有字段多，如果一样多，看哪个缺失的少
             if provided_count > max_provided_count or (provided_count == max_provided_count and len(missing) < min_missing_count):
                 max_provided_count = provided_count

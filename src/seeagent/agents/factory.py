@@ -30,13 +30,11 @@ ESSENTIAL_SYSTEM_SKILLS: frozenset[str] = frozenset({
     # 规划（多步任务的核心）
     "create-plan", "update-plan-step", "get-plan-status", "complete-plan",
     # 技能发现（渐进式披露入口 — 外部技能必须先 get_skill_info 读指令）
-    "get-skill-info", "list-skills",
+    "get-skill-info", "list-skills", "run-skill-script", "get-skill-reference",
     # 文件系统（外部技能执行的基础 — 读指令→写代码→run-shell 执行）
     "run-shell", "read-file", "write-file", "list-directory",
     # IM 通道（接收用户输入、交付文件）
     "deliver-artifacts", "get-chat-history", "get-image-file", "get-voice-file",
-    # 记忆
-    "search-memory", "add-memory",
     # 信息检索
     "web-search",
     # 系统
@@ -123,6 +121,8 @@ class AgentFactory:
         removed = 0
         if profile.skills_mode == SkillsMode.INCLUSIVE:
             exact, short = AgentFactory._build_skill_match_set(profile.skills)
+            
+            # 1. 过滤技能注册表 (Skill Registry)
             for skill_name in all_skills:
                 if AgentFactory._is_essential(skill_name):
                     continue
@@ -135,18 +135,45 @@ class AgentFactory:
                 if skill.disabled:
                     skill.disabled = False
 
+            # 2. 过滤基础原生工具 (Native Tools)
+            original_tools = agent._tools
+            filtered_tools = []
+            for tool in original_tools:
+                tool_name = tool.get("name")
+                if AgentFactory._is_essential(tool_name) or AgentFactory._skill_in_set(tool_name, exact, short):
+                    filtered_tools.append(tool)
+            if len(filtered_tools) != len(original_tools):
+                agent._tools = filtered_tools
+                removed += 1
+
         elif profile.skills_mode == SkillsMode.EXCLUSIVE:
             exact, short = AgentFactory._build_skill_match_set(profile.skills)
+            
+            # 1. 过滤技能注册表
             for skill_name in all_skills:
                 if AgentFactory._is_essential(skill_name):
                     continue
                 if AgentFactory._skill_in_set(skill_name, exact, short):
                     registry.unregister(skill_name)
                     removed += 1
+                    
+            # 2. 过滤基础原生工具
+            original_tools = agent._tools
+            filtered_tools = []
+            for tool in original_tools:
+                tool_name = tool.get("name")
+                if AgentFactory._is_essential(tool_name):
+                    filtered_tools.append(tool)
+                elif not AgentFactory._skill_in_set(tool_name, exact, short):
+                    filtered_tools.append(tool)
+            if len(filtered_tools) != len(original_tools):
+                agent._tools = filtered_tools
+                removed += 1
 
         if removed:
             agent.skill_catalog.invalidate_cache()
             agent.skill_catalog.generate_catalog()
+            agent.tool_catalog.update_tools(agent._tools)
             agent._update_skill_tools()
 
 

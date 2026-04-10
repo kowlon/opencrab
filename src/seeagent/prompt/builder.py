@@ -156,6 +156,8 @@ def build_system_prompt(
     precomputed_memory: str | None = None,
     persona_manager: Optional["PersonaManager"] = None,
     bp_session_id: str = "",
+    is_sub_agent: bool = False,
+    enable_experience: bool = True,
 ) -> str:
     """
     组装系统提示词
@@ -192,17 +194,18 @@ def build_system_prompt(
     compiled = get_compiled_content(identity_dir)
 
     # 2. 构建 Identity 层
-    identity_section = _build_identity_section(
-        compiled=compiled,
-        identity_dir=identity_dir,
-        tools_enabled=tools_enabled,
-        budget_tokens=budget_config.identity_budget,
-    )
-    if identity_section:
-        system_parts.append(identity_section)
+    if not is_sub_agent:
+        identity_section = _build_identity_section(
+            compiled=compiled,
+            identity_dir=identity_dir,
+            tools_enabled=tools_enabled,
+            budget_tokens=budget_config.identity_budget,
+        )
+        if identity_section:
+            system_parts.append(identity_section)
 
     # 2.5 构建 Persona 层（新增: 在 Identity 和 Runtime 之间）
-    if persona_manager:
+    if not is_sub_agent and persona_manager:
         persona_section = _build_persona_section(persona_manager)
         if persona_section:
             system_parts.append(persona_section)
@@ -250,17 +253,19 @@ def build_system_prompt(
             memory_manager=memory_manager,
             task_description=task_description,
             budget_tokens=budget_config.memory_budget,
+            enable_experience=enable_experience,
         )
     if memory_section:
         developer_parts.append(memory_section)
 
     # 6. 构建 User 层
-    user_section = _build_user_section(
-        compiled=compiled,
-        budget_tokens=budget_config.user_budget,
-    )
-    if user_section:
-        user_parts.append(user_section)
+    if not is_sub_agent:
+        user_section = _build_user_section(
+            compiled=compiled,
+            budget_tokens=budget_config.user_budget,
+        )
+        if user_section:
+            user_parts.append(user_section)
 
     # 组装最终提示词
     sections: list[str] = []
@@ -833,6 +838,7 @@ def _build_memory_section(
     memory_manager: Optional["MemoryManager"],
     task_description: str,
     budget_tokens: int,
+    enable_experience: bool = True,
 ) -> str:
     """
     构建 Memory 层 — 渐进式披露:
@@ -869,9 +875,10 @@ def _build_memory_section(
         parts.append(f"## 核心记忆\n\n{core_memory}")
 
     # Layer 3: Experience Hints (高权重经验/教训/技能记忆)
-    experience_text = _build_experience_section(memory_manager, max_items=5)
-    if experience_text:
-        parts.append(experience_text)
+    if enable_experience:
+        experience_text = _build_experience_section(memory_manager, max_items=5)
+        if experience_text:
+            parts.append(experience_text)
 
     return "\n\n".join(parts)
 

@@ -316,18 +316,18 @@ class Agent:
 
     @property
     def _agent_profile(self):
-        return getattr(self, "__agent_profile", None)
+        return getattr(self, "_agent_profile_data", None)
 
     @_agent_profile.setter
     def _agent_profile(self, profile):
-        self.__agent_profile = profile
+        self._agent_profile_data = profile
         if hasattr(self, "brain") and self.brain:
             self.brain.agent_identity_str = self.agent_identity_str
 
     @property
     def agent_identity_str(self) -> str:
         """获取当前 Agent 的身份标识字符串（如 'SubAgent \'coder\'' 或 'Main Agent'）"""
-        profile = getattr(self, "__agent_profile", None)
+        profile = getattr(self, "_agent_profile_data", None)
         profile_id = profile.id if profile else "default"
         return f"SubAgent '{profile_id}'" if profile_id != "default" else "Main Agent"
 
@@ -2288,8 +2288,10 @@ search_github → install_skill → 使用
 
     def _build_system_prompt_compiled_sync(self, task_description: str = "", session_type: str = "cli") -> str:
         """同步版本：启动时构建初始系统提示词（此时事件循环可能未就绪）"""
+        is_sub_agent = getattr(self, "_is_sub_agent_call", False)
+        enable_experience = self._agent_profile.enable_experience if self._agent_profile else True
         prompt = self.prompt_assembler._build_compiled_sync(
-            task_description, session_type=session_type
+            task_description, session_type=session_type, is_sub_agent=is_sub_agent, enable_experience=enable_experience
         )
         if self._custom_prompt_suffix:
             prompt += f"\n\n{self._custom_prompt_suffix}"
@@ -2311,8 +2313,10 @@ search_github → install_skill → 使用
             编译后的系统提示词
         """
         bp_session_id = getattr(self, "_current_bp_session_id", "") or ""
+        is_sub_agent = getattr(self, "_is_sub_agent_call", False)
+        enable_experience = self._agent_profile.enable_experience if self._agent_profile else True
         prompt = await self.prompt_assembler.build_system_prompt_compiled(
-            task_description, session_type=session_type, bp_session_id=bp_session_id
+            task_description, session_type=session_type, bp_session_id=bp_session_id, is_sub_agent=is_sub_agent, enable_experience=enable_experience
         )
         if self._custom_prompt_suffix:
             prompt += f"\n\n{self._custom_prompt_suffix}"

@@ -136,6 +136,8 @@ class PromptAssembler:
         task_description: str = "",
         session_type: str = "cli",
         bp_session_id: str = "",
+        is_sub_agent: bool = False,
+        enable_experience: bool = True,
     ) -> str:
         """
         使用编译管线构建系统提示词 (v2) - 异步版本。
@@ -171,9 +173,11 @@ class PromptAssembler:
             session_type=session_type,
             persona_manager=self._persona_manager,
             bp_session_id=bp_session_id,
+            is_sub_agent=is_sub_agent,
+            enable_experience=enable_experience,
         )
 
-    def _build_compiled_sync(self, task_description: str = "", session_type: str = "cli") -> str:
+    def _build_compiled_sync(self, task_description: str = "", session_type: str = "cli", is_sub_agent: bool = False, enable_experience: bool = True) -> str:
         """同步版本：启动时构建初始系统提示词"""
         from ..prompt.builder import build_system_prompt
         from ..prompt.compiler import check_compiled_outdated, compile_all
@@ -195,6 +199,8 @@ class PromptAssembler:
             include_tools_guide=True,
             session_type=session_type,
             persona_manager=self._persona_manager,
+            is_sub_agent=is_sub_agent,
+            enable_experience=enable_experience,
         )
 
     def _generate_tools_text(self, tools: list[dict]) -> str:
