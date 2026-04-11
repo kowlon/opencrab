@@ -99,18 +99,21 @@ class BPToolHandler:
 
                 # pending_offer 供前端确认后 /api/bp/start 提取 input
                 ext_sid = getattr(agent, "_current_session_id", None) or session.id
-                user_query = ""
+                history_context = ""
                 if hasattr(session, "context") and hasattr(session.context, "messages"):
-                    for msg in reversed(session.context.messages):
+                    recent = session.context.messages[-10:]  # last 5 turns
+                    lines = []
+                    for msg in recent:
                         if msg.get("role") == "user":
-                            user_query = msg.get("content", "")
-                            break
+                            lines.append(f"[用户]: {msg.get('content', '')}")
+                    history_context = "\n".join(lines)
+                
                 self.state_manager.set_pending_offer(ext_sid, {
                     "bp_id": bp_id,
                     "bp_name": bp_config.name,
                     "subtasks": subtasks,
                     "default_run_mode": bp_config.default_run_mode.value,
-                    "user_query": user_query,
+                    "user_query": history_context,
                     "first_input_schema": (
                         bp_config.subtasks[0].input_schema
                         if bp_config.subtasks else None
