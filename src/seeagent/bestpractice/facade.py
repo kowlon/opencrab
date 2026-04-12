@@ -207,13 +207,14 @@ async def llm_match_bp_from_message(
     user_message: str,
     session_id: str,
     brain,
+    history_context: str = "",
 ) -> dict | None:
     """LLM fallback matching."""
     if not _initialized:
         init_bp_system()
     if not _bp_matcher:
         return None
-    return await _bp_matcher.match_llm(user_message, session_id, brain)
+    return await _bp_matcher.match_llm(user_message, session_id, brain, history_context)
 
 
 # ── Prompt injection (delegates to BPPromptBuilder) ───────────────

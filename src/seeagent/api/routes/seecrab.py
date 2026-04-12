@@ -32,18 +32,31 @@ _BP_START_COMMANDS = {
 
 # Strict next: always match, return "next"
 _BP_NEXT_COMMANDS_STRICT = {
-    "进入下一步", "下一步", "继续执行", "继续",
-    "好的继续", "开始下一步", "执行下一步",
+    "进入下一步",
+    "下一步",
+    "继续执行",
+    "继续",
+    "好的继续",
+    "开始下一步",
+    "执行下一步",
 }
 
 # Loose next: only match when active BP exists, return "next_loose"
 _BP_NEXT_COMMANDS_LOOSE = {
-    "好", "没问题", "ok", "确认", "好的下一步",
+    "好",
+    "没问题",
+    "ok",
+    "确认",
+    "好的下一步",
 }
 
 _BP_CANCEL_COMMANDS = {
-    "取消最佳实践", "终止最佳实践", "取消任务", "终止任务",
-    "停止最佳实践", "退出最佳实践",
+    "取消最佳实践",
+    "终止最佳实践",
+    "取消任务",
+    "终止任务",
+    "停止最佳实践",
+    "退出最佳实践",
 }
 
 # Resume intent keywords: skip BP matcher, let agent handle via bp_switch_task
@@ -105,7 +118,7 @@ async def _get_agent(request: Request, conversation_id: str | None, profile_id: 
 
 
 def _normalize_bp_command(message: str) -> str:
-    punct = " \t\r\n，。！？,.!?：:；;""\"'`（）()【】[]"
+    punct = " \t\r\n，。！？,.!?：:；;\"'`（）()【】[]"
     return "".join(ch for ch in (message or "").strip().lower() if ch not in punct)
 
 
@@ -141,9 +154,7 @@ def _resolve_chat_bp_instance(sm, session_id: str):
         from seeagent.bestpractice.models import BPStatus
 
         suspended = [
-            snap
-            for snap in sm.get_all_for_session(session_id)
-            if snap.status == BPStatus.SUSPENDED
+            snap for snap in sm.get_all_for_session(session_id) if snap.status == BPStatus.SUSPENDED
         ]
     except Exception:
         return None
@@ -157,7 +168,9 @@ def _resolve_chat_bp_instance(sm, session_id: str):
 
 
 async def _extract_input_from_query(
-    brain: Any, user_query: str, input_schema: dict,
+    brain: Any,
+    user_query: str,
+    input_schema: dict,
 ) -> dict:
     """用 LLM 从用户原始 query 中提取符合 input_schema 的结构化参数。"""
     if not brain or not user_query or not input_schema:
@@ -173,14 +186,14 @@ async def _extract_input_from_query(
         props = branch.get("properties", {})
         if not props:
             continue
-            
+
         fields = "\n".join(
             f"- {name}: {info.get('description', '无描述')} (type: {info.get('type', 'string')})"
             for name, info in props.items()
         )
-        
+
         if is_multi_branch:
-            title = branch.get("title", f"分支 {idx+1}")
+            title = branch.get("title", f"分支 {idx + 1}")
             desc = branch.get("description", "无描述")
             branch_desc_list.append(f"### {title}\n描述：{desc}\n字段定义：\n{fields}")
         else:
@@ -190,20 +203,20 @@ async def _extract_input_from_query(
         return {}
 
     all_branches_desc = "\n\n".join(branch_desc_list)
-    
+
     if is_multi_branch:
-        instruction = "分析用户消息，判断其符合以下哪一种意图分支，然后仅提取该分支下定义的字段。"
+        instruction = "分析以下对话上下文，判断其符合哪一种意图分支，并仅提取该分支下定义的字段。"
         schema_section = f"## 可选意图分支\n{all_branches_desc}"
     else:
-        instruction = "从用户消息中提取以下字段。"
+        instruction = "从以下对话上下文中提取所需的字段。"
         schema_section = f"## 字段定义\n{all_branches_desc}"
 
     prompt = (
         f"{instruction}\n"
-        "输出一个 JSON 对象。只提取消息中明确提到或可推断的字段，没有提到的字段不要包含。\n"
+        "输出一个 JSON 对象。只提取明确提到或可推断的字段，没有提到的字段不要包含。\n"
         "只输出 JSON，不要其他文字。\n\n"
         f"{schema_section}\n\n"
-        f"## 用户消息\n{user_query}"
+        f"## 对话上下文\n{user_query}"
     )
 
     try:
@@ -220,12 +233,12 @@ async def _extract_input_from_query(
 
 
 async def _llm_extract_answer_fields(
-    user_message: str,
+    history_context: str,
     missing_fields: list[str],
     input_schema: dict,
     brain,
 ) -> dict:
-    """从用户消息中提取指定的缺失字段值。"""
+    """从对话上下文中提取指定的缺失字段值。"""
     if not brain or not missing_fields:
         return {}
 
@@ -238,11 +251,11 @@ async def _llm_extract_answer_fields(
         for name in missing_fields
     )
     prompt = (
-        "从用户消息中提取以下字段，输出一个 JSON 对象。\n"
-        "只提取消息中明确提到或可推断的字段，没有提到的字段不要包含。\n"
+        "根据以下对话上下文，提取所需的补充参数字段。\n"
+        "输出一个 JSON 对象。只提取上下文中明确提到或可推断的字段，没有提到的字段不要包含。\n"
         "只输出 JSON，不要其他文字。\n\n"
         f"## 需要提取的字段\n{fields_desc}\n\n"
-        f"## 用户消息\n{user_message}"
+        f"## 对话上下文\n{history_context}"
     )
     try:
         from seeagent.bestpractice.engine import BPEngine
@@ -310,7 +323,8 @@ async def _stream_bp_start_from_chat(
     # matches the incoming input_data (or no new input), resume instead of creating new.
     _sm_sid = session.id if session else session_id
     suspended_same = [
-        s for s in sm.get_all_for_session(_sm_sid)
+        s
+        for s in sm.get_all_for_session(_sm_sid)
         if s.bp_id == bp_id and s.status == BPStatus.SUSPENDED
     ]
     if suspended_same:
@@ -336,10 +350,14 @@ async def _stream_bp_start_from_chat(
                         if event.get("type") in ("bp_subtask_complete", "bp_progress"):
                             _bp_renew_busy(session_id)
                     snap = sm.get(instance_id)
-                    is_suspended = snap and getattr(snap.status, "value", snap.status) == "suspended"
+                    is_suspended = (
+                        snap and getattr(snap.status, "value", snap.status) == "suspended"
+                    )
                     if not is_suspended:
                         _persist_bp_to_session(
-                            session, instance_id, sm,
+                            session,
+                            instance_id,
+                            sm,
                             reply_state=reply_state,
                             full_reply="".join(full_reply),
                             session_manager=session_manager,
@@ -557,7 +575,9 @@ async def _stream_bp_answer_from_chat(
         is_suspended = snap and getattr(snap.status, "value", snap.status) == "suspended"
         if not is_suspended:
             _persist_bp_to_session(
-                session, instance_id, sm,
+                session,
+                instance_id,
+                sm,
                 reply_state=reply_state,
                 full_reply="".join(full_reply),
                 session_manager=session_manager,
@@ -585,7 +605,9 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
     # Busy-lock check
     if not await _mark_busy(conversation_id, client_id):
-        logger.warning(f"[BP-DEBUG] 409 BUSY LOCK for conv_id={conversation_id}, client_id={client_id}")
+        logger.warning(
+            f"[BP-DEBUG] 409 BUSY LOCK for conv_id={conversation_id}, client_id={client_id}"
+        )
         return JSONResponse(
             {"error": "Another request is already processing this conversation"},
             status_code=409,
@@ -610,12 +632,19 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
                         _bp_engine = _get_bp_engine()
                         _bp_sm = _get_bp_sm()
-                        _bp_active = _resolve_chat_bp_instance(
-                            _bp_sm, session.id if session else conversation_id,
-                        ) if _bp_sm else None
+                        _bp_active = (
+                            _resolve_chat_bp_instance(
+                                _bp_sm,
+                                session.id if session else conversation_id,
+                            )
+                            if _bp_sm
+                            else None
+                        )
                         if _bp_engine and _bp_active:
                             await _bp_engine.request_suspend(
-                                _bp_active.instance_id, session, "disconnect",
+                                _bp_active.instance_id,
+                                session,
+                                "disconnect",
                             )
                     except Exception:
                         pass
@@ -636,6 +665,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             # Resolve session
             session_messages: list[dict] = []
             user_messages: list[str] = []
+            history_context: str = ""
             if session_manager and conversation_id:
                 try:
                     session = session_manager.get_session(
@@ -651,6 +681,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                             from seeagent.bestpractice.facade import (
                                 get_bp_state_manager as _get_bp_sm,
                             )
+
                             _bp_sm = _get_bp_sm()
                             if _bp_sm:
                                 _bp_active = _bp_sm.get_active(session.id)
@@ -658,27 +689,38 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                                     from seeagent.api.routes.bestpractice import (
                                         _persist_bp_to_session,
                                     )
+
                                     _persist_bp_to_session(
-                                        session, _bp_active.instance_id,
-                                        _bp_sm, session_manager=session_manager,
+                                        session,
+                                        _bp_active.instance_id,
+                                        _bp_sm,
+                                        session_manager=session_manager,
                                     )
                         except Exception:
                             pass
                         session.add_message("user", body.message)
-                        session_messages = list(
-                            session.context.messages
-                        ) if hasattr(session, "context") else []
+                        session_messages = (
+                            list(session.context.messages) if hasattr(session, "context") else []
+                        )
                         user_messages = [
                             m.get("content", "")
                             for m in session_messages
                             if m.get("role") == "user"
                         ][-5:]
+
+                        history_lines = []
+                        for m in session_messages[-10:]:
+                            role_name = "用户" if m.get("role") == "user" else "助手"
+                            history_lines.append(f"[{role_name}]: {m.get('content', '')}")
+                        history_context = "\n".join(history_lines)
+
                         session_manager.mark_dirty()
                 except Exception as e:
                     logger.warning(f"[SeeCrab] Session error: {e}")
 
             if not user_messages and body.message:
                 user_messages = [body.message]
+                history_context = f"[用户]: {body.message}"
 
             # 使用 conversation_id(=chat_id)，与前端 activeSessionId 一致，
             # 确保 /api/bp/start 能通过 get_pending_offer(session_id) 找到 pending_offer
@@ -690,15 +732,16 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             # 所以 state_manager 内部查询（restore / cooldown / matcher）统一用 session.id
             _sm_sid = session.id if session else bp_session_id
             logger.info(
-                f"[BP] session_id mapping: bp_session_id={bp_session_id!r} "
-                f"session.id={_sm_sid!r}"
+                f"[BP] session_id mapping: bp_session_id={bp_session_id!r} session.id={_sm_sid!r}"
             )
 
             # ── Step 0: BP state restoration + cooldown tick ──
             from seeagent.bestpractice.facade import get_bp_state_manager
+
             bp_sm = get_bp_state_manager()
             if bp_sm:
                 from seeagent.api.routes.bestpractice import _ensure_bp_restored
+
                 await _ensure_bp_restored(request, _sm_sid, bp_sm)
                 bp_sm.tick_cooldown(_sm_sid)
 
@@ -709,6 +752,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             if bp_cmd:
                 if not bp_sm:
                     from seeagent.bestpractice.facade import get_bp_state_manager
+
                     bp_sm = get_bp_state_manager()
 
                 if bp_cmd == "start":
@@ -718,10 +762,25 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                         extracted_input = pending_offer.get("extracted_input", {})
                         if not extracted_input:
                             user_query = pending_offer.get("user_query", "")
-                            first_schema = pending_offer.get("first_input_schema")
-                            if user_query and first_schema:
+                            from seeagent.bestpractice.facade import get_bp_config_loader
+                            from seeagent.api.routes.bestpractice import _build_combined_user_schema
+
+                            loader = get_bp_config_loader()
+                            bp_config = (
+                                loader.configs.get(pending_offer.get("bp_id"))
+                                if loader and loader.configs
+                                else None
+                            )
+                            combined_schema = (
+                                _build_combined_user_schema(bp_config)
+                                if bp_config and user_query
+                                else None
+                            )
+                            if user_query and combined_schema:
                                 extracted_input = await _extract_input_from_query(
-                                    brain, user_query, first_schema,
+                                    brain,
+                                    user_query,
+                                    combined_schema,
                                 )
                                 logger.info(f"[BP] Extracted input from query: {extracted_input}")
                         async for event in _stream_bp_start_from_chat(
@@ -772,8 +831,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     elif current_bp:
                         # Check waiting_input — can't advance, need params first
                         has_waiting = any(
-                            s == "waiting_input"
-                            for s in current_bp.subtask_statuses.values()
+                            s == "waiting_input" for s in current_bp.subtask_statuses.values()
                         )
                         if has_waiting:
                             fallback = {
@@ -794,7 +852,10 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                             ):
                                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                             return
-                        fallback = {"type": "ai_text", "content": "当前最佳实践已完成或没有下一步可执行。"}
+                        fallback = {
+                            "type": "ai_text",
+                            "content": "当前最佳实践已完成或没有下一步可执行。",
+                        }
                         yield f"data: {json.dumps(fallback, ensure_ascii=False)}\n\n"
                         yield 'data: {"type": "done"}\n\n'
                         return
@@ -807,6 +868,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             # ── Step 2: waiting_input → route to answer ──
             if not bp_sm:
                 from seeagent.bestpractice.facade import get_bp_state_manager
+
                 bp_sm = get_bp_state_manager()
             current_bp = _resolve_chat_bp_instance(bp_sm, _sm_sid)
             if current_bp:
@@ -828,21 +890,26 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     if subtask_config:
                         from seeagent.bestpractice.engine import LinearScheduler
                         from seeagent.bestpractice.facade import get_bp_engine
+
                         scheduler = LinearScheduler(current_bp.bp_config, current_bp)
                         resolved_input = scheduler.resolve_input(waiting_subtask_id)
-                        
+
                         engine = get_bp_engine()
-                        missing_fields, matched_schema = engine._check_input_completeness(subtask_config, resolved_input)
+                        missing_fields, matched_schema = engine._check_input_completeness(
+                            subtask_config, resolved_input
+                        )
                         still_missing = missing_fields
-                        
+
                         target_schema = matched_schema or subtask_config.input_schema
 
                         if len(still_missing) == 1:
                             data = {still_missing[0]: body.message}
                         elif len(still_missing) > 1:
                             data = await _llm_extract_answer_fields(
-                                body.message, still_missing,
-                                target_schema, brain,
+                                history_context,
+                                still_missing,
+                                target_schema,
+                                brain,
                             )
 
                     if not data:
@@ -876,6 +943,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     get_bp_engine as _get_engine_pre,
                     get_bp_state_manager as _get_sm_pre,
                 )
+
                 _sm_pre = _get_sm_pre()
                 _engine_pre = _get_engine_pre()
                 if _sm_pre and _engine_pre:
@@ -888,7 +956,9 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     )
                     if _active_pre:
                         await _engine_pre.request_suspend(
-                            _active_pre.instance_id, session, "free_form_chat",
+                            _active_pre.instance_id,
+                            session,
+                            "free_form_chat",
                         )
                         logger.info(
                             f"[BP] Pre-match suspended {_active_pre.instance_id} "
@@ -907,19 +977,22 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 bp_match = None
                 if not _has_resume_intent:
                     from seeagent.bestpractice.facade import match_bp_from_message
+
                     bp_match = match_bp_from_message(body.message or "", _sm_sid)
                     # Step 4: LLM fallback if keyword didn't match
                     if not bp_match and brain:
                         from seeagent.bestpractice.facade import llm_match_bp_from_message
+
                         bp_match = await llm_match_bp_from_message(
-                            body.message or "", _sm_sid, brain,
+                            body.message or "",
+                            _sm_sid,
+                            brain,
+                            history_context,
                         )
                 if bp_match:
                     bp_name = bp_match["bp_name"]
                     bp_id = bp_match["bp_id"]
-                    subtask_names = " → ".join(
-                        s["name"] for s in bp_match.get("subtasks", [])
-                    )
+                    subtask_names = " → ".join(s["name"] for s in bp_match.get("subtasks", []))
                     question = (
                         f"检测到您的需求匹配最佳实践「{bp_name}」，"
                         f"该任务包含 {bp_match['subtask_count']} 个子任务："
@@ -930,27 +1003,34 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                     is_first_message = len(user_messages) <= 1
                     if is_first_message and body.message:
                         title = body.message[:30] + ("..." if len(body.message) > 30 else "")
-                        title_event = json.dumps({
-                            "type": "session_title",
-                            "session_id": conversation_id,
-                            "title": title,
-                        }, ensure_ascii=False)
+                        title_event = json.dumps(
+                            {
+                                "type": "session_title",
+                                "session_id": conversation_id,
+                                "title": title,
+                            },
+                            ensure_ascii=False,
+                        )
                         yield f"data: {title_event}\n\n"
                         if session:
                             session.metadata["title"] = title
                             session_manager.mark_dirty()
 
-                    ask_event = json.dumps({
-                        "type": "bp_offer",
-                        "bp_id": bp_id,
-                        "bp_name": bp_name,
-                        "subtasks": bp_match.get("subtasks", []),
-                        "default_run_mode": "manual",
-                    }, ensure_ascii=False)
+                    ask_event = json.dumps(
+                        {
+                            "type": "bp_offer",
+                            "bp_id": bp_id,
+                            "bp_name": bp_name,
+                            "subtasks": bp_match.get("subtasks", []),
+                            "default_run_mode": "manual",
+                        },
+                        ensure_ascii=False,
+                    )
                     yield f"data: {ask_event}\n\n"
 
                     # Mark this BP as offered so it won't re-trigger in this session
                     from seeagent.bestpractice.facade import get_bp_state_manager
+
                     bp_sm = get_bp_state_manager()
                     if bp_sm:
                         bp_sm.mark_bp_offered(_sm_sid, bp_id)
@@ -961,7 +1041,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                                 "bp_name": bp_name,
                                 "subtasks": bp_match.get("subtasks", []),
                                 "default_run_mode": "manual",
-                                "user_query": bp_match.get("user_query", ""),
+                                "user_query": history_context,
                                 "first_input_schema": bp_match.get("first_input_schema"),
                                 "extracted_input": bp_match.get("extracted_input", {}),
                             },
@@ -969,12 +1049,15 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
                     if session:
                         session.add_message(
-                            "assistant", question,
-                            reply_state={"bp_offer": {
-                                "bp_id": bp_id,
-                                "bp_name": bp_name,
-                                "subtasks": bp_match.get("subtasks", []),
-                            }},
+                            "assistant",
+                            question,
+                            reply_state={
+                                "bp_offer": {
+                                    "bp_id": bp_id,
+                                    "bp_name": bp_name,
+                                    "subtasks": bp_match.get("subtasks", []),
+                                }
+                            },
                         )
                         if session_manager:
                             session_manager.mark_dirty()
@@ -1002,11 +1085,14 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 thinking_depth=body.thinking_depth,
                 attachments=body.attachments,
             )
-            logger.info(f"[BP-DEBUG] agent.chat_with_session_stream started for msg={body.message!r}")
+            logger.info(
+                f"[BP-DEBUG] agent.chat_with_session_stream started for msg={body.message!r}"
+            )
 
             # Dual-loop bridge if needed
             try:
                 from seeagent.core.engine_bridge import engine_stream, is_dual_loop
+
                 if is_dual_loop():
                     raw_stream = engine_stream(raw_stream)
             except ImportError:
@@ -1016,11 +1102,14 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             is_first_message = len(user_messages) <= 1
             if is_first_message and body.message:
                 title = body.message[:30] + ("..." if len(body.message) > 30 else "")
-                title_event = json.dumps({
-                    "type": "session_title",
-                    "session_id": conversation_id,
-                    "title": title,
-                }, ensure_ascii=False)
+                title_event = json.dumps(
+                    {
+                        "type": "session_title",
+                        "session_id": conversation_id,
+                        "title": title,
+                    },
+                    ensure_ascii=False,
+                )
                 yield f"data: {title_event}\n\n"
                 # Persist title in metadata (survives to_dict/from_dict)
                 if session:
@@ -1041,7 +1130,9 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
 
             from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
 
-            async for event in sse_heartbeat_stream(adapter.transform(raw_stream, reply_id=reply_id, event_bus=event_bus)):
+            async for event in sse_heartbeat_stream(
+                adapter.transform(raw_stream, reply_id=reply_id, event_bus=event_bus)
+            ):
                 if disconnect_event.is_set():
                     break
                 if event is None:
@@ -1055,17 +1146,17 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 if etype == "ai_text":
                     aid = event.get("agent_id")
                     if aid and aid != "main":
-                        reply_state["agent_summaries"][aid] = (
-                            reply_state["agent_summaries"].get(aid, "")
-                            + event.get("content", "")
-                        )
+                        reply_state["agent_summaries"][aid] = reply_state["agent_summaries"].get(
+                            aid, ""
+                        ) + event.get("content", "")
                     else:
                         full_reply += event.get("content", "")
                 elif etype == "thinking":
                     aid = event.get("agent_id")
                     if aid and aid != "main":
                         at = reply_state["agent_thinking"].setdefault(
-                            aid, {"content": "", "done": False},
+                            aid,
+                            {"content": "", "done": False},
                         )
                         at["content"] += event.get("content", "")
                     else:
@@ -1086,9 +1177,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
             # Save assistant reply with reply_state to session
             if session and full_reply:
                 try:
-                    session.add_message(
-                        "assistant", full_reply, reply_state=reply_state
-                    )
+                    session.add_message("assistant", full_reply, reply_state=reply_state)
                     if session_manager:
                         session_manager.mark_dirty()
                 except Exception:
@@ -1146,11 +1235,10 @@ async def list_sessions(
         if title:
             keyword = title.lower()
             sessions = [
-                s for s in sessions
-                if keyword in s.metadata.get("title", s.chat_id).lower()
+                s for s in sessions if keyword in s.metadata.get("title", s.chat_id).lower()
             ]
         total = len(sessions)
-        sessions = sessions[offset: offset + limit]
+        sessions = sessions[offset : offset + limit]
         result = []
         for s in sessions:
             messages = s.context.messages if hasattr(s, "context") else []
@@ -1164,21 +1252,25 @@ async def list_sessions(
                         break
                     if role == "user" and not last_msg:
                         last_msg = m.get("content", "")[:80]
-            result.append({
-                "id": s.chat_id,
-                "title": s.metadata.get("title", ""),
-                "pinned": s.metadata.get("pinned", False),
-                "icon": s.metadata.get("icon", ""),
-                "updated_at": getattr(s, "last_active", datetime.now()).timestamp() * 1000,
-                "message_count": len(messages),
-                "last_message": last_msg,
-            })
-        return JSONResponse({
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-            "sessions": result,
-        })
+            result.append(
+                {
+                    "id": s.chat_id,
+                    "title": s.metadata.get("title", ""),
+                    "pinned": s.metadata.get("pinned", False),
+                    "icon": s.metadata.get("icon", ""),
+                    "updated_at": getattr(s, "last_active", datetime.now()).timestamp() * 1000,
+                    "message_count": len(messages),
+                    "last_message": last_msg,
+                }
+            )
+        return JSONResponse(
+            {
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "sessions": result,
+            }
+        )
     except Exception:
         return JSONResponse({"total": 0, "limit": limit, "offset": offset, "sessions": []})
 
@@ -1213,13 +1305,15 @@ async def get_session(session_id: str, request: Request):
                 if m.get("reply_state"):
                     msg_dict["reply_state"] = m["reply_state"]
                 messages.append(msg_dict)
-        return JSONResponse({
-            "session_id": session_id,
-            "title": session.metadata.get("title", ""),
-            "pinned": session.metadata.get("pinned", False),
-            "icon": session.metadata.get("icon", ""),
-            "messages": messages,
-        })
+        return JSONResponse(
+            {
+                "session_id": session_id,
+                "title": session.metadata.get("title", ""),
+                "pinned": session.metadata.get("pinned", False),
+                "icon": session.metadata.get("icon", ""),
+                "messages": messages,
+            }
+        )
     except Exception as e:
         logger.warning(f"[SeeCrab] Get session error: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -1243,7 +1337,9 @@ async def create_session(request: Request):
 
 @router.patch("/sessions/{session_id}")
 async def update_session(
-    session_id: str, body: SeeCrabSessionUpdateRequest, request: Request,
+    session_id: str,
+    body: SeeCrabSessionUpdateRequest,
+    request: Request,
 ):
     """Update session metadata (title, etc.)."""
     sm = getattr(request.app.state, "session_manager", None)
@@ -1295,9 +1391,11 @@ async def answer_ask_user(body: SeeCrabAnswerRequest, request: Request):
     conversation_id. This endpoint acknowledges the answer and instructs
     the client accordingly.
     """
-    return JSONResponse({
-        "status": "ok",
-        "conversation_id": body.conversation_id,
-        "answer": body.answer,
-        "hint": "Please send the answer as a new /api/seecrab/chat message with the same conversation_id",
-    })
+    return JSONResponse(
+        {
+            "status": "ok",
+            "conversation_id": body.conversation_id,
+            "answer": body.answer,
+            "hint": "Please send the answer as a new /api/seecrab/chat message with the same conversation_id",
+        }
+    )

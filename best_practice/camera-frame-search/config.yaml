@@ -92,7 +92,7 @@ subtasks:
           description: "截帧结束时间 (ISO8601格式)"
         feature_text:
           type: string
-          description: "要在帧中检索的自然语言特征描述，如'找东门入口'"
+          description: "要在帧中检索的自然语言特征描述，如'黄色小汽车|骑摩托车的人'"
       required: [camera_ids, start_time, end_time, feature_text]
       upstream: [camera_ids]
 

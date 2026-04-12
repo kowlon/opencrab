@@ -56,8 +56,7 @@ class BPMatcher:
                 if trigger.type == TriggerType.CONTEXT:
                     if any(kw in user_message for kw in trigger.conditions):
                         logger.info(
-                            f"[BP] match_keyword: matched bp_id={bp_id} "
-                            f"session={session_id}"
+                            f"[BP] match_keyword: matched bp_id={bp_id} session={session_id}"
                         )
                         first_input_schema = (
                             config.subtasks[0].input_schema if config.subtasks else None
@@ -67,10 +66,7 @@ class BPMatcher:
                             "bp_name": config.name,
                             "description": config.description,
                             "subtask_count": len(config.subtasks),
-                            "subtasks": [
-                                {"id": s.id, "name": s.name}
-                                for s in config.subtasks
-                            ],
+                            "subtasks": [{"id": s.id, "name": s.name} for s in config.subtasks],
                             "user_query": user_message,
                             "first_input_schema": first_input_schema,
                         }
@@ -87,6 +83,7 @@ class BPMatcher:
         user_message: str,
         session_id: str,
         brain: Any,
+        history_context: str = "",
     ) -> dict | None:
         """LLM fallback: when keyword matching fails, use LLM to judge intent."""
         if not brain:
@@ -97,14 +94,16 @@ class BPMatcher:
             return None
 
         bp_list_lines = []
+        from seeagent.api.routes.bestpractice import _build_combined_user_schema
+
         for bp_id, config in self._config_loader.configs.items():
             if self._state_manager.is_bp_offered(session_id, bp_id):
                 continue
-            first_schema = config.subtasks[0].input_schema if config.subtasks else {}
+            combined_schema = _build_combined_user_schema(config) if config.subtasks else {}
             params_desc = ""
-            if first_schema:
-                props = collect_all_properties(first_schema)
-                required = collect_all_required(first_schema)
+            if combined_schema:
+                props = collect_all_properties(combined_schema)
+                required = collect_all_required(combined_schema)
                 param_lines = []
                 for pname, pinfo in props.items():
                     req_mark = "必填" if pname in required else "选填"
@@ -116,28 +115,29 @@ class BPMatcher:
                     params_desc = "\n" + "\n".join(param_lines)
 
             bp_list_lines.append(
-                f"- {bp_id}: \"{config.name}\"\n"
-                f"  描述: {config.description}"
-                f"{params_desc}"
+                f'- {bp_id}: "{config.name}"\n  描述: {config.description}{params_desc}'
             )
 
         if not bp_list_lines:
             return None
 
         logger.debug(
-            f"[BP] match_llm: attempting session={session_id} "
-            f"candidates={len(bp_list_lines)}"
+            f"[BP] match_llm: attempting session={session_id} candidates={len(bp_list_lines)}"
         )
         bp_list = "\n".join(bp_list_lines)
 
         try:
             prompt = self._prompt_loader.render(
-                "bp_match", bp_list=bp_list, user_message=user_message,
+                "bp_match",
+                bp_list=bp_list,
+                user_message=user_message,
+                history_context=history_context or user_message,
             )
             resp = await brain.think_lightweight(prompt, max_tokens=512)
             text = resp.content if hasattr(resp, "content") else str(resp)
 
             from seeagent.bestpractice.engine import BPEngine
+
             parsed = BPEngine._parse_output(text)
             if not isinstance(parsed, dict):
                 return None

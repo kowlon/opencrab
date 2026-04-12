@@ -550,6 +550,11 @@ class ToolExecutor:
 
         try:
             from ..tools.handlers.plan import has_active_plan, is_plan_required
+            from ..bestpractice.facade import get_bp_state_manager
+
+            bp_state = get_bp_state_manager()
+            if bp_state and session_id and bp_state.get_active(session_id):
+                return None
 
             if session_id and is_plan_required(session_id) and not has_active_plan(session_id):
                 return (

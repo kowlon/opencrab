@@ -1,4 +1,5 @@
 """BP REST API: 状态查询、模式切换、前端启动。"""
+
 from __future__ import annotations
 
 import asyncio
@@ -74,8 +75,7 @@ def _build_instance_item(
         bp_id = snap.bp_id
         bp_name = snap.bp_config.name if snap.bp_config else bp_id
         statuses = {
-            k: v.value if hasattr(v, "value") else v
-            for k, v in snap.subtask_statuses.items()
+            k: v.value if hasattr(v, "value") else v for k, v in snap.subtask_statuses.items()
         }
         cfg = snap.bp_config or config_map.get(bp_id)
         subtask_names = [s.name for s in cfg.subtasks] if cfg else list(statuses.keys())
@@ -88,8 +88,7 @@ def _build_instance_item(
             "status": snap.status.value,
             "run_mode": snap.run_mode.value,
             "current_subtask_index": snap.current_subtask_index,
-            "progress": f"{sum(1 for v in statuses.values() if v == 'done')}"
-                        f"/{len(statuses)}",
+            "progress": f"{sum(1 for v in statuses.values() if v == 'done')}/{len(statuses)}",
             "subtask_count": len(statuses),
             "done_count": sum(1 for v in statuses.values() if v == "done"),
             "subtask_names": subtask_names,
@@ -106,6 +105,7 @@ def _build_instance_item(
         raw_statuses = r.get("subtask_statuses", {})
         if isinstance(raw_statuses, str):
             import json as _json
+
             raw_statuses = _json.loads(raw_statuses) if raw_statuses else {}
         subtask_names = [s.name for s in cfg.subtasks] if cfg else list(raw_statuses.keys())
         done = sum(1 for v in raw_statuses.values() if v == "done")
@@ -152,7 +152,41 @@ async def get_bp_configs():
 
     configs = []
     for cfg in loader.configs.values():
-        configs.append({
+        configs.append(
+            {
+                "id": cfg.id,
+                "name": cfg.name,
+                "description": cfg.description,
+                "subtask_count": len(cfg.subtasks),
+                "default_run_mode": cfg.default_run_mode.value,
+                "trigger_types": sorted({t.type.value for t in cfg.triggers}),
+                "triggers": [
+                    {
+                        "type": t.type.value,
+                        "pattern": t.pattern,
+                        "conditions": t.conditions,
+                        "cron": t.cron,
+                    }
+                    for t in cfg.triggers
+                ],
+            }
+        )
+    return JSONResponse({"total": len(configs), "configs": configs})
+
+
+@router.get("/configs/{bp_id}")
+async def get_bp_config_detail(bp_id: str):
+    """返回单个 BP 模板的完整配置信息。"""
+    loader = get_bp_config_loader()
+    if not loader:
+        return JSONResponse({"error": "BP system not initialized"}, status_code=500)
+
+    cfg = loader.configs.get(bp_id) if loader.configs else None
+    if not cfg:
+        return JSONResponse({"error": f"BP config '{bp_id}' not found"}, status_code=404)
+
+    return JSONResponse(
+        {
             "id": cfg.id,
             "name": cfg.name,
             "description": cfg.description,
@@ -168,57 +202,23 @@ async def get_bp_configs():
                 }
                 for t in cfg.triggers
             ],
-        })
-    return JSONResponse({"total": len(configs), "configs": configs})
-
-
-@router.get("/configs/{bp_id}")
-async def get_bp_config_detail(bp_id: str):
-    """返回单个 BP 模板的完整配置信息。"""
-    loader = get_bp_config_loader()
-    if not loader:
-        return JSONResponse(
-            {"error": "BP system not initialized"}, status_code=500
-        )
-
-    cfg = loader.configs.get(bp_id) if loader.configs else None
-    if not cfg:
-        return JSONResponse(
-            {"error": f"BP config '{bp_id}' not found"}, status_code=404
-        )
-
-    return JSONResponse({
-        "id": cfg.id,
-        "name": cfg.name,
-        "description": cfg.description,
-        "subtask_count": len(cfg.subtasks),
-        "default_run_mode": cfg.default_run_mode.value,
-        "trigger_types": sorted({t.type.value for t in cfg.triggers}),
-        "triggers": [
-            {
-                "type": t.type.value,
-                "pattern": t.pattern,
-                "conditions": t.conditions,
-                "cron": t.cron,
-            }
-            for t in cfg.triggers
-        ],
-        "subtasks": [
-            {
-                "id": s.id,
-                "name": s.name,
-                "description": s.description,
-                "agent_profile": s.agent_profile,
-                "input_schema": s.input_schema,
-                "depends_on": s.depends_on,
-                "input_mapping": s.input_mapping,
-                "timeout_seconds": s.timeout_seconds,
-                "max_retries": s.max_retries,
-            }
-            for s in cfg.subtasks
-        ],
-        "final_output_schema": cfg.final_output_schema,
-    })
+            "subtasks": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "description": s.description,
+                    "agent_profile": s.agent_profile,
+                    "input_schema": s.input_schema,
+                    "depends_on": s.depends_on,
+                    "input_mapping": s.input_mapping,
+                    "timeout_seconds": s.timeout_seconds,
+                    "max_retries": s.max_retries,
+                }
+                for s in cfg.subtasks
+            ],
+            "final_output_schema": cfg.final_output_schema,
+        }
+    )
 
 
 # ── v1.1 Instance endpoints ─────────────────────────────────
@@ -233,17 +233,18 @@ async def get_bp_instance_stats(
     """返回 BP 实例的聚合统计数据（总数 + 按状态分组）。"""
     sm = get_bp_state_manager()
     if not sm or not sm._storage:
-        return JSONResponse(
-            {"error": "BP storage not initialized"}, status_code=500
-        )
+        return JSONResponse({"error": "BP storage not initialized"}, status_code=500)
 
     by_status = await sm._storage.count_by_status(
-        session_id=session_id, bp_id=bp_id,
+        session_id=session_id,
+        bp_id=bp_id,
     )
-    return JSONResponse({
-        "total": sum(by_status.values()),
-        "by_status": by_status,
-    })
+    return JSONResponse(
+        {
+            "total": sum(by_status.values()),
+            "by_status": by_status,
+        }
+    )
 
 
 @router.get("/instances")
@@ -264,17 +265,23 @@ async def get_bp_instances(
     if session_id:
         # ── Memory-first path (with auto-restore) ───────────────
         if not sm:
-            return JSONResponse({
-                "total": 0, "limit": limit, "offset": offset,
-                "active_id": None, "instances": [],
-            })
+            return JSONResponse(
+                {
+                    "total": 0,
+                    "limit": limit,
+                    "offset": offset,
+                    "active_id": None,
+                    "instances": [],
+                }
+            )
 
         await _ensure_bp_restored(request, session_id, sm)
         snapshots = sm.get_all_for_session(session_id)
 
         if status:
             snapshots = [
-                s for s in snapshots
+                s
+                for s in snapshots
                 if (s.status.value if hasattr(s.status, "value") else s.status) == status
             ]
         if bp_id:
@@ -282,31 +289,39 @@ async def get_bp_instances(
         if keyword:
             kw = keyword.lower()
             snapshots = [
-                s for s in snapshots
+                s
+                for s in snapshots
                 if kw in json.dumps(s.initial_input, ensure_ascii=False).lower()
             ]
 
         total = len(snapshots)
-        page = snapshots[offset: offset + limit]
+        page = snapshots[offset : offset + limit]
         active = sm.get_active(session_id)
         title_map = _resolve_session_titles(request, {session_id})
         items = [_build_instance_item(s, config_map, title_map) for s in page]
 
-        return JSONResponse({
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-            "active_id": active.instance_id if active else None,
-            "instances": items,
-        })
+        return JSONResponse(
+            {
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "active_id": active.instance_id if active else None,
+                "instances": items,
+            }
+        )
 
     else:
         # ── SQLite path (cross-session) ─────────────────────────
         if not sm or not sm._storage:
-            return JSONResponse({
-                "total": 0, "limit": limit, "offset": offset,
-                "active_id": None, "instances": [],
-            })
+            return JSONResponse(
+                {
+                    "total": 0,
+                    "limit": limit,
+                    "offset": offset,
+                    "active_id": None,
+                    "instances": [],
+                }
+            )
 
         storage = sm._storage
         if keyword:
@@ -315,42 +330,59 @@ async def get_bp_instances(
             max_rows = 10000
             if status and bp_id:
                 rows = await storage.load_instances_by_status_and_bp_id(
-                    status, bp_id, limit=max_rows, offset=0,
+                    status,
+                    bp_id,
+                    limit=max_rows,
+                    offset=0,
                 )
             elif status:
                 rows = await storage.load_instances_by_status(
-                    status, limit=max_rows, offset=0,
+                    status,
+                    limit=max_rows,
+                    offset=0,
                 )
             elif bp_id:
                 rows = await storage.load_instances_by_bp_id(
-                    bp_id, limit=max_rows, offset=0,
+                    bp_id,
+                    limit=max_rows,
+                    offset=0,
                 )
             else:
                 rows = await storage.load_all_instances(limit=max_rows, offset=0)
             kw = keyword.lower()
             rows = [
-                r for r in rows
-                if kw in json.dumps(
-                    r.get("initial_input", {}), ensure_ascii=False,
+                r
+                for r in rows
+                if kw
+                in json.dumps(
+                    r.get("initial_input", {}),
+                    ensure_ascii=False,
                 ).lower()
             ]
             total = len(rows)
-            rows = rows[offset: offset + limit]
+            rows = rows[offset : offset + limit]
         else:
             if status and bp_id:
                 total = await storage.count_instances(status=status, bp_id=bp_id)
                 rows = await storage.load_instances_by_status_and_bp_id(
-                    status, bp_id, limit=limit, offset=offset,
+                    status,
+                    bp_id,
+                    limit=limit,
+                    offset=offset,
                 )
             elif status:
                 total = await storage.count_instances(status=status)
                 rows = await storage.load_instances_by_status(
-                    status, limit=limit, offset=offset,
+                    status,
+                    limit=limit,
+                    offset=offset,
                 )
             elif bp_id:
                 total = await storage.count_instances(bp_id=bp_id)
                 rows = await storage.load_instances_by_bp_id(
-                    bp_id, limit=limit, offset=offset,
+                    bp_id,
+                    limit=limit,
+                    offset=offset,
                 )
             else:
                 total = await storage.count_instances()
@@ -360,13 +392,15 @@ async def get_bp_instances(
         title_map = _resolve_session_titles(request, sids)
         items = [_build_instance_item(r, config_map, title_map) for r in rows]
 
-        return JSONResponse({
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-            "active_id": None,
-            "instances": items,
-        })
+        return JSONResponse(
+            {
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "active_id": None,
+                "instances": items,
+            }
+        )
 
 
 @router.get("/instances/{instance_id}")
@@ -380,26 +414,27 @@ async def bp_get_instance(instance_id: str, request: Request):
     if not snap:
         return JSONResponse({"error": "Not found"}, status_code=404)
 
-    return JSONResponse({
-        "instance_id": snap.instance_id,
-        "bp_id": snap.bp_id,
-        "bp_name": snap.bp_config.name if snap.bp_config else snap.bp_id,
-        "session_id": snap.session_id,
-        "status": snap.status.value,
-        "run_mode": snap.run_mode.value,
-        "current_subtask_index": snap.current_subtask_index,
-        "created_at": snap.created_at,
-        "completed_at": snap.completed_at,
-        "suspended_at": snap.suspended_at,
-        "subtask_statuses": {
-            k: v.value if hasattr(v, "value") else v
-            for k, v in snap.subtask_statuses.items()
-        },
-        "subtask_outputs": snap.subtask_outputs,
-        "initial_input": snap.initial_input,
-        "supplemented_inputs": snap.supplemented_inputs,
-        "context_summary": snap.context_summary,
-    })
+    return JSONResponse(
+        {
+            "instance_id": snap.instance_id,
+            "bp_id": snap.bp_id,
+            "bp_name": snap.bp_config.name if snap.bp_config else snap.bp_id,
+            "session_id": snap.session_id,
+            "status": snap.status.value,
+            "run_mode": snap.run_mode.value,
+            "current_subtask_index": snap.current_subtask_index,
+            "created_at": snap.created_at,
+            "completed_at": snap.completed_at,
+            "suspended_at": snap.suspended_at,
+            "subtask_statuses": {
+                k: v.value if hasattr(v, "value") else v for k, v in snap.subtask_statuses.items()
+            },
+            "subtask_outputs": snap.subtask_outputs,
+            "initial_input": snap.initial_input,
+            "supplemented_inputs": snap.supplemented_inputs,
+            "context_summary": snap.context_summary,
+        }
+    )
 
 
 @router.get("/instances/{instance_id}/output/{subtask_id}")
@@ -427,19 +462,13 @@ async def set_run_mode(instance_id: str, request: Request):
 
     sm = get_bp_state_manager()
     if not sm:
-        return JSONResponse(
-            {"success": False, "error": "BP system not initialized"}, 500
-        )
+        return JSONResponse({"success": False, "error": "BP system not initialized"}, 500)
 
     snap = await sm.ensure_loaded(instance_id)
     if not snap:
-        return JSONResponse(
-            {"success": False, "error": f"Instance {instance_id} not found"}, 404
-        )
+        return JSONResponse({"success": False, "error": f"Instance {instance_id} not found"}, 404)
 
-    snap.run_mode = (
-        RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
-    )
+    snap.run_mode = RunMode(run_mode_str) if run_mode_str in ("manual", "auto") else RunMode.MANUAL
     await sm.persist_instance(instance_id)
     return JSONResponse({"success": True, "run_mode": snap.run_mode.value})
 
@@ -454,15 +483,11 @@ async def edit_bp_output(instance_id: str, request: Request):
     engine = get_bp_engine()
     sm = get_bp_state_manager()
     if not engine or not sm:
-        return JSONResponse(
-            {"success": False, "error": "BP system not initialized"}, 500
-        )
+        return JSONResponse({"success": False, "error": "BP system not initialized"}, 500)
 
     snap = await sm.ensure_loaded(instance_id)
     if not snap:
-        return JSONResponse(
-            {"success": False, "error": f"Instance {instance_id} not found"}, 404
-        )
+        return JSONResponse({"success": False, "error": f"Instance {instance_id} not found"}, 404)
 
     bp_config = snap.bp_config
     if not bp_config:
@@ -470,9 +495,7 @@ async def edit_bp_output(instance_id: str, request: Request):
         bp_config = loader.get(snap.bp_id) if loader else None
 
     if not bp_config:
-        return JSONResponse(
-            {"success": False, "error": "BP config not found"}, 404
-        )
+        return JSONResponse({"success": False, "error": "BP config not found"}, 404)
 
     result = engine.handle_edit_output(instance_id, subtask_id, changes, bp_config)
     if result.get("success"):
@@ -522,8 +545,7 @@ async def _bp_mark_busy(session_id: str, source: str, lock_id: str) -> bool:
             existing_source, existing_ts, _ = _bp_busy_locks[session_id]
             age = round(now - existing_ts, 1)
             logger.warning(
-                f"[BP] mark_busy DENIED: session={session_id} "
-                f"held_by={existing_source} age={age}s"
+                f"[BP] mark_busy DENIED: session={session_id} held_by={existing_source} age={age}s"
             )
             return False
         _bp_busy_locks[session_id] = (source, now, lock_id)
@@ -544,7 +566,7 @@ def _bp_clear_busy(session_id: str, lock_id: str) -> None:
         if existing_lock_id == lock_id:
             del _bp_busy_locks[session_id]
             logger.info(
-                f"[BP] clear_busy: session={session_id} source={source} held={round(time.time()-ts,1)}s"
+                f"[BP] clear_busy: session={session_id} source={source} held={round(time.time() - ts, 1)}s"
             )
         else:
             logger.debug(
@@ -603,7 +625,8 @@ def _collect_reply_state(event: dict, reply_state: dict, full_reply: list) -> No
         key = subtask_id or agent_id
         if key and key != "main":
             at = reply_state["agent_thinking"].setdefault(
-                key, {"content": "", "done": False},
+                key,
+                {"content": "", "done": False},
             )
             at["content"] += event.get("content", "")
             # Also store under agent_id if different, so both
@@ -617,10 +640,9 @@ def _collect_reply_state(event: dict, reply_state: dict, full_reply: list) -> No
     elif etype == "ai_text":
         agent_id = event.get("agent_id")
         if agent_id and agent_id != "main":
-            reply_state["agent_summaries"][agent_id] = (
-                reply_state["agent_summaries"].get(agent_id, "")
-                + event.get("content", "")
-            )
+            reply_state["agent_summaries"][agent_id] = reply_state["agent_summaries"].get(
+                agent_id, ""
+            ) + event.get("content", "")
         else:
             full_reply.append(event.get("content", ""))
     elif etype == "bp_progress":
@@ -660,8 +682,10 @@ def _resolve_session(request: Request, session_id: str, *, create_if_missing: bo
     sm = getattr(request.app.state, "session_manager", None)
     if sm and session_id:
         session = sm.get_session(
-            channel="seecrab", chat_id=session_id,
-            user_id="seecrab_user", create_if_missing=create_if_missing,
+            channel="seecrab",
+            chat_id=session_id,
+            user_id="seecrab_user",
+            create_if_missing=create_if_missing,
         )
         # Fallback: session_id may be composite Session.id rather than chat_id
         if session is None:
@@ -701,8 +725,12 @@ def _build_combined_user_schema(bp_config) -> dict | None:
 
 
 def _persist_bp_to_session(
-    session, instance_id: str, sm,
-    *, reply_state: dict | None = None, full_reply: str = "",
+    session,
+    instance_id: str,
+    sm,
+    *,
+    reply_state: dict | None = None,
+    full_reply: str = "",
     session_manager=None,
 ) -> None:
     """Persist BP state to session (R12, R18).
@@ -721,7 +749,8 @@ def _persist_bp_to_session(
         bp_config = snap.bp_config
         bp_name = bp_config.name if bp_config else snap.bp_id
         done_count = sum(
-            1 for s in snap.subtask_statuses.values()
+            1
+            for s in snap.subtask_statuses.values()
             if (s.value if hasattr(s, "value") else s) == "done"
         )
         total = len(snap.subtask_statuses)
@@ -769,6 +798,7 @@ async def bp_start(request: Request):
         combined_schema = _build_combined_user_schema(bp_config) if user_query else None
         if user_query and combined_schema:
             from seeagent.api.routes.seecrab import _extract_input_from_query
+
             agent = getattr(request.app.state, "agent", None)
             brain = getattr(agent, "brain", None) if agent else None
             input_data = await _extract_input_from_query(brain, user_query, combined_schema)
@@ -800,7 +830,9 @@ async def bp_start(request: Request):
     _persist_user_message(session, body.get("user_message", ""), session_manager=session_mgr)
 
     async def generate():
-        logger.info(f"[BP] generate() START: session_id={session_id} session.id={session.id if session else 'N/A'} bp_id={bp_id}")
+        logger.info(
+            f"[BP] generate() START: session_id={session_id} session.id={session.id if session else 'N/A'} bp_id={bp_id}"
+        )
         disconnect_event = asyncio.Event()
         reply_state = _new_reply_state()
         full_reply: list[str] = []
@@ -819,7 +851,9 @@ async def bp_start(request: Request):
                     )
                     if active:
                         await engine.request_suspend(
-                            active.instance_id, session, "disconnect",
+                            active.instance_id,
+                            session,
+                            "disconnect",
                         )
                     return
                 await asyncio.sleep(2)
@@ -828,9 +862,12 @@ async def bp_start(request: Request):
 
         try:
             from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+
             yield _HEARTBEAT_COMMENT
 
-            async for event in sse_heartbeat_stream(engine.start(bp_config, session, input_data, run_mode)):
+            async for event in sse_heartbeat_stream(
+                engine.start(bp_config, session, input_data, run_mode)
+            ):
                 if disconnect_event.is_set():
                     break
                 if event is None:
@@ -845,14 +882,16 @@ async def bp_start(request: Request):
 
             # Skip if already persisted by seecrab.py suspend logic
             _snap = sm.get(instance_id) if instance_id else None
-            _is_suspended = _snap and (
-                getattr(_snap.status, "value", _snap.status) == "suspended"
-            )
+            _is_suspended = _snap and (getattr(_snap.status, "value", _snap.status) == "suspended")
             if instance_id and not _is_suspended:
-                _persist_bp_to_session(session, instance_id, sm,
-                                       reply_state=reply_state,
-                                       full_reply="".join(full_reply),
-                                       session_manager=session_mgr)
+                _persist_bp_to_session(
+                    session,
+                    instance_id,
+                    sm,
+                    reply_state=reply_state,
+                    full_reply="".join(full_reply),
+                    session_manager=session_mgr,
+                )
             yield _sse({"type": "done"})
         except Exception as e:
             yield _sse({"type": "error", "message": str(e)})
@@ -866,8 +905,10 @@ async def bp_start(request: Request):
         _bp_clear_busy(session_id, lock_id)
 
     return StreamingResponse(
-        generate(), media_type="text/event-stream", headers=_SSE_HEADERS,
-        background=BackgroundTask(_cleanup)
+        generate(),
+        media_type="text/event-stream",
+        headers=_SSE_HEADERS,
+        background=BackgroundTask(_cleanup),
     )
 
 
@@ -922,6 +963,7 @@ async def bp_next(request: Request):
 
         try:
             from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+
             yield _HEARTBEAT_COMMENT
 
             async for event in sse_heartbeat_stream(engine.advance(instance_id, session)):
@@ -936,14 +978,16 @@ async def bp_next(request: Request):
                     _bp_renew_busy(session_id)
 
             _snap = sm.get(instance_id)
-            _is_suspended = _snap and (
-                getattr(_snap.status, "value", _snap.status) == "suspended"
-            )
+            _is_suspended = _snap and (getattr(_snap.status, "value", _snap.status) == "suspended")
             if not _is_suspended:
-                _persist_bp_to_session(session, instance_id, sm,
-                                       reply_state=reply_state,
-                                       full_reply="".join(full_reply),
-                                       session_manager=session_mgr)
+                _persist_bp_to_session(
+                    session,
+                    instance_id,
+                    sm,
+                    reply_state=reply_state,
+                    full_reply="".join(full_reply),
+                    session_manager=session_mgr,
+                )
             yield _sse({"type": "done"})
         except Exception as e:
             yield _sse({"type": "error", "message": str(e)})
@@ -956,8 +1000,10 @@ async def bp_next(request: Request):
         _bp_clear_busy(session_id, lock_id)
 
     return StreamingResponse(
-        generate(), media_type="text/event-stream", headers=_SSE_HEADERS,
-        background=BackgroundTask(_cleanup)
+        generate(),
+        media_type="text/event-stream",
+        headers=_SSE_HEADERS,
+        background=BackgroundTask(_cleanup),
     )
 
 
@@ -1014,9 +1060,12 @@ async def bp_answer(request: Request):
 
         try:
             from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+
             yield _HEARTBEAT_COMMENT
 
-            async for event in sse_heartbeat_stream(engine.answer(instance_id, subtask_id, data, session)):
+            async for event in sse_heartbeat_stream(
+                engine.answer(instance_id, subtask_id, data, session)
+            ):
                 if disconnect_event.is_set():
                     break
                 if event is None:
@@ -1026,14 +1075,16 @@ async def bp_answer(request: Request):
                 _collect_reply_state(event, reply_state, full_reply)
 
             _snap = sm.get(instance_id)
-            _is_suspended = _snap and (
-                getattr(_snap.status, "value", _snap.status) == "suspended"
-            )
+            _is_suspended = _snap and (getattr(_snap.status, "value", _snap.status) == "suspended")
             if not _is_suspended:
-                _persist_bp_to_session(session, instance_id, sm,
-                                       reply_state=reply_state,
-                                       full_reply="".join(full_reply),
-                                       session_manager=session_mgr)
+                _persist_bp_to_session(
+                    session,
+                    instance_id,
+                    sm,
+                    reply_state=reply_state,
+                    full_reply="".join(full_reply),
+                    session_manager=session_mgr,
+                )
             yield _sse({"type": "done"})
         except Exception as e:
             yield _sse({"type": "error", "message": str(e)})
@@ -1046,8 +1097,8 @@ async def bp_answer(request: Request):
         _bp_clear_busy(session_id, lock_id)
 
     return StreamingResponse(
-        generate(), media_type="text/event-stream", headers=_SSE_HEADERS,
-        background=BackgroundTask(_cleanup)
+        generate(),
+        media_type="text/event-stream",
+        headers=_SSE_HEADERS,
+        background=BackgroundTask(_cleanup),
     )
-
-
