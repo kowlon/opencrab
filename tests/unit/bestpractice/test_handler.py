@@ -138,6 +138,41 @@ class TestBPEditOutput:
         assert "合并" in result or "✅" in result
 
     @pytest.mark.asyncio
+    async def test_edit_input(self, handler):
+        agent = MockAgent()
+        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
+        active = handler.state_manager.get_active("test-session")
+        active.current_subtask_index = 1
+        handler.state_manager.update_subtask_output(active.instance_id, "s1", {"result": "original"})
+        handler.state_manager.update_subtask_status(active.instance_id, "s1", SubtaskStatus.DONE)
+
+        result = await handler.handle("bp_edit_output", {
+            "instance_id": active.instance_id,
+            "subtask_id": "s2",
+            "target_type": "input",
+            "changes": {"result": "updated"},
+        }, agent)
+
+        assert "输入已更新" in result
+        assert "重新执行" in result
+
+    @pytest.mark.asyncio
+    async def test_edit_final_output_without_subtask_id(self, handler):
+        agent = MockAgent()
+        await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
+        active = handler.state_manager.get_active("test-session")
+        handler.state_manager.update_subtask_output(active.instance_id, "s2", {"result": "original"})
+        handler.state_manager.update_subtask_status(active.instance_id, "s2", SubtaskStatus.DONE)
+
+        result = await handler.handle("bp_edit_output", {
+            "instance_id": active.instance_id,
+            "target_type": "final_output",
+            "changes": {"result": "final"},
+        }, agent)
+
+        assert "最终输出已合并更新" in result
+
+    @pytest.mark.asyncio
     async def test_edit_missing_subtask_id(self, handler):
         agent = MockAgent()
         result = await handler.handle("bp_edit_output", {"instance_id": "x"}, agent)

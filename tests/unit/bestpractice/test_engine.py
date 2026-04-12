@@ -25,6 +25,14 @@ class MockSession:
 def bp_config():
     return BestPracticeConfig(
         id="test-bp", name="测试BP", description="test",
+        final_output_schema={
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string"},
+                "score": {"type": "number"},
+            },
+            "required": ["summary"],
+        },
         subtasks=[
             SubtaskConfig(
                 id="s1", name="调研", agent_profile="researcher",
@@ -73,6 +81,8 @@ class TestChatToEdit:
         assert result["merged"]["b"] == 99
         assert result["merged"]["c"] == 3
         assert "s2" in result["stale_subtasks"]
+        assert result["rerun_from_subtask_id"] == "s2"
+        assert engine.state_manager.get(inst_id).current_subtask_index == 1
 
     def test_edit_nonexistent_output(self, engine, bp_config):
         session = MockSession()
@@ -80,13 +90,84 @@ class TestChatToEdit:
         result = engine.handle_edit_output(inst_id, "s1", {"x": 1}, bp_config)
         assert not result["success"]
 
+    def test_edit_input_rewinds_from_current_subtask(self, engine, bp_config):
+        session = MockSession()
+        inst_id = engine.state_manager.create_instance(bp_config, session.id, {"topic": "AI"})
+        snap = engine.state_manager.get(inst_id)
+        snap.current_subtask_index = 1
+        engine.state_manager.update_subtask_output(inst_id, "s1", {"findings": ["a"]})
+        engine.state_manager.update_subtask_status(inst_id, "s1", SubtaskStatus.DONE)
+        engine.state_manager.update_subtask_output(inst_id, "s2", {"analysis": "old"})
+        engine.state_manager.update_subtask_status(inst_id, "s2", SubtaskStatus.DONE)
+
+        result = engine.handle_edit_output(
+            inst_id,
+            "s2",
+            {"findings": ["updated"]},
+            bp_config,
+            target_type="input",
+        )
+
+        assert result["success"]
+        assert result["target_type"] == "input"
+        assert result["merged"]["findings"] == ["updated"]
+        assert result["resolved"]["findings"] == ["updated"]
+        assert "s2" in result["stale_subtasks"]
+        assert result["rerun_from_subtask_id"] == "s2"
+        snap = engine.state_manager.get(inst_id)
+        assert snap.current_subtask_index == 1
+        assert snap.subtask_statuses["s2"] == SubtaskStatus.PENDING.value
+        assert "s2" not in snap.subtask_outputs
+
+    def test_edit_final_output_targets_last_subtask(self, engine, bp_config):
+        session = MockSession()
+        inst_id = engine.state_manager.create_instance(bp_config, session.id, {"topic": "AI"})
+        engine.state_manager.update_subtask_output(inst_id, "s3", {"summary": "draft"})
+        engine.state_manager.update_subtask_status(inst_id, "s3", SubtaskStatus.DONE)
+
+        result = engine.handle_edit_output(
+            inst_id,
+            "",
+            {"score": 9},
+            bp_config,
+            target_type="final_output",
+        )
+
+        assert result["success"]
+        assert result["target_subtask_id"] == "s3"
+        assert result["merged"]["summary"] == "draft"
+        assert result["merged"]["score"] == 9
+
     def test_edit_nonexistent_instance(self, engine, bp_config):
         result = engine.handle_edit_output("ghost", "s1", {}, bp_config)
         assert not result["success"]
 
+    def test_edit_first_subtask_input_distributes(self, engine, bp_config):
+        # Add a shared field to s2's input schema so we can test distribution
+        bp_config.subtasks[1].input_schema["properties"]["topic"] = {"type": "string"}
+        
+        session = MockSession()
+        inst_id = engine.state_manager.create_instance(
+            bp_config, session.id, initial_input={"topic": "A"}
+        )
+        engine._distribute_initial_input(inst_id, bp_config)
+        snap = engine.state_manager.get(inst_id)
+        assert snap.supplemented_inputs["s2"].get("topic") == "A"
+        
+        # Edit first subtask input
+        res = engine.handle_edit_output(
+            inst_id, "s1", {"topic": "B"}, bp_config, target_type="input"
+        )
+        assert res["success"] is True
+        # The initial input should be updated
+        assert snap.initial_input["topic"] == "B"
+        # And distributed to downstream subtask
+        assert snap.supplemented_inputs["s2"]["topic"] == "B"
+
 
 class TestLifecycleHelpers:
-    def test_request_suspend_marks_state_and_persists(self, engine, bp_config):
+    @pytest.mark.asyncio
+    async def test_request_suspend_marks_state_and_persists(self, engine, bp_config):
         session = MockSession()
         inst_id = engine.state_manager.create_instance(
             bp_config, session.id, {"topic": "AI"},
@@ -95,7 +176,7 @@ class TestLifecycleHelpers:
         task.done.return_value = False
         session.context._bp_delegate_task = task
 
-        assert engine.request_suspend(
+        assert await engine.request_suspend(
             inst_id, session, "disconnect", pending_target_id="bp-next",
         )
 
@@ -109,7 +190,8 @@ class TestLifecycleHelpers:
         assert pending.target_instance_id == "bp-next"
         assert "bp_state" in session.metadata
 
-    def test_resume_if_needed_resumes_suspended_instance(self, engine, bp_config):
+    @pytest.mark.asyncio
+    async def test_resume_if_needed_resumes_suspended_instance(self, engine, bp_config):
         session = MockSession()
         inst_id = engine.state_manager.create_instance(
             bp_config, session.id, {"topic": "AI"},
@@ -117,14 +199,15 @@ class TestLifecycleHelpers:
         engine.state_manager.suspend(inst_id)
         session.context._bp_cancelled_instance = inst_id
 
-        result = engine.resume_if_needed(inst_id, session)
+        result = await engine.resume_if_needed(inst_id, session)
 
         assert result == {"success": True, "resumed": True}
         snap = engine.state_manager.get(inst_id)
         assert snap.status == BPStatus.ACTIVE
         assert session.context._bp_cancelled_instance is None
 
-    def test_resume_if_needed_conflicts_with_other_active(self, engine, bp_config):
+    @pytest.mark.asyncio
+    async def test_resume_if_needed_conflicts_with_other_active(self, engine, bp_config):
         session = MockSession()
         target_id = engine.state_manager.create_instance(
             bp_config, session.id, {"topic": "AI"},
@@ -134,7 +217,7 @@ class TestLifecycleHelpers:
             bp_config, session.id, {"topic": "ML"},
         )
 
-        result = engine.resume_if_needed(target_id, session)
+        result = await engine.resume_if_needed(target_id, session)
 
         assert result["success"] is False
         assert result["code"] == "conflict"

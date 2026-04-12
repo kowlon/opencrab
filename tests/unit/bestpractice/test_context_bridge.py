@@ -38,6 +38,7 @@ def _make_snap(**kwargs):
     defaults = {
         "context_summary": "",
         "subtask_outputs": {},
+        "supplemented_inputs": {},
         "bp_config": None,
         "bp_id": "test-bp",
         "current_subtask_index": 0,
@@ -731,6 +732,20 @@ class TestMinimalRecoveryRawOutputs:
 
         assert "raw details" in result
 
+    def test_minimalRecoveryIncludesResolvedInputsTest(self, bridge):
+        snap = _make_snap(
+            context_summary="",
+            bp_config=_make_bp_config(),
+            initial_input={"topic": "AI"},
+            supplemented_inputs={"s2": {"audience": "B2B"}},
+        )
+
+        result = ContextBridge._build_minimal_recovery(snap)
+
+        assert "Resolved inputs" in result
+        assert "topic" in result
+        assert "audience" in result
+
 
 class TestDynamicSectionUserPreferences:
     def test_dynamicSectionUserPreferencesTest(self):
@@ -839,6 +854,39 @@ class TestDynamicSectionUserPreferences:
         assert "用户偏好" in result
         assert "plain-text format" in result
 
+    def test_dynamicSectionIncludesResolvedInputsTest(self):
+        from unittest.mock import MagicMock
+        from seeagent.bestpractice.prompt.builder import BPPromptBuilder
+        from seeagent.bestpractice.prompt.loader import PromptTemplateLoader
+
+        sm = BPStateManager()
+        bp_config = _make_bp_config()
+
+        active = BPInstanceSnapshot(
+            bp_id="bp1",
+            instance_id="bp-inputs",
+            session_id="sess1",
+            status=BPStatus.ACTIVE,
+            subtask_statuses={"s1": "done", "s2": "current", "s3": "pending"},
+            subtask_outputs={"s1": {"research": "done"}},
+            supplemented_inputs={"s2": {"audience": "B2B"}},
+            current_subtask_index=1,
+            bp_config=bp_config,
+            initial_input={"topic": "AI adoption"},
+        )
+        sm._instances["bp-inputs"] = active
+
+        config_loader = MagicMock()
+        config_loader.configs = {"bp1": bp_config}
+        prompt_loader = PromptTemplateLoader()
+
+        builder = BPPromptBuilder(config_loader, sm, prompt_loader)
+        result = builder.build_dynamic_section("sess1")
+
+        assert "当前解析输入" in result
+        assert "audience" in result
+        assert "AI adoption" in result
+
 
 # ── _build_snapshot_recovery_prompt ─────────────────────────
 
@@ -852,6 +900,7 @@ class TestSnapshotRecoveryPrompt:
             current_subtask_index=1,
             subtask_statuses={"s1": "done", "s2": "current", "s3": "pending"},
             subtask_outputs={"s1": {"result": "research complete"}},
+            supplemented_inputs={"s2": {"audience": "B2B"}},
             initial_input={"topic": "AI adoption"},
         )
 
@@ -864,6 +913,8 @@ class TestSnapshotRecoveryPrompt:
         assert "[>] Outline" in result
         assert "[ ] Writing" in result
         assert "research complete" in result
+        assert "Resolved inputs" in result
+        assert "audience" in result
         assert "B2B focus" in result
         assert "AI adoption" in result
         assert "Please continue" in result

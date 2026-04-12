@@ -33,7 +33,7 @@ BP_TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "bp_edit_output",
         "category": "Best Practice",
-        "description": "修改已完成子任务的输出 (Chat-to-Edit 模式)",
+        "description": "修改子任务输入、输出或最终输出 (Chat-to-Edit 模式)",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -43,14 +43,19 @@ BP_TOOL_DEFINITIONS: list[dict] = [
                 },
                 "subtask_id": {
                     "type": "string",
-                    "description": "要修改的子任务 ID",
+                    "description": "要修改的子任务 ID；当 target_type=final_output 时可省略",
+                },
+                "target_type": {
+                    "type": "string",
+                    "enum": ["input", "output", "final_output"],
+                    "description": "编辑目标类型: input=子任务输入, output=子任务输出, final_output=最终输出",
                 },
                 "changes": {
                     "type": "object",
                     "description": "要合并的修改内容 (深度合并，数组完整替换)",
                 },
             },
-            "required": ["subtask_id", "changes"],
+            "required": ["changes"],
         },
     },
     {

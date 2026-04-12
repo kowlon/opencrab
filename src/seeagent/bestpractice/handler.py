@@ -107,7 +107,7 @@ class BPToolHandler:
                         if msg.get("role") == "user":
                             lines.append(f"[用户]: {msg.get('content', '')}")
                     history_context = "\n".join(lines)
-                
+
                 self.state_manager.set_pending_offer(ext_sid, {
                     "bp_id": bp_id,
                     "bp_name": bp_config.name,
@@ -199,8 +199,12 @@ class BPToolHandler:
         if not instance_id:
             return "❌ 请指定 instance_id"
 
+        target_type = (params.get("target_type") or "output").strip().lower()
+        if target_type not in {"input", "output", "final_output"}:
+            return f"❌ 不支持的 target_type: {target_type}"
+
         subtask_id = (params.get("subtask_id") or "").strip()
-        if not subtask_id:
+        if not subtask_id and target_type != "final_output":
             return "❌ subtask_id is required"
 
         changes = params.get("changes", {})
@@ -208,7 +212,8 @@ class BPToolHandler:
             return "❌ changes is required"
         logger.info(
             f"[BP] handle_edit_output: instance={instance_id} "
-            f"subtask={subtask_id} change_keys={list(changes.keys())}"
+            f"subtask={subtask_id or '<final>'} target_type={target_type} "
+            f"change_keys={list(changes.keys())}"
         )
 
         snap = self.state_manager.get(instance_id)
@@ -222,11 +227,17 @@ class BPToolHandler:
         if not bp_config:
             return f"❌ BP config {snap.bp_id} 不存在"
 
-        result = self.engine.handle_edit_output(instance_id, subtask_id, changes, bp_config)
+        result = self.engine.handle_edit_output(
+            instance_id,
+            subtask_id,
+            changes,
+            bp_config,
+            target_type=target_type,
+        )
 
         if result.get("success"):
-            await self.state_manager.persist_subtask_output(instance_id, subtask_id)
-            await self.state_manager.persist_subtask_progress(instance_id)
+            await self.state_manager.persist_instance(instance_id)
+            self.state_manager.persist_to_session(instance_id, session)
             if result.get("stale_subtasks"):
                 logger.info(
                     f"[BP] handle_edit_output: stale_subtasks="
@@ -235,7 +246,7 @@ class BPToolHandler:
                 await self.engine._emit_stale(
                     instance_id,
                     result["stale_subtasks"],
-                    f"子任务 {subtask_id} 输出被编辑",
+                    f"子任务 {result.get('target_subtask_id', subtask_id)} {target_type} 被编辑",
                     session,
                 )
 
@@ -243,8 +254,19 @@ class BPToolHandler:
             return f"❌ {result.get('error', 'Unknown error')}"
 
         stale = result.get("stale_subtasks", [])
-        merged_preview = json.dumps(result["merged"], ensure_ascii=False)[:300]
-        msg = f"✅ 子任务输出已合并更新。\n预览: {merged_preview}"
+        rerun_from = result.get("rerun_from_subtask_id")
+        preview_payload = result.get("resolved") if target_type == "input" else result["merged"]
+        merged_preview = json.dumps(preview_payload, ensure_ascii=False)[:300]
+
+        if target_type == "input":
+            msg = f"✅ 子任务输入已更新。\n预览: {merged_preview}"
+        elif target_type == "final_output":
+            msg = f"✅ 最终输出已合并更新。\n预览: {merged_preview}"
+        else:
+            msg = f"✅ 子任务输出已合并更新。\n预览: {merged_preview}"
+
+        if rerun_from:
+            msg += f"\n\n🔄 后续将从子任务 {rerun_from} 重新执行。"
         if stale:
             msg += f"\n\n⚠️ 以下下游子任务已标记为 stale，需要重新执行: {stale}"
         if result.get("warning"):

@@ -18,6 +18,13 @@ class TestToolDefinitions:
         assert "subtask_id" in bp_answer["input_schema"]["required"]
         assert "data" in bp_answer["input_schema"]["required"]
 
+    def test_bp_edit_output_schema(self):
+        bp_edit_output = next(t for t in BP_TOOL_DEFINITIONS if t["name"] == "bp_edit_output")
+        props = bp_edit_output["input_schema"]["properties"]
+        assert "target_type" in props
+        assert props["target_type"]["enum"] == ["input", "output", "final_output"]
+        assert "changes" in bp_edit_output["input_schema"]["required"]
+
     def test_bp_cancel_schema(self):
         bp_cancel = next(t for t in BP_TOOL_DEFINITIONS if t["name"] == "bp_cancel")
         props = bp_cancel["input_schema"]["properties"]

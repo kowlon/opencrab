@@ -9,17 +9,19 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from typing import TYPE_CHECKING, Any
 
+from ..models import (
+    ArtifactKind,
+    ContextArtifact,
+    ContextEnvelope,
+    SubtaskStatus,
+)
 from .compression import (
     LLMCompression,
     MechanicalCompression,
     TruncationCompression,
     extract_text,
-)
-from ..models import (
-    ArtifactKind, ContextArtifact, ContextEnvelope, ContextLevel, SubtaskStatus,
 )
 
 if TYPE_CHECKING:
@@ -301,6 +303,9 @@ class ContextBridge:
         if semantic:
             parts.append(f"Context summary:\n{semantic}")
 
+        input_parts, _ = ContextBridge._format_resolved_inputs(snap)
+        parts.extend(input_parts)
+
         # User intent
         intent = ContextBridge._artifact_content(
             envelope, ArtifactKind.USER_INTENT,
@@ -343,8 +348,10 @@ class ContextBridge:
             if lines:
                 parts.append("Steps:\n" + "\n".join(lines))
 
-        output_parts, _ = ContextBridge._format_snap_outputs(snap)
+        output_parts, total_chars = ContextBridge._format_snap_outputs(snap)
         parts.extend(output_parts)
+        input_parts, _ = ContextBridge._format_resolved_inputs(snap, total_chars)
+        parts.extend(input_parts)
 
         context_summary = getattr(snap, "context_summary", "")
         if context_summary and not context_summary.strip().startswith("{"):
@@ -499,10 +506,36 @@ class ContextBridge:
         return parts, total_chars
 
     @staticmethod
+    def _format_resolved_inputs(snap: Any, total_chars: int = 0) -> tuple[list[str], int]:
+        bp_config = getattr(snap, "bp_config", None)
+        if not bp_config:
+            return [], total_chars
+
+        from .scheduler import LinearScheduler
+
+        scheduler = LinearScheduler(bp_config, snap)
+        lines: list[str] = []
+        for subtask_id, resolved in scheduler.export_resolved_inputs().items():
+            serialized = json.dumps(resolved, ensure_ascii=False, indent=2)
+            truncated = serialized[:_PER_OUTPUT_LIMIT]
+            if total_chars + len(truncated) > _TOTAL_BUDGET:
+                lines.append(
+                    f"  {subtask_id}: (truncated, {len(serialized)} chars total)"
+                )
+                break
+            lines.append(f"  {subtask_id}: {truncated}")
+            total_chars += len(truncated)
+
+        if not lines:
+            return [], total_chars
+        return ["Resolved inputs:\n" + "\n".join(lines)], total_chars
+
+    @staticmethod
     def _build_minimal_recovery(snap: Any) -> str:
         """Build minimal recovery from Snapshot when context_summary is empty."""
         has_data = (
             getattr(snap, "subtask_outputs", None)
+            or getattr(snap, "supplemented_inputs", None)
             or getattr(snap, "initial_input", None)
         )
         if not has_data:
@@ -517,8 +550,10 @@ class ContextBridge:
         if bp_name:
             parts.append(f"Best Practice: {bp_name}")
 
-        output_parts, _ = ContextBridge._format_snap_outputs(snap)
+        output_parts, total_chars = ContextBridge._format_snap_outputs(snap)
         parts.extend(output_parts)
+        input_parts, _ = ContextBridge._format_resolved_inputs(snap, total_chars)
+        parts.extend(input_parts)
 
         if snap.initial_input:
             parts.append(

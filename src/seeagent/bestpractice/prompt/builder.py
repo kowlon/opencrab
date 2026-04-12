@@ -122,6 +122,7 @@ class BPPromptBuilder:
         active_context = ""
         intent_routing = ""
         outputs_preview = ""
+        inputs_preview = ""
         user_preferences = ""
 
         if active:
@@ -148,6 +149,22 @@ class BPPromptBuilder:
                     outputs_preview = (
                         "### 已完成子任务输出\n" + "\n".join(preview_lines)
                     )
+
+            if active.bp_config:
+                from ..engine.scheduler import LinearScheduler
+
+                scheduler = LinearScheduler(active.bp_config, active)
+                preview_lines = []
+                total_len = 0
+                for st_id, resolved_input in scheduler.export_resolved_inputs().items():
+                    line = json.dumps(resolved_input, ensure_ascii=False)[:200]
+                    if total_len + len(line) > _DYNAMIC_OUTPUTS_BUDGET:
+                        preview_lines.append("...")
+                        break
+                    preview_lines.append(f"- {st_id}: {line}")
+                    total_len += len(line)
+                if preview_lines:
+                    inputs_preview = "### 当前解析输入\n" + "\n".join(preview_lines)
 
             # User preferences: support both new plain-text and old JSON formats
             if active.context_summary:
@@ -230,11 +247,15 @@ class BPPromptBuilder:
                 f"\n⚠️ BP 推断冷却中 (剩余 {cooldown} 轮)，COMMAND 触发仍生效。\n"
             )
 
+        preview_sections = "\n\n".join(
+            section for section in [inputs_preview, outputs_preview] if section
+        )
+
         return self._prompt_loader.render(
             "system_dynamic",
             status_table=status_table,
             active_context=active_context,
-            outputs_preview=outputs_preview,
+            outputs_preview=preview_sections,
             user_preferences=user_preferences,
             intent_routing=intent_routing,
         )

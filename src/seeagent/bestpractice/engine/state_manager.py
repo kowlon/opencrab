@@ -151,6 +151,87 @@ class BPStateManager:
         snap.subtask_outputs[subtask_id] = merged
         return merged
 
+    def merge_supplemented_input(
+        self,
+        instance_id: str,
+        subtask_id: str,
+        changes: dict[str, Any],
+    ) -> dict[str, Any]:
+        """深度合并 changes 到子任务补充输入。返回合并后结果。"""
+        snap = self._instances.get(instance_id)
+        if not snap:
+            return {}
+        existing = snap.supplemented_inputs.get(subtask_id, {})
+        merged = self._deep_merge(existing, changes)
+        snap.supplemented_inputs[subtask_id] = merged
+        return merged
+
+    def invalidate_from_subtask(
+        self,
+        instance_id: str,
+        start_subtask_id: str,
+        bp_config: BestPracticeConfig,
+        *,
+        preserve_outputs_for: set[str] | None = None,
+    ) -> dict[str, Any]:
+        """从某个子任务开始失效运行时结果，并回退执行指针。"""
+        snap = self._instances.get(instance_id)
+        if not snap:
+            return {
+                "success": False,
+                "error": f"instance {instance_id} 不存在",
+            }
+
+        start_idx = next(
+            (i for i, s in enumerate(bp_config.subtasks) if s.id == start_subtask_id),
+            -1,
+        )
+        if start_idx < 0:
+            return {
+                "success": False,
+                "error": f"子任务 {start_subtask_id} 不存在",
+            }
+
+        preserve_outputs_for = preserve_outputs_for or set()
+        stale_ids: list[str] = []
+        invalidated_ids: list[str] = []
+
+        for idx, subtask in enumerate(bp_config.subtasks):
+            if idx < start_idx:
+                continue
+            if subtask.id in preserve_outputs_for:
+                continue
+
+            previous_status = snap.subtask_statuses.get(subtask.id)
+            if previous_status == SubtaskStatus.DONE.value:
+                stale_ids.append(subtask.id)
+
+            had_runtime_data = (
+                subtask.id in snap.subtask_outputs
+                or subtask.id in snap.subtask_raw_outputs
+                or subtask.id in snap.subtask_partial_results
+            )
+            if had_runtime_data:
+                invalidated_ids.append(subtask.id)
+
+            snap.subtask_outputs.pop(subtask.id, None)
+            snap.subtask_raw_outputs.pop(subtask.id, None)
+            snap.subtask_partial_results.pop(subtask.id, None)
+            snap.subtask_statuses[subtask.id] = SubtaskStatus.PENDING.value
+
+        snap.current_subtask_index = start_idx
+        rerun_from_id = None
+        if 0 <= snap.current_subtask_index < len(bp_config.subtasks):
+            rerun_from_id = bp_config.subtasks[snap.current_subtask_index].id
+
+        return {
+            "success": True,
+            "stale_subtasks": stale_ids,
+            "invalidated_subtasks": invalidated_ids,
+            "rerun_from_subtask_id": rerun_from_id,
+            "rerun_from_index": snap.current_subtask_index,
+        }
+
     def mark_downstream_stale(
         self, instance_id: str, from_subtask_id: str, bp_config: BestPracticeConfig,
     ) -> list[str]:

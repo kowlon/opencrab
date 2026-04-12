@@ -973,32 +973,112 @@ class BPEngine:
         subtask_id: str,
         changes: dict[str, Any],
         bp_config: BestPracticeConfig,
+        *,
+        target_type: str = "output",
     ) -> dict[str, Any]:
-        """编辑已完成子任务的输出，触发下游 STALE 标记。"""
+        """编辑子任务输入/输出或最终输出，并更新后续执行起点。"""
         snap = self.state_manager.get(instance_id)
         if not snap:
             return {"success": False, "error": f"instance {instance_id} 不存在"}
 
-        if subtask_id not in snap.subtask_outputs:
-            return {"success": False, "error": f"子任务 {subtask_id} 无输出可编辑"}
+        if not bp_config.subtasks:
+            return {"success": False, "error": "BP 未配置子任务"}
 
-        # 深度合并
-        merged = self.state_manager.merge_subtask_output(instance_id, subtask_id, changes)
+        target_type = (target_type or "output").strip().lower()
+        if target_type not in {"input", "output", "final_output"}:
+            return {"success": False, "error": f"不支持的 target_type: {target_type}"}
 
-        # 标记下游为 STALE
-        stale = self.state_manager.mark_downstream_stale(instance_id, subtask_id, bp_config)
+        target_subtask_id = self._resolve_edit_target_subtask_id(
+            subtask_id, bp_config, target_type,
+        )
+        target_subtask = next(
+            (subtask for subtask in bp_config.subtasks if subtask.id == target_subtask_id),
+            None,
+        )
+        if not target_subtask:
+            return {"success": False, "error": f"子任务 {target_subtask_id} 不存在"}
 
-        # 软校验
-        warning = self._validate_output_soft(merged, subtask_id, bp_config)
+        scheduler = self._get_scheduler(bp_config, snap)
 
-        result: dict[str, Any] = {
-            "success": True,
-            "merged": merged,
-            "stale_subtasks": stale,
-        }
+        if target_type == "input":
+            merged = self.state_manager.merge_supplemented_input(
+                instance_id, target_subtask_id, changes,
+            )
+            target_idx = next(
+                (i for i, subtask in enumerate(bp_config.subtasks) if subtask.id == target_subtask_id),
+                -1,
+            )
+            if target_idx == 0:
+                snap.initial_input = self.state_manager._deep_merge(snap.initial_input, changes)
+                self._distribute_initial_input(instance_id, bp_config)
+
+            resolved = scheduler.resolve_input(target_subtask_id)
+            invalidation = self.state_manager.invalidate_from_subtask(
+                instance_id,
+                target_subtask_id,
+                bp_config,
+            )
+            if not invalidation.get("success"):
+                return invalidation
+            warning = self._validate_input_soft(target_subtask, resolved)
+            result: dict[str, Any] = {
+                "success": True,
+                "target_type": target_type,
+                "target_subtask_id": target_subtask_id,
+                "merged": merged,
+                "resolved": resolved,
+                **invalidation,
+            }
+        else:
+            if target_subtask_id not in snap.subtask_outputs:
+                return {"success": False, "error": f"子任务 {target_subtask_id} 无输出可编辑"}
+
+            merged = self.state_manager.merge_subtask_output(
+                instance_id, target_subtask_id, changes,
+            )
+            warning = self._validate_output_soft(merged, target_subtask_id, bp_config)
+            target_idx = next(
+                (i for i, subtask in enumerate(bp_config.subtasks) if subtask.id == target_subtask_id),
+                -1,
+            )
+            next_idx = target_idx + 1
+            if next_idx < len(bp_config.subtasks):
+                invalidation = self.state_manager.invalidate_from_subtask(
+                    instance_id,
+                    bp_config.subtasks[next_idx].id,
+                    bp_config,
+                )
+                if not invalidation.get("success"):
+                    return invalidation
+            else:
+                invalidation = {
+                    "success": True,
+                    "stale_subtasks": [],
+                    "invalidated_subtasks": [],
+                    "rerun_from_subtask_id": None,
+                    "rerun_from_index": snap.current_subtask_index,
+                }
+            result = {
+                "success": True,
+                "target_type": target_type,
+                "target_subtask_id": target_subtask_id,
+                "merged": merged,
+                **invalidation,
+            }
+
         if warning:
             result["warning"] = warning
         return result
+
+    @staticmethod
+    def _resolve_edit_target_subtask_id(
+        subtask_id: str,
+        bp_config: BestPracticeConfig,
+        target_type: str,
+    ) -> str:
+        if target_type == "final_output":
+            return bp_config.subtasks[-1].id
+        return subtask_id
 
     # ── Input pre-distribution ──────────────────────────────────
 
@@ -1321,6 +1401,24 @@ class BPEngine:
             missing = [f for f in schema["required"] if f not in output]
             if missing:
                 return f"输出缺少字段: {missing}"
+        return None
+
+    def _validate_input_soft(
+        self, subtask: SubtaskConfig, resolved_input: dict[str, Any],
+    ) -> str | None:
+        schema = subtask.input_schema
+        if not schema:
+            return None
+        all_props = collect_all_properties(schema)
+        unknown = [field for field in resolved_input if field not in all_props]
+        warnings: list[str] = []
+        if unknown:
+            warnings.append(f"输入包含未在 schema 中声明的字段: {unknown}")
+        missing, _ = self._check_input_completeness(subtask, resolved_input)
+        if missing:
+            warnings.append(f"输入仍缺少必填字段: {missing}")
+        if warnings:
+            return "；".join(warnings)
         return None
 
     # ── SSE Events ─────────────────────────────────────────────

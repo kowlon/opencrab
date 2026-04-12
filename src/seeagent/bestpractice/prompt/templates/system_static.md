@@ -23,7 +23,7 @@ ${bp_list}
 - `bp_start`: 启动最佳实践 (bp_id, input_data, run_mode)
 - `bp_next`: 执行下一个子任务 (instance_id 可选，默认当前活跃实例)
 - `bp_answer`: 补充子任务缺失的输入参数 (subtask_id, data)
-- `bp_edit_output`: 修改已完成子任务的输出 (subtask_id, changes)
+- `bp_edit_output`: 修改子任务输入、输出或最终输出 (subtask_id, target_type, changes)
 - `bp_cancel`: 取消当前最佳实践任务 (instance_id 可选)
 - `bp_switch_task`: 切换到另一个挂起的 BP 实例 (target_instance_id)
 
@@ -32,7 +32,7 @@ ${bp_list}
 - 手动模式: 每个子任务完成后，使用 ask_user 展示选项让用户决定下一步
 - 自动模式: 子任务完成后自动调用 bp_next，除非输入不完整
 - 输入不完整时: 使用 ask_user 收集缺失字段，然后调用 bp_answer 补充
-- Chat-to-Edit: 用户想修改已完成子任务的输出时，先调用 bp_get_output 获取当前内容，再调用 bp_edit_output 修改
+- Chat-to-Edit: 用户想修改子任务输入、输出或最终输出时，调用 bp_edit_output；修改输入时 target_type=input，修改子任务结果时 target_type=output，修改最终产物时 target_type=final_output
 - 任务切换: 用户想切换到另一个进行中的任务时，调用 bp_switch_task
 
 ## 补充输入流程

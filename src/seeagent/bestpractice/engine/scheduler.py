@@ -87,6 +87,14 @@ class TaskScheduler(ABC):
             for st in self._config.subtasks
         )
 
+    def export_resolved_inputs(self) -> dict[str, dict]:
+        resolved_inputs: dict[str, dict] = {}
+        for subtask in self._config.subtasks:
+            resolved = self.resolve_input(subtask.id)
+            if resolved:
+                resolved_inputs[subtask.id] = resolved
+        return resolved_inputs
+
     def derive_output_schema(self, subtask_id: str) -> dict | None:
         """推导子任务的输出 schema。
 
