@@ -178,6 +178,62 @@ class TestBPEditOutput:
         result = await handler.handle("bp_edit_output", {"instance_id": "x"}, agent)
         assert "required" in result
 
+    @pytest.mark.asyncio
+    async def test_edit_completed_reactivates_to_active(self, handler, bp_config):
+        """COMPLETED 实例编辑后应被重激活为 ACTIVE，使后续 get_active() 能找到它。"""
+        from seeagent.bestpractice.models import BPStatus
+        agent = MockAgent()
+        session = agent._current_session
+        inst_id = handler.state_manager.create_instance(bp_config, session.id, {"q": "x"})
+        for st in bp_config.subtasks:
+            handler.state_manager.update_subtask_status(inst_id, st.id, SubtaskStatus.DONE)
+            handler.state_manager.update_subtask_output(inst_id, st.id, {f"o_{st.id}": 1})
+        snap = handler.state_manager.get(inst_id)
+        snap.current_subtask_index = len(bp_config.subtasks)
+        handler.state_manager.complete(inst_id)
+
+        result = await handler.handle("bp_edit_output", {
+            "instance_id": inst_id,
+            "subtask_id": "s1",
+            "changes": {"o_s1": 99},
+        }, agent)
+
+        assert "✅" in result
+        snap = handler.state_manager.get(inst_id)
+        assert snap.status == BPStatus.ACTIVE
+        assert snap.completed_at is None
+        # get_active() 应能找到重激活后的实例
+        active = handler.state_manager.get_active(session.id)
+        assert active is not None
+        assert active.instance_id == inst_id
+        # session metadata 应已持久化
+        bp_state = session.metadata.get("bp_state")
+        assert bp_state is not None
+        inst_data = next(
+            i for i in bp_state["instances"] if i["instance_id"] == inst_id
+        )
+        assert inst_data["status"] == "active"
+
+    @pytest.mark.asyncio
+    async def test_edit_completed_resolve_fallback(self, handler, bp_config):
+        """无 instance_id 参数时，handler 应通过降级查找定位到最近完成的实例。"""
+        agent = MockAgent()
+        session = agent._current_session
+        inst_id = handler.state_manager.create_instance(bp_config, session.id, {"q": "x"})
+        handler.state_manager.update_subtask_output(inst_id, "s1", {"o": 1})
+        handler.state_manager.update_subtask_status(inst_id, "s1", SubtaskStatus.DONE)
+        handler.state_manager.complete(inst_id)
+
+        # 不传 instance_id，依赖 _handle_edit_output 的降级查找
+        result = await handler.handle("bp_edit_output", {
+            "subtask_id": "s1",
+            "changes": {"o": 2},
+        }, agent)
+
+        assert "✅" in result
+        snap = handler.state_manager.get(inst_id)
+        assert snap.subtask_outputs["s1"]["o"] == 2
+
 
 # ── bp_switch_task ─────────────────────────────────────────────
 

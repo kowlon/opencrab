@@ -145,7 +145,7 @@ class TestChatToEdit:
     def test_edit_first_subtask_input_distributes(self, engine, bp_config):
         # Add a shared field to s2's input schema so we can test distribution
         bp_config.subtasks[1].input_schema["properties"]["topic"] = {"type": "string"}
-        
+
         session = MockSession()
         inst_id = engine.state_manager.create_instance(
             bp_config, session.id, initial_input={"topic": "A"}
@@ -153,7 +153,7 @@ class TestChatToEdit:
         engine._distribute_initial_input(inst_id, bp_config)
         snap = engine.state_manager.get(inst_id)
         assert snap.supplemented_inputs["s2"].get("topic") == "A"
-        
+
         # Edit first subtask input
         res = engine.handle_edit_output(
             inst_id, "s1", {"topic": "B"}, bp_config, target_type="input"
@@ -163,6 +163,72 @@ class TestChatToEdit:
         assert snap.initial_input["topic"] == "B"
         # And distributed to downstream subtask
         assert snap.supplemented_inputs["s2"]["topic"] == "B"
+
+    # ── COMPLETED → ACTIVE 重激活场景 ────────────────────────────
+
+    def _make_all_done_completed(self, engine, bp_config, session):
+        """辅助：创建实例并把所有子任务置为 DONE + 实例 COMPLETED。"""
+        inst_id = engine.state_manager.create_instance(
+            bp_config, session.id, {"topic": "AI"},
+        )
+        for i, st in enumerate(bp_config.subtasks):
+            engine.state_manager.update_subtask_status(inst_id, st.id, SubtaskStatus.DONE)
+            engine.state_manager.update_subtask_output(inst_id, st.id, {f"o_{st.id}": i})
+        snap = engine.state_manager.get(inst_id)
+        snap.current_subtask_index = len(bp_config.subtasks)
+        engine.state_manager.complete(inst_id)
+        return inst_id
+
+    def test_edit_completed_output_reactivates_to_active(self, engine, bp_config):
+        """全部 DONE + COMPLETED，编辑 s1 output → 实例应被重激活为 ACTIVE 以便 bp_next 可定位。"""
+        session = MockSession()
+        inst_id = self._make_all_done_completed(engine, bp_config, session)
+
+        result = engine.handle_edit_output(inst_id, "s1", {"o_s1": 99}, bp_config)
+
+        assert result["success"]
+        assert result.get("reactivated") is True
+        snap = engine.state_manager.get(inst_id)
+        assert snap.status == BPStatus.ACTIVE
+        assert snap.completed_at is None
+        # invalidate_from_subtask 应该已将 s2/s3 回退为 PENDING 并清理 outputs
+        assert snap.subtask_statuses["s2"] == SubtaskStatus.PENDING.value
+        assert snap.subtask_statuses["s3"] == SubtaskStatus.PENDING.value
+        assert "s2" not in snap.subtask_outputs
+        assert "s3" not in snap.subtask_outputs
+        # 重激活后 get_active() 应能找到实例（验证核心修复效果）
+        active = engine.state_manager.get_active(session.id)
+        assert active is not None
+        assert active.instance_id == inst_id
+
+    def test_edit_completed_last_subtask_does_not_reactivate(self, engine, bp_config):
+        """COMPLETED 时编辑最后一步 output（无下游）不应重激活，BP 保持 COMPLETED。"""
+        session = MockSession()
+        inst_id = self._make_all_done_completed(engine, bp_config, session)
+
+        result = engine.handle_edit_output(inst_id, "s3", {"o_s3": 99}, bp_config)
+
+        assert result["success"]
+        # 最后一步没有下游，invalidation 为空，不触发重激活
+        assert result.get("reactivated") is not True
+        snap = engine.state_manager.get(inst_id)
+        assert snap.status == BPStatus.COMPLETED
+        assert snap.completed_at is not None
+
+    def test_edit_completed_input_reactivates_and_rewinds(self, engine, bp_config):
+        """COMPLETED 时用 target_type=input 编辑 s2 的输入，应重激活并回退到 s2。"""
+        session = MockSession()
+        inst_id = self._make_all_done_completed(engine, bp_config, session)
+
+        result = engine.handle_edit_output(
+            inst_id, "s2", {"findings": ["new"]}, bp_config, target_type="input",
+        )
+
+        assert result["success"]
+        assert result.get("reactivated") is True
+        snap = engine.state_manager.get(inst_id)
+        assert snap.status == BPStatus.ACTIVE
+        assert snap.current_subtask_index == 1  # s2 的位置
 
 
 class TestLifecycleHelpers:

@@ -1067,6 +1067,22 @@ class BPEngine:
                 **invalidation,
             }
 
+        # COMPLETED → ACTIVE 重激活：若 BP 已完成且本次编辑触发了重执行，
+        # 需要把实例状态改回 ACTIVE，否则 get_active() 找不到它，bp_next 无法定位。
+        rerun_from_idx = invalidation.get("rerun_from_index")
+        if (
+            snap.status == BPStatus.COMPLETED
+            and rerun_from_idx is not None
+            and rerun_from_idx < len(bp_config.subtasks)
+        ):
+            snap.status = BPStatus.ACTIVE
+            snap.completed_at = None
+            result["reactivated"] = True
+            logger.info(
+                f"[BP] handle_edit_output: COMPLETED→ACTIVE instance={instance_id} "
+                f"rerun_from_index={rerun_from_idx}"
+            )
+
         if warning:
             result["warning"] = warning
         return result

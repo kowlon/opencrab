@@ -197,6 +197,14 @@ class BPToolHandler:
     async def _handle_edit_output(self, params: dict, agent: Any, session: Any) -> str:
         instance_id = self._resolve_instance_id(params, session)
         if not instance_id:
+            # 降级查找最近完成的实例（COMPLETED 不被 get_active() 返回）
+            all_snaps = self.state_manager.get_all_for_session(session.id)
+            completed = [s for s in all_snaps if s.status == BPStatus.COMPLETED]
+            if completed:
+                instance_id = max(
+                    completed, key=lambda s: s.completed_at or 0,
+                ).instance_id
+        if not instance_id:
             return "❌ 请指定 instance_id"
 
         target_type = (params.get("target_type") or "output").strip().lower()
