@@ -81,14 +81,21 @@ class TestLinearSchedulerGetReadyTasks:
         sched = LinearScheduler(cfg, snap)
         assert sched.get_ready_tasks() == []
 
-    def test_waiting_input_not_ready(self):
+    def test_waiting_input_is_ready(self):
+        """WAITING_INPUT 状态的子任务被视为 ready。
+
+        这样 bp_next/advance 被再次触发时能重新检查 input 完整性，
+        若仍缺失则重发 bp_ask_user，而不是静默无响应。
+        """
         cfg = _make_config()
         snap = _make_snapshot(
             current_index=0,
             statuses={"s1": "waiting_input", "s2": "pending", "s3": "pending"},
         )
         sched = LinearScheduler(cfg, snap)
-        assert sched.get_ready_tasks() == []
+        ready = sched.get_ready_tasks()
+        assert len(ready) == 1
+        assert ready[0].id == "s1"
 
 
 class TestLinearSchedulerCompleteTask:

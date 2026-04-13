@@ -142,7 +142,15 @@ class LinearScheduler(TaskScheduler):
             return []
         subtask = self._config.subtasks[idx]
         status = self._snap.subtask_statuses.get(subtask.id)
-        if status in (SubtaskStatus.PENDING.value, SubtaskStatus.STALE.value, None):
+        # WAITING_INPUT 也视为 ready:
+        # 用户再次触发 bp_next/advance 时应重新检查 input 完整性，
+        # 若仍缺失则重发 bp_ask_user 事件（而非静默无响应）。
+        if status in (
+            SubtaskStatus.PENDING.value,
+            SubtaskStatus.STALE.value,
+            SubtaskStatus.WAITING_INPUT.value,
+            None,
+        ):
             return [subtask]
         return []
 

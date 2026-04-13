@@ -15,13 +15,31 @@ SYSTEM_TOOLS = [
     {
         "name": "ask_user",
         "category": "System",
-        "description": "Ask the user one or more questions and PAUSE execution until they reply. Use when: (1) critical information is missing, (2) task is ambiguous and needs clarification, (3) user confirmation is required before proceeding. Do NOT put questions in plain text — only this tool triggers a real pause. When questions have choices, ALWAYS provide options. Supports both single-select and multi-select via allow_multiple. For multiple related questions, use the questions array to ask them all at once.",
+        "description": "Ask the user one or more questions and PAUSE execution until they reply. Use when: (1) critical information is missing, (2) task is ambiguous and needs clarification, (3) user confirmation is required before proceeding. Do NOT put questions in plain text — only this tool triggers a real pause. When questions have choices, ALWAYS provide options. Supports both single-select and multi-select via allow_multiple. For multiple related questions, use the questions array to ask them all at once. IMPORTANT: question text MUST include the 4 required elements: (a) what to provide, (b) description, (c) format, (d) example.",
         "detail": """向用户提问并暂停执行，等待用户回复。支持单个问题和多个问题。
 
 **何时使用**：
 - 关键信息缺失（如：路径、账号、具体目标不明确）
 - 任务有歧义，需要用户澄清
 - 需要用户确认后才能继续（如：危险操作、多选方案）
+
+**提问内容质量要求（硬性规则）**：
+question 文本（或 questions 中每个问题的 prompt）**必须**同时包含以下 4 个要素——只问一句"需要什么时间？"是不合格的：
+1. **需要提供的内容**：明确列出需要用户回复的信息点（多项时用项目符号列出）
+2. **内容描述**：简要说明每项信息的含义和用途，让用户理解为什么要提供
+3. **格式说明**：明确期望的输入格式/类型，如：
+   - 日期/时间：格式如 `YYYY-MM-DD` 或 `YYYY-MM-DD HH:MM`
+   - 数字：单位（米、秒、元等）、范围
+   - 列表：分隔符或示例结构
+4. **示例**：给出 1-2 个具体的输入示例，帮助用户快速理解期望
+
+反例（缺少引导，禁止）：
+  "你希望查找的时间范围是什么？"
+
+正例（四要素齐全）：
+  "为了进行图像帧检索，请提供以下两个信息：
+   - **开始时间**：查询时间范围的起点，格式 YYYY-MM-DD HH:MM（例如 2026-04-12 22:00）
+   - **结束时间**：查询时间范围的终点，格式同上（例如 2026-04-13 00:00）"
 
 **单个简单问题**：
 - 使用 question + options 即可

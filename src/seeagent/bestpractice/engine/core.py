@@ -386,7 +386,7 @@ class BPEngine:
                         "input_schema": matched_schema or subtask.input_schema,
                     }
                     if mode == "message":
-                        event["message"] = self._build_ask_user_nl_message(
+                        event["message"] = await self._build_ask_user_nl_message(
                             subtask, missing, matched_schema or subtask.input_schema
                         )
                     yield event
@@ -1134,13 +1134,146 @@ class BPEngine:
 
     # ── ask_user message generation ──────────────────────────────
 
-    def _build_ask_user_nl_message(
+    async def _build_ask_user_nl_message(
         self,
         subtask: SubtaskConfig,
         missing_fields: list[str],
         schema: dict[str, Any],
     ) -> str:
-        """根据 input_schema 生成自然语言提问文本（模板拼接，不调用 LLM）。"""
+        """根据 input_schema 生成自然语言提问文本。
+
+        优先调用 LLM 生成友好自然的提问；若 brain 不可用、LLM 返回空、
+        被 max_tokens 截断或调用异常，则回退到
+        `_build_ask_user_nl_message_template`。
+
+        生成的提问文本至少包含以下要素:
+        - 需要提供的内容（字段名/含义）
+        - 内容描述
+        - 格式说明（类型、默认值）
+        - 示例（从 description 中提取）
+        """
+        brain = self._get_brain()
+        if not brain:
+            logger.debug(
+                "[BP] _build_ask_user_nl_message: no brain, using template fallback"
+            )
+            return self._build_ask_user_nl_message_template(
+                subtask, missing_fields, schema,
+            )
+
+        # 清理注入到 prompt 的用户可控字符串（skill 配置），防止 prompt 注入
+        def _sanitize(text: Any, max_len: int = 200) -> str:
+            s = str(text) if text is not None else ""
+            # 去除换行和回车，避免多行注入
+            s = s.replace("\n", " ").replace("\r", " ").strip()
+            if len(s) > max_len:
+                s = s[:max_len] + "..."
+            return s
+
+        # 组装 LLM 上下文: 字段描述、类型、默认值、示例
+        properties = schema.get("properties", {})
+        type_labels = {
+            "string": "文本", "number": "数字", "integer": "整数",
+            "boolean": "是/否", "array": "列表", "object": "JSON 对象",
+        }
+        field_entries: list[str] = []
+        for field in missing_fields:
+            prop = properties.get(field, {})
+            raw_desc = prop.get("description", field)
+            desc = _sanitize(raw_desc)
+            field_type = prop.get("type", "string")
+            type_hint = type_labels.get(field_type, field_type)
+            safe_field = _sanitize(field, max_len=100)
+            entry = f"- 字段名: {safe_field}\n  描述: {desc}\n  类型: {type_hint}"
+            if prop.get("default") is not None:
+                entry += f"\n  默认值: {_sanitize(prop['default'], max_len=100)}"
+            # 从原始 description 中尝试提取示例（对原文做 regex 更可靠）
+            example_match = re.search(
+                r"(?:例如[：:]?|如[：:]|如(?=['\"\u2018\u201c]))\s*['\"\u2018\u201c]?([^'\"\u2019\u201d，。）)\n]+)",
+                str(raw_desc) if raw_desc is not None else "",
+            )
+            if example_match:
+                entry += f"\n  示例: {_sanitize(example_match.group(1), max_len=100)}"
+            field_entries.append(entry)
+
+        # oneOf/anyOf 分支标题作为上下文提示
+        # 注意: `schema` 参数是 _check_input_completeness 已经选定的单分支，
+        # 所以需要从 subtask.input_schema (原始完整 schema) 读取 branches
+        original_schema = subtask.input_schema or {}
+        branches = original_schema.get("oneOf") or original_schema.get("anyOf")
+        branch_hint = ""
+        if branches:
+            titles = [
+                _sanitize(b.get("title", f"选项{i + 1}"), max_len=100)
+                for i, b in enumerate(branches)
+            ]
+            branch_hint = f"\n\n可选方案: {' / '.join(titles)}"
+
+        safe_subtask_name = _sanitize(subtask.name, max_len=100)
+        fields_block = "\n".join(field_entries)
+        prompt = (
+            f"你是一个智能助手。用户正在使用「{safe_subtask_name}」功能，"
+            f"但还缺少以下必要信息:\n\n"
+            f"{fields_block}"
+            f"{branch_hint}\n\n"
+            "请用友好、简洁的中文向用户提问，必须包含以下要素:\n"
+            "1. 明确列出需要提供的内容\n"
+            "2. 每项内容的含义描述\n"
+            "3. 期望的格式/类型说明\n"
+            "4. 具体的输入示例（如果可以推断）\n\n"
+            "直接输出提问文本，不要任何前缀、解释或 Markdown 代码块。"
+        )
+
+        # max_tokens 根据字段数量动态分配，保底 512，最多 1024
+        # 每个字段约需 120 tokens（4 要素 + 中文展开），外加 150 tokens 句法开销
+        dynamic_max_tokens = min(1024, max(512, len(missing_fields) * 120 + 150))
+
+        try:
+            resp = await brain.think_lightweight(
+                prompt, max_tokens=dynamic_max_tokens,
+            )
+            text = resp.content if hasattr(resp, "content") else str(resp)
+            text = (text or "").strip()
+            stop_reason = getattr(resp, "stop_reason", "") or ""
+
+            # 如果被 max_tokens 截断，视为无效输出触发 fallback
+            if stop_reason == "max_tokens":
+                logger.warning(
+                    "[BP] _build_ask_user_nl_message: LLM output truncated "
+                    f"(stop_reason=max_tokens, max_tokens={dynamic_max_tokens}), "
+                    "falling back to template"
+                )
+            elif text:
+                logger.debug(
+                    "[BP] _build_ask_user_nl_message: LLM generated message "
+                    f"for subtask={subtask.id} fields={missing_fields}"
+                )
+                return text
+            else:
+                logger.warning(
+                    "[BP] _build_ask_user_nl_message: LLM returned empty text, "
+                    "falling back to template"
+                )
+        except Exception as e:
+            logger.warning(
+                f"[BP] _build_ask_user_nl_message: LLM call failed ({e}), "
+                "falling back to template"
+            )
+
+        return self._build_ask_user_nl_message_template(
+            subtask, missing_fields, schema,
+        )
+
+    def _build_ask_user_nl_message_template(
+        self,
+        subtask: SubtaskConfig,
+        missing_fields: list[str],
+        schema: dict[str, Any],
+    ) -> str:
+        """根据 input_schema 生成自然语言提问文本（模板拼接，不调用 LLM）。
+
+        作为 `_build_ask_user_nl_message` 的 fallback。
+        """
         properties = schema.get("properties", {})
         lines = [f"要执行「{subtask.name}」子任务，还需要你提供以下信息：\n"]
         type_labels = {
