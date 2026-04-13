@@ -45,7 +45,7 @@ subtasks:
           properties:
             query:
               type: string
-              description: "跟地理位置相关的自然语言描述，如'园区东门摄像头'"
+              description: "跟地理位置相关的自然语言描述或道路/街道名，如'园区东门摄像头'、'衡州大道'、'世纪大道沿线'"
             limit:
               type: integer
               description: "返回数量，如果没有明确指定，默认返回20个"
@@ -56,14 +56,14 @@ subtasks:
           properties:
             keyword:
               type: string
-              description: "POI 关键词或具体的地址文本，如'环球贸易中心'，如果没有提供，则不进行提取，走ask_user模式"
+              description: "具体的 POI/地标/门牌地址，如'环球贸易中心'、'朝阳区大悦城'、'西三环北路27号'、'首都机场T3航站楼'"
             radius_m:
               type: number
               description: "检索半径（米）"
               default: 1000
             region:
               type: string
-              description: "可选区域限制"
+              description: "可选的行政区划限制（仅限省/市/区/县级），如'浦东新区'、'海淀区'、'杭州市'；道路、街道、地标、门牌均不属于 region，请用 keyword"
             types:
               type: string
               description: "POI 类型限制"
