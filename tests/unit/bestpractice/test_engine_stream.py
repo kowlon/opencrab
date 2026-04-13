@@ -44,6 +44,11 @@ class TestRunSubtaskStream:
     async def test_streams_events_from_delegate(self):
         cfg = _make_config()
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         engine = BPEngine(sm)
 
         # Mock orchestrator.delegate to return result
@@ -74,6 +79,11 @@ class TestRunSubtaskStream:
         """R17: delegate_task is stored on session.context._bp_delegate_task."""
         cfg = _make_config()
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         engine = BPEngine(sm)
         mock_orch = AsyncMock()
         mock_orch.delegate = AsyncMock(return_value='{"ok": true}')
@@ -99,6 +109,11 @@ class TestRunSubtaskStream:
         """When no orchestrator is available, yields an error event."""
         cfg = _make_config()
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         engine = BPEngine(sm)
         # Do NOT set orchestrator
         engine._get_orchestrator = MagicMock(return_value=None)
@@ -119,6 +134,11 @@ class TestRunSubtaskStream:
         raw events (thinking, done) are skipped."""
         cfg = _make_config()
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         engine = BPEngine(sm)
 
         async def fake_delegate(**kwargs):
@@ -173,6 +193,11 @@ class TestRunSubtaskStream:
         """Skill trigger creates one card, inner tool calls are absorbed."""
         cfg = _make_config()
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         engine = BPEngine(sm)
 
         async def fake_delegate(**kwargs):
@@ -229,6 +254,11 @@ class TestRunSubtaskStream:
         """After stream completes, the old event_bus is restored."""
         cfg = _make_config()
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         engine = BPEngine(sm)
 
         mock_orch = AsyncMock()
@@ -255,6 +285,11 @@ class TestRunSubtaskStream:
         """Cleanup should not overwrite a newer request's event bus/task handles."""
         cfg = _make_config()
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         engine = BPEngine(sm)
 
         release = asyncio.Event()
@@ -304,6 +339,11 @@ class TestAnswer:
         snap = _make_snap(cfg)
         snap.bp_config = cfg
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.get.return_value = snap
         sm.get_active.return_value = None
         sm.update_subtask_status = MagicMock()
@@ -329,6 +369,11 @@ class TestAnswer:
 
     async def test_answer_instance_not_found(self):
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.get.return_value = None
         engine = BPEngine(sm)
 
@@ -346,6 +391,11 @@ class TestAnswer:
         snap.bp_config = cfg
         snap.supplemented_inputs["s1"] = {"old_field": "old_val"}
         sm = MagicMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.get.return_value = snap
         sm.get_active.return_value = None
         sm.update_subtask_status = MagicMock()

@@ -314,9 +314,8 @@ class BPStateManager:
                 inst.bp_config
                 and 0 <= inst.current_subtask_index < len(inst.bp_config.subtasks)
             ):
-                current_step = inst.bp_config.subtasks[
-                    inst.current_subtask_index
-                ].name
+                st = inst.bp_config.subtasks[inst.current_subtask_index]
+                current_step = f"{st.name}({st.id})"
             input_summary = ""
             if inst.initial_input:
                 input_summary = " (" + ", ".join(

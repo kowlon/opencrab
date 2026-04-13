@@ -106,6 +106,7 @@ class TestBPCancel:
     @pytest.mark.asyncio
     async def test_cancel_active_instance(self, handler):
         agent = MockAgent()
+        handler.state_manager.mark_bp_offered("test-session", "test-bp")
         await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
         active = handler.state_manager.get_active("test-session")
         assert active is not None
@@ -117,6 +118,7 @@ class TestBPCancel:
     @pytest.mark.asyncio
     async def test_cancel_sets_cooldown(self, handler):
         agent = MockAgent()
+        handler.state_manager.mark_bp_offered("test-session", "test-bp")
         await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
         await handler.handle("bp_cancel", {}, agent)
         cooldown = handler.state_manager.get_cooldown("test-session")
@@ -125,6 +127,7 @@ class TestBPCancel:
     @pytest.mark.asyncio
     async def test_cancel_emits_bp_cancelled_event(self, handler):
         agent = MockAgent()
+        handler.state_manager.mark_bp_offered("test-session", "test-bp")
         await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
         active = handler.state_manager.get_active("test-session")
         bus = agent._current_session.context._sse_event_bus
@@ -137,6 +140,7 @@ class TestBPCancel:
     @pytest.mark.asyncio
     async def test_cancel_persists_to_session(self, handler):
         agent = MockAgent()
+        handler.state_manager.mark_bp_offered("test-session", "test-bp")
         await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
         await handler.handle("bp_cancel", {}, agent)
         bp_state = agent._current_session.metadata.get("bp_state")
@@ -147,6 +151,7 @@ class TestPersistToSession:
     @pytest.mark.asyncio
     async def test_persist_writes_metadata(self, handler):
         agent = MockAgent()
+        handler.state_manager.mark_bp_offered("test-session", "test-bp")
         await handler.handle("bp_start", {"bp_id": "test-bp", "input_data": {"q": "x"}}, agent)
         active = handler.state_manager.get_active("test-session")
         handler.state_manager.persist_to_session(active.instance_id, agent._current_session)

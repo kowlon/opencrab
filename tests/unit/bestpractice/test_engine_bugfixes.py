@@ -45,6 +45,9 @@ class TestDeleteEndpointPersistence:
         mock_snap.session_id = "test-session-123"
 
         mock_sm = MagicMock()
+        mock_sm.persist_instance = AsyncMock()
+        mock_sm.persist_status_change = AsyncMock()
+        mock_sm.ensure_loaded = AsyncMock(return_value=mock_snap)
         mock_sm.get.return_value = mock_snap
         mock_sm.serialize_for_session.return_value = {"cancelled": True}
 

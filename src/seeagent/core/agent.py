@@ -331,6 +331,12 @@ class Agent:
         profile_id = profile.id if profile else "default"
         return f"SubAgent '{profile_id}'" if profile_id != "default" else "Main Agent"
 
+    @property
+    def _is_bp_sub_agent(self) -> bool:
+        """检查当前是否为 Best Practice 类型的子 Agent"""
+        profile = getattr(self, "_agent_profile_data", None)
+        return bool(getattr(self, "_is_sub_agent_call", False) and profile and getattr(profile, "category", "") == "bestpractice")
+
     def __init__(
         self,
         name: str | None = None,
@@ -3615,7 +3621,7 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
                 )
                 has_multi_actions = should_require_plan(message)
 
-                if is_compound or has_multi_actions:
+                if not self._is_bp_sub_agent and (is_compound or has_multi_actions):
                     require_plan_for_session(conversation_id, True)
                     logger.info(
                         f"[Session:{session_id}] Multi-step task detected "
@@ -5023,7 +5029,7 @@ create_agent(name="名称", description="描述", skills=["技能"], custom_prom
         conversation_id = getattr(self, "_current_conversation_id", None) or getattr(
             self, "_current_session_id", None
         )
-        if conversation_id and has_active_plan(conversation_id):
+        if not self._is_bp_sub_agent and conversation_id and has_active_plan(conversation_id):
             handler = get_plan_handler_for_session(conversation_id)
             plan = handler.get_plan_for(conversation_id) if handler else None
             if plan:
@@ -5380,9 +5386,10 @@ NEXT: 建议的下一步（如有）"""
             )
             prompt = base_system_prompt
             if _cid:
-                plan_section = get_active_plan_prompt(_cid)
-                if plan_section:
-                    prompt += f"\n\n{plan_section}\n"
+                if not self._is_bp_sub_agent:
+                    plan_section = get_active_plan_prompt(_cid)
+                    if plan_section:
+                        prompt += f"\n\n{plan_section}\n"
             return prompt
 
         # 获取当前模型
@@ -5411,7 +5418,7 @@ NEXT: 建议的下一步（如有）"""
                 sid = getattr(self, "_current_conversation_id", None) or getattr(
                     self, "_current_session_id", None
                 )
-                if sid and (has_active_plan(sid) or is_plan_required(sid)):
+                if not self._is_bp_sub_agent and sid and (has_active_plan(sid) or is_plan_required(sid)):
                     retries = max(retries, 1)
             except Exception:
                 pass
@@ -5867,7 +5874,7 @@ NEXT: 建议的下一步（如有）"""
                                 conversation_id = getattr(self, "_current_conversation_id", None) or getattr(
                                     self, "_current_session_id", None
                                 )
-                                if conversation_id and has_active_plan(conversation_id):
+                                if not self._is_bp_sub_agent and conversation_id and has_active_plan(conversation_id):
                                     handler = get_plan_handler_for_session(conversation_id)
                                     _plan = handler.get_plan_for(conversation_id) if handler else None
                                     if _plan:
@@ -6157,7 +6164,7 @@ NEXT: 建议的下一步（如有）"""
                     _sc_conv_id = getattr(self, "_current_conversation_id", None) or getattr(
                         self, "_current_session_id", None
                     )
-                    if _sc_conv_id and _has_active_plan(_sc_conv_id):
+                    if not self._is_bp_sub_agent and _sc_conv_id and _has_active_plan(_sc_conv_id):
                         _self_check_has_plan = True
                 except Exception:
                     pass
@@ -6614,9 +6621,15 @@ NEXT: 建议的下一步（如有）"""
         # 但还没有创建 Plan，则拒绝执行其他工具
         if tool_name != "create_plan":
             from ..tools.handlers.plan import has_active_plan, is_plan_required
+            from ..bestpractice.facade import get_bp_state_manager
 
             session_id = getattr(self, "_current_session_id", None)
-            if session_id and is_plan_required(session_id) and not has_active_plan(session_id):
+            
+            # BP 活跃会话豁免（或者当前是 BP SubAgent 且在执行其内部逻辑）
+            bp_state = get_bp_state_manager()
+            is_bp_active = bp_state and session_id and bp_state.get_active(session_id)
+
+            if not (is_bp_active or self._is_bp_sub_agent) and session_id and is_plan_required(session_id) and not has_active_plan(session_id):
                 return (
                     "⚠️ **这是一个多步骤任务，必须先创建计划！**\n\n"
                     "请先调用 `create_plan` 工具创建任务计划，然后再执行具体操作。\n\n"
@@ -6737,9 +6750,10 @@ NEXT: 建议的下一步（如有）"""
             from ..tools.handlers.plan import get_active_plan_prompt
 
             prompt = _base_system_prompt_task
-            plan_section = get_active_plan_prompt(_task_conversation_id)
-            if plan_section:
-                prompt += f"\n\n{plan_section}\n"
+            if not self._is_bp_sub_agent:
+                plan_section = get_active_plan_prompt(_task_conversation_id)
+                if plan_section:
+                    prompt += f"\n\n{plan_section}\n"
             return prompt
 
         # === 关键：保存原始任务描述，用于模型切换时重置上下文 ===

@@ -138,6 +138,10 @@ class BPConfigLoader:
 
             # 使用 ProfileStore 的标准接口
             from seeagent.agents.profile import AgentProfile
+            
+            # Enforce category tag for Best Practice sub-agents
+            data["category"] = "bestpractice"
+            
             profile = AgentProfile.from_dict(data)
             self._profile_store.save(profile)
             logger.debug(f"[BP] Registered profile: {profile_id}")

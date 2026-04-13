@@ -52,6 +52,11 @@ class TestAdvanceManualMode:
         snap = _make_snap(cfg, run_mode=RunMode.MANUAL)
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.complete = MagicMock()
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)
@@ -76,6 +81,11 @@ class TestAdvanceManualMode:
         snap = _make_snap(cfg, run_mode=RunMode.MANUAL)
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.complete = MagicMock()
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)
@@ -100,6 +110,11 @@ class TestAdvanceAutoMode:
         snap = _make_snap(cfg, run_mode=RunMode.AUTO)
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.complete = MagicMock()
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)
@@ -136,6 +151,11 @@ class TestAdvanceAskUser:
         snap.initial_input = {}  # Missing "data" field
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)
         engine._get_config = MagicMock(return_value=cfg)
@@ -169,6 +189,11 @@ class TestAdvanceAskUser:
         snap.initial_input = {}  # topic 缺失
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)
         engine._get_config = MagicMock(return_value=cfg)
@@ -191,6 +216,11 @@ class TestAdvanceErrorHandling:
         snap.initial_input = {"data": "hello"}
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)
         engine._get_config = MagicMock(return_value=cfg)
@@ -229,6 +259,11 @@ class TestAdvanceInitialProgress:
         snap = _make_snap(cfg, run_mode=RunMode.MANUAL)
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.complete = MagicMock()
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)
@@ -255,6 +290,11 @@ class TestAdvanceDelegateCards:
         snap = _make_snap(cfg, run_mode=RunMode.MANUAL)
         sm = MagicMock()
         sm.get.return_value = snap
+        sm.persist_subtask_progress = AsyncMock()
+        sm.persist_status_change = AsyncMock()
+        sm.persist_supplemented_input = AsyncMock()
+        sm.persist_instance = AsyncMock()
+        sm.persist_subtask_output = AsyncMock()
         sm.complete = MagicMock()
         sm.update_subtask_status = MagicMock()
         engine = BPEngine(sm)

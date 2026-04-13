@@ -1,8 +1,8 @@
 # tests/unit/bestpractice/test_chat_answer.py
 """Tests for _stream_bp_answer_from_chat and _llm_extract_answer_fields."""
+import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-
 from seeagent.api.routes.seecrab import _llm_extract_answer_fields
 
 
@@ -16,7 +16,7 @@ class TestLLMExtractAnswerFields:
         mock_brain.think_lightweight = AsyncMock(return_value=mock_resp)
 
         result = await _llm_extract_answer_fields(
-            user_message="科技",
+            history_context="科技",
             missing_fields=["domain"],
             input_schema={
                 "type": "object",
@@ -24,7 +24,13 @@ class TestLLMExtractAnswerFields:
             },
             brain=mock_brain,
         )
+
         assert result == {"domain": "科技"}
+        mock_brain.think_lightweight.assert_called_once()
+        args, kwargs = mock_brain.think_lightweight.call_args
+        prompt = args[0] if args else kwargs.get("prompt", "")
+        assert "科技" in prompt
+        assert "domain" in prompt
 
     @pytest.mark.asyncio
     async def test_filters_non_missing_fields(self):
@@ -35,18 +41,19 @@ class TestLLMExtractAnswerFields:
         mock_brain.think_lightweight = AsyncMock(return_value=mock_resp)
 
         result = await _llm_extract_answer_fields(
-            user_message="科技",
+            history_context="科技",
             missing_fields=["domain"],
             input_schema={"type": "object", "properties": {"domain": {"type": "string"}}},
             brain=mock_brain,
         )
+
+        assert result == {"domain": "科技"}
         assert "extra" not in result
-        assert "domain" in result
 
     @pytest.mark.asyncio
     async def test_returns_empty_on_no_brain(self):
         result = await _llm_extract_answer_fields(
-            user_message="test",
+            history_context="test",
             missing_fields=["field1"],
             input_schema={"type": "object", "properties": {}},
             brain=None,
@@ -59,17 +66,18 @@ class TestLLMExtractAnswerFields:
         mock_brain.think_lightweight = AsyncMock(side_effect=Exception("LLM error"))
 
         result = await _llm_extract_answer_fields(
-            user_message="test",
+            history_context="test",
             missing_fields=["field1"],
             input_schema={"type": "object", "properties": {}},
             brain=mock_brain,
         )
+
         assert result == {}
 
     @pytest.mark.asyncio
     async def test_returns_empty_on_no_missing_fields(self):
         result = await _llm_extract_answer_fields(
-            user_message="test",
+            history_context="test",
             missing_fields=[],
             input_schema={"type": "object", "properties": {}},
             brain=AsyncMock(),

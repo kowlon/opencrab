@@ -112,13 +112,34 @@ class AgentFactory:
 
     @staticmethod
     def _apply_skill_filter(agent: Agent, profile: AgentProfile) -> None:
-        if profile.skills_mode == SkillsMode.ALL or not profile.skills:
-            return
-
         registry = agent.skill_registry
         all_skills = [skill.name for skill in registry.list_all(include_disabled=True)]
-
         removed = 0
+        
+        # BestPractice 子 Agent 不需要 plan 相关的工具，否则容易引起误导
+        if profile.category == "bestpractice":
+            plan_tools = {"create_plan", "update_plan_step", "get_plan_status", "complete_plan"}
+            original_tools = agent._tools
+            filtered_tools = [t for t in original_tools if t.get("name") not in plan_tools]
+            if len(filtered_tools) != len(original_tools):
+                agent._tools = filtered_tools
+                removed += 1
+            
+            # 从 registry 中也移除 plan 相关技能（如果有）
+            for skill_name in list(all_skills):
+                if AgentFactory._normalize_skill_name(skill_name) in {"create-plan", "update-plan-step", "get-plan-status", "complete-plan"}:
+                    registry.unregister(skill_name)
+                    removed += 1
+                    all_skills.remove(skill_name)
+
+        if profile.skills_mode == SkillsMode.ALL or not profile.skills:
+            if removed:
+                agent.skill_catalog.invalidate_cache()
+                agent.skill_catalog.generate_catalog()
+                agent.tool_catalog.update_tools(agent._tools)
+                agent._update_skill_tools()
+            return
+
         if profile.skills_mode == SkillsMode.INCLUSIVE:
             exact, short = AgentFactory._build_skill_match_set(profile.skills)
             

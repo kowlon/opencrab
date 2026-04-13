@@ -48,7 +48,7 @@ class BPPromptBuilder:
                 elif t.type == TriggerType.CONTEXT:
                     triggers_desc += f" (关键词: {', '.join(t.conditions)})"
 
-            subtask_names = " → ".join(s.name for s in config.subtasks)
+            subtask_names = " → ".join(f"{s.name}({s.id})" for s in config.subtasks)
 
             required_inputs = ""
             grouped_hints: dict[str, list[str]] = {}
