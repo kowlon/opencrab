@@ -73,8 +73,10 @@ subtasks:
         strengths:
           type: array
           items: { type: string }
+          description: "我方产品的优势点列表（从对比分析中提炼）"
         weaknesses:
           type: array
           items: { type: string }
+          description: "我方产品的劣势/短板列表（从对比分析中提炼）"
       required: [comparison_matrix]
       upstream: [comparison_matrix, strengths, weaknesses]

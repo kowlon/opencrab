@@ -58,8 +58,13 @@ subtasks:
         functional_requirements:
           type: array
           items: { type: object }
-        non_functional_requirements: { type: object }
-        constraints: { type: object }
+          description: "功能需求列表（来自需求分析阶段）"
+        non_functional_requirements:
+          type: object
+          description: "非功能需求（性能、安全、可用性等指标）"
+        constraints:
+          type: object
+          description: "技术或业务约束（如预算、时间、必须使用的技术栈）"
         existing_infrastructure:
           type: object
           description: "现有基础设施"
@@ -79,6 +84,7 @@ subtasks:
         tech_stack:
           type: array
           items: { type: string }
+          description: "拟使用的技术栈列表"
         timeline:
           type: object
           description: "项目时间线"
@@ -92,8 +98,14 @@ subtasks:
     input_schema:
       type: object
       properties:
-        requirements_analysis: { type: object }
-        architecture_design: { type: object }
-        risk_assessment: { type: object }
+        requirements_analysis:
+          type: object
+          description: "需求分析阶段的产出（来自 requirements 子任务）"
+        architecture_design:
+          type: object
+          description: "架构设计阶段的产出（来自 architecture 子任务）"
+        risk_assessment:
+          type: object
+          description: "风险评估阶段的产出（来自 risk-assessment 子任务）"
       required: [requirements_analysis, architecture_design, risk_assessment]
       upstream: [requirements_analysis, architecture_design, risk_assessment]

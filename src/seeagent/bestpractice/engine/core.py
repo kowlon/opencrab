@@ -37,6 +37,19 @@ logger = logging.getLogger(__name__)
 _PARTIAL_RESULT_ITEM_LIMIT = 2000
 _PARTIAL_RESULTS_TOTAL_LIMIT = 8000
 
+# JSONSchema 类型 → 用户友好中文名（共享给 LLM prompt 路径与 template 路径）
+_TYPE_LABELS: dict[str, str] = {
+    "string": "文本", "number": "数字", "integer": "整数",
+    "boolean": "是/否", "array": "列表", "object": "JSON 对象",
+}
+
+# 从 description 中提取示例的正则: 匹配"如'xxx'" / "如：xxx" / "例如xxx" / "例如：xxx"
+# 避免句中孤立"如"误匹配（如必须紧跟引号或冒号）
+_EXAMPLE_PATTERN = re.compile(
+    r"(?:例如[：:]?|如[：:]|如(?=['\"\u2018\u201c]))\s*"
+    r"['\"\u2018\u201c]?([^'\"\u2019\u201d，。）)\n]+)"
+)
+
 
 class BPEngine:
     def __init__(
@@ -1146,11 +1159,15 @@ class BPEngine:
         被 max_tokens 截断或调用异常，则回退到
         `_build_ask_user_nl_message_template`。
 
-        生成的提问文本至少包含以下要素:
-        - 需要提供的内容（字段名/含义）
-        - 内容描述
-        - 格式说明（类型、默认值）
-        - 示例（从 description 中提取）
+        Label 解析链:
+        - 优先用 property.description 作为 LLM 上下文中的中文标签
+        - description 缺失时退化为字段名本身（防御性兜底，BP config 应保证
+          每个 property 都有 description，避免触发该路径）
+
+        输出契约（软约束，由 prompt 引导）:
+        - 自然口语化中文，1~3 句话（字段较多时可延长至 4~5 句）
+        - 不含英文标识符或字段名
+        - 必要时融入示例，不单列示例行
         """
         brain = self._get_brain()
         if not brain:
@@ -1172,26 +1189,18 @@ class BPEngine:
 
         # 组装 LLM 上下文: 字段描述、类型、默认值、示例
         properties = schema.get("properties", {})
-        type_labels = {
-            "string": "文本", "number": "数字", "integer": "整数",
-            "boolean": "是/否", "array": "列表", "object": "JSON 对象",
-        }
         field_entries: list[str] = []
         for field in missing_fields:
             prop = properties.get(field, {})
-            raw_desc = prop.get("description", field)
-            desc = _sanitize(raw_desc)
+            raw_desc = prop.get("description")
+            # Label 解析链: description → 字段名（防御性兜底）
+            label = _sanitize(raw_desc) if raw_desc else _sanitize(field, max_len=100)
             field_type = prop.get("type", "string")
-            type_hint = type_labels.get(field_type, field_type)
-            safe_field = _sanitize(field, max_len=100)
-            entry = f"- 字段名: {safe_field}\n  描述: {desc}\n  类型: {type_hint}"
+            type_hint = _TYPE_LABELS.get(field_type, field_type)
+            entry = f"- {label}（{type_hint}）"
             if prop.get("default") is not None:
                 entry += f"\n  默认值: {_sanitize(prop['default'], max_len=100)}"
-            # 从原始 description 中尝试提取示例（对原文做 regex 更可靠）
-            example_match = re.search(
-                r"(?:例如[：:]?|如[：:]|如(?=['\"\u2018\u201c]))\s*['\"\u2018\u201c]?([^'\"\u2019\u201d，。）)\n]+)",
-                str(raw_desc) if raw_desc is not None else "",
-            )
+            example_match = _EXAMPLE_PATTERN.search(str(raw_desc) if raw_desc else "")
             if example_match:
                 entry += f"\n  示例: {_sanitize(example_match.group(1), max_len=100)}"
             field_entries.append(entry)
@@ -1212,20 +1221,32 @@ class BPEngine:
         safe_subtask_name = _sanitize(subtask.name, max_len=100)
         fields_block = "\n".join(field_entries)
         prompt = (
-            f"你是一个智能助手。用户正在使用「{safe_subtask_name}」功能，"
-            f"但还缺少以下必要信息:\n\n"
-            f"{fields_block}"
+            f"你是一个友好的智能助手。用户正在使用「{safe_subtask_name}」功能，"
+            f"但还缺少一些信息。\n\n"
+            f"需要补充的信息:\n{fields_block}"
             f"{branch_hint}\n\n"
-            "请用友好、简洁的中文向用户提问，必须包含以下要素:\n"
-            "1. 明确列出需要提供的内容\n"
-            "2. 每项内容的含义描述\n"
-            "3. 期望的格式/类型说明\n"
-            "4. 具体的输入示例（如果可以推断）\n\n"
+            "请用自然、口语化的中文向用户提问。要求:\n"
+            "- 绝对不要使用英文标识符（如 notify_email、room_id），"
+            "用上面给出的标签代替；若标签本身是英文，请翻译为中文\n"
+            "- 单字段场景: 1 句话对话式提问，示例融入句子（用「比如」）\n"
+            "- 多字段场景: 一句引导语 + Markdown 无序列表，每项独立一行"
+            "（必须真实换行，不要把列表挤在一行），"
+            "格式 `- **标签**：说明（示例 xxx）`\n\n"
+            "✗ 反例（列表挤在一行、暴露字段名）:\n"
+            "请提供以下信息：1. start_date（文本）：开始时间 "
+            "2. end_date（文本）：结束时间\n\n"
+            "✓ 单字段正例:\n"
+            "为了把通知发出去，告诉我你的邮箱就行，比如 alice@example.com。\n\n"
+            "✓ 多字段正例:\n"
+            "为了进行图像帧检索，请提供以下两个信息：\n"
+            "- **开始时间**：查询范围起点，格式 YYYY-MM-DD HH:MM（例如 2026-04-14 08:00）\n"
+            "- **结束时间**：查询范围终点，格式同上（例如 2026-04-14 12:00）\n\n"
             "直接输出提问文本，不要任何前缀、解释或 Markdown 代码块。"
         )
 
         # max_tokens 根据字段数量动态分配，保底 512，最多 1024
-        # 每个字段约需 120 tokens（4 要素 + 中文展开），外加 150 tokens 句法开销
+        # 这是 LLM 回复的预算: 每字段约 120 tokens（中文展开 + 示例融入），
+        # 外加 150 tokens 作为引导句和首尾礼貌用语的最小空间
         dynamic_max_tokens = min(1024, max(512, len(missing_fields) * 120 + 150))
 
         try:
@@ -1276,22 +1297,13 @@ class BPEngine:
         """
         properties = schema.get("properties", {})
         lines = [f"要执行「{subtask.name}」子任务，还需要你提供以下信息：\n"]
-        type_labels = {
-            "string": "文本", "number": "数字", "integer": "整数",
-            "boolean": "是/否", "array": "列表", "object": "JSON 对象",
-        }
         for field in missing_fields:
             prop = properties.get(field, {})
             desc = prop.get("description", field)
             field_type = prop.get("type", "string")
-            type_hint = type_labels.get(field_type, field_type)
+            type_hint = _TYPE_LABELS.get(field_type, field_type)
             line = f"- **{desc}**（{type_hint}）"
-            # 从 description 中正则提取示例
-            # 匹配: 如'xxx' / 如：xxx / 例如xxx / 例如：xxx（避免句中孤立"如"误匹配）
-            example_match = re.search(
-                r"(?:例如[：:]?|如[：:]|如(?=['\"\u2018\u201c]))\s*['\"\u2018\u201c]?([^'\"\u2019\u201d，。）)\n]+)",
-                desc,
-            )
+            example_match = _EXAMPLE_PATTERN.search(desc)
             if example_match:
                 line += f"，例如：{example_match.group(1).strip()}"
             elif prop.get("default") is not None:
