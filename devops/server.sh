@@ -128,8 +128,13 @@ start_frontend() {
     fi
 
     if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
-        log_info "前端依赖未安装，执行 npm ci ..."
-        cd "$FRONTEND_DIR" && npm ci
+        if [[ -f "$FRONTEND_DIR/package-lock.json" ]]; then
+            log_info "前端依赖未安装，执行 npm ci ..."
+            cd "$FRONTEND_DIR" && npm ci
+        else
+            log_info "前端依赖未安装，执行 npm install ..."
+            cd "$FRONTEND_DIR" && npm install
+        fi
     fi
 
     log_info "启动前端服务 (port: $FRONTEND_PORT) ..."

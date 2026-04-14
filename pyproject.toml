@@ -156,8 +156,6 @@ packages = ["src/seeagent"]
 # skills/*      → site-packages/seeagent/builtin_skills/external/  (不含 system/)
 # mcps          → site-packages/seeagent/builtin_mcps/
 [tool.hatch.build.targets.wheel.force-include]
-# Web frontend (built with: cd apps/setup-center && VITE_BUILD_TARGET=web npm run build:web)
-"apps/setup-center/dist-web" = "seeagent/web"
 "skills/system" = "seeagent/builtin_skills/system"
 "mcps" = "seeagent/builtin_mcps"
 "skills/xiaohongshu-creator" = "seeagent/builtin_skills/external/xiaohongshu-creator"

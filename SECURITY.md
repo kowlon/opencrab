@@ -133,7 +133,7 @@ Security updates will be released as:
 
 For security concerns, contact: **zacon365@gmail.com**
 
-For general questions, use [GitHub Discussions](https://github.com/seeagent/seeagent/discussions).
+For general questions, use [GitHub Discussions](http://gitlab.zhidaoauto.com/did-tech/opencrab/discussions).
 
 ---
 

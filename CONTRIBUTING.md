@@ -31,14 +31,14 @@ This project and everyone participating in it is governed by our [Code of Conduc
 2. Clone your fork locally:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/seeagent.git
-cd seeagent
+git clone http://gitlab.zhidaoauto.com/YOUR_USERNAME/opencrab.git
+cd opencrab
 ```
 
 3. Add the upstream repository:
 
 ```bash
-git remote add upstream https://github.com/seeagent/seeagent.git
+git remote add upstream http://gitlab.zhidaoauto.com/did-tech/opencrab.git
 ```
 
 4. Keep your fork synchronized:
@@ -53,7 +53,7 @@ git merge upstream/main
 
 ### Reporting Bugs
 
-Before creating bug reports, please check the [existing issues](https://github.com/seeagent/seeagent/issues) to avoid duplicates.
+Before creating bug reports, please check the [existing issues](http://gitlab.zhidaoauto.com/did-tech/opencrab/issues) to avoid duplicates.
 
 When you create a bug report, please include as many details as possible:
 
@@ -302,13 +302,13 @@ Describe the tests you ran.
 ### Getting Help
 
 - 📖 [Documentation](docs/)
-- 💬 [GitHub Discussions](https://github.com/seeagent/seeagent/discussions)
-- 🐛 [Issue Tracker](https://github.com/seeagent/seeagent/issues)
+- 💬 [GitHub Discussions](http://gitlab.zhidaoauto.com/did-tech/opencrab/discussions)
+- 🐛 [Issue Tracker](http://gitlab.zhidaoauto.com/did-tech/opencrab/issues)
 
 ### Recognition
 
 Contributors are recognized in:
-- The [Contributors](https://github.com/seeagent/seeagent/graphs/contributors) page
+- The [Contributors](http://gitlab.zhidaoauto.com/did-tech/opencrab/graphs/contributors) page
 - Release notes for significant contributions
 - Our README (for major contributors)
 
