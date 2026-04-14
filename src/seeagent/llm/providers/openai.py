@@ -167,7 +167,7 @@ class OpenAIProvider(LLMProvider):
     def _estimate_request_timeout(self, body: dict) -> httpx.Timeout | None:
         """根据请求体大小动态计算超时
 
-        大上下文（>60K tokens 估算）场景下，默认 read timeout 可能不够，
+        大上下文（>8K tokens 估算）场景下，默认 read timeout 可能不够，
         需按比例放大以避免频繁 ReadTimeout 导致的无效重试。
 
         Returns:
@@ -183,11 +183,11 @@ class OpenAIProvider(LLMProvider):
             body_chars += sum(len(str(t)) for t in tools)
 
         est_tokens = body_chars // 2  # 中文约 2 字符/token
-        if est_tokens < 60_000:
+        if est_tokens < 8_000:
             return None
 
         base_timeout = self.config.timeout or 180
-        scale = min(est_tokens / 60_000, 3.0)  # 最多 3 倍
+        scale = min(est_tokens / 8_000, 3.0)  # 最多 3 倍
         new_read = base_timeout * scale
         new_read = min(new_read, 540.0)  # 上限 9 分钟
         if new_read <= base_timeout * 1.1:
