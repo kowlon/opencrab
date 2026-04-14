@@ -2,7 +2,7 @@
   <div class="ask-user" :class="{ answered: ask.answered }">
     <div class="ask-header">
       <span class="material-symbols-rounded ask-icon">help</span>
-      <p class="question">{{ ask.question }}</p>
+      <div class="question markdown-body" v-html="renderedQuestion"></div>
     </div>
     <div class="options">
       <button
@@ -20,14 +20,19 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useChatStore } from '@/stores/chat'
 import { useSessionStore } from '@/stores/session'
 import { sseClient } from '@/api/sse-client'
+import { useMarkdown } from '@/composables/useMarkdown'
 import type { AskUserState } from '@/types'
 
 const props = defineProps<{ ask: AskUserState }>()
 const chatStore = useChatStore()
 const sessionStore = useSessionStore()
+const { render } = useMarkdown()
+
+const renderedQuestion = computed(() => render(props.ask.question || ''))
 
 async function submitAnswer(label: string, value: string) {
   if (props.ask.answered) return
@@ -80,6 +85,35 @@ async function submitAnswer(label: string, value: string) {
   font-size: 14px;
   color: var(--text-bright);
   line-height: 1.5;
+  flex: 1;
+}
+.question :deep(p) {
+  margin: 0 0 6px 0;
+}
+.question :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.question :deep(ul),
+.question :deep(ol) {
+  margin: 4px 0 4px 0;
+  padding-left: 20px;
+}
+.question :deep(li) {
+  margin: 2px 0;
+}
+.question :deep(li > p) {
+  margin: 0;
+}
+.question :deep(strong) {
+  color: var(--accent);
+  font-weight: 600;
+}
+.question :deep(code) {
+  padding: 1px 4px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xs, 3px);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 0.92em;
 }
 .options {
   display: flex;

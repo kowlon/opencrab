@@ -1188,22 +1188,24 @@ class BPEngine:
             return s
 
         # 组装 LLM 上下文: 字段描述、类型、默认值、示例
+        # 注: 使用 pipe-separated 单行结构, 视觉上远离 Markdown 列表输出格式,
+        # 避免 LLM 直接照抄 field_entries 作为输出 (commit 9bd3d748 引入的问题)。
         properties = schema.get("properties", {})
         field_entries: list[str] = []
-        for field in missing_fields:
+        for i, field in enumerate(missing_fields, start=1):
             prop = properties.get(field, {})
             raw_desc = prop.get("description")
             # Label 解析链: description → 字段名（防御性兜底）
             label = _sanitize(raw_desc) if raw_desc else _sanitize(field, max_len=100)
             field_type = prop.get("type", "string")
             type_hint = _TYPE_LABELS.get(field_type, field_type)
-            entry = f"- {label}（{type_hint}）"
+            parts = [f"字段{i}: {label}", f"类型 {type_hint}"]
             if prop.get("default") is not None:
-                entry += f"\n  默认值: {_sanitize(prop['default'], max_len=100)}"
+                parts.append(f"默认 {_sanitize(prop['default'], max_len=100)}")
             example_match = _EXAMPLE_PATTERN.search(str(raw_desc) if raw_desc else "")
             if example_match:
-                entry += f"\n  示例: {_sanitize(example_match.group(1), max_len=100)}"
-            field_entries.append(entry)
+                parts.append(f"示例 {_sanitize(example_match.group(1), max_len=100)}")
+            field_entries.append(" | ".join(parts))
 
         # oneOf/anyOf 分支标题作为上下文提示
         # 注意: `schema` 参数是 _check_input_completeness 已经选定的单分支，
@@ -1223,7 +1225,9 @@ class BPEngine:
         prompt = (
             f"你是一个友好的智能助手。用户正在使用「{safe_subtask_name}」功能，"
             f"但还缺少一些信息。\n\n"
-            f"需要补充的信息:\n{fields_block}"
+            f"以下是原始字段清单（技术描述，仅供你理解任务，"
+            f"**必须用自己的话重新组织为用户友好的问句，不要照抄这段文字或其管道分隔格式**）:\n"
+            f"{fields_block}"
             f"{branch_hint}\n\n"
             "请用自然、口语化的中文向用户提问。要求:\n"
             "- 绝对不要使用英文标识符（如 notify_email、room_id），"
@@ -1231,10 +1235,16 @@ class BPEngine:
             "- 单字段场景: 1 句话对话式提问，示例融入句子（用「比如」）\n"
             "- 多字段场景: 一句引导语 + Markdown 无序列表，每项独立一行"
             "（必须真实换行，不要把列表挤在一行），"
-            "格式 `- **标签**：说明（示例 xxx）`\n\n"
+            "格式 `- **标签**：说明（示例 xxx）`\n"
+            "- **禁止**输出「字段1: ... | 类型 ... | 示例 ...」这样的管道分隔行，"
+            "那是原始数据，不是给用户看的提问\n\n"
             "✗ 反例（列表挤在一行、暴露字段名）:\n"
             "请提供以下信息：1. start_date（文本）：开始时间 "
             "2. end_date（文本）：结束时间\n\n"
+            "✗ 反例（照抄原始管道分隔格式）:\n"
+            "要执行「xx」子任务，还需要您提供以下信息：\n"
+            "- 字段1: 开始时间 | 类型 文本\n"
+            "- 字段2: 结束时间 | 类型 文本\n\n"
             "✓ 单字段正例:\n"
             "为了把通知发出去，告诉我你的邮箱就行，比如 alice@example.com。\n\n"
             "✓ 多字段正例:\n"

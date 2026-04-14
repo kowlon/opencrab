@@ -8,11 +8,12 @@ Brain 是 LLMClient 的薄包装，提供向后兼容的接口。
 import asyncio
 import json
 import logging
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 from anthropic.types import Message as AnthropicMessage
 from anthropic.types import MessageParam, ToolParam
@@ -38,12 +39,37 @@ from ..llm.types import (
     Tool,
     ToolResultBlock,
     ToolUseBlock,
+    Usage,
     VideoBlock,
     VideoContent,
 )
 from .token_tracking import record_usage as _record_token_usage
 
 logger = logging.getLogger(__name__)
+
+
+def _is_brain_stream_disabled() -> bool:
+    """Feature flag 回退到非流式 messages_create_async。
+
+    环境变量: SEEAGENT_BRAIN_DISABLE_STREAM=1 (true/yes/on 亦可)
+    默认: 未设置时启用流式路径。
+    """
+    return os.environ.get("SEEAGENT_BRAIN_DISABLE_STREAM", "").strip().lower() in (
+        "1", "true", "yes", "y", "on",
+    )
+
+
+def _get_brain_stream_idle_limit() -> float:
+    """两个 stream chunk 之间的最大 idle 间隔 (秒), 超过即判 hang。
+
+    检测放在 brain 层 (最接近底层 chunk 的位置), 不依赖上层是否消费事件。
+    环境变量 SEEAGENT_BRAIN_STREAM_IDLE_LIMIT 可调整, 默认 120s。
+    """
+    try:
+        v = float(os.environ.get("SEEAGENT_BRAIN_STREAM_IDLE_LIMIT", "120"))
+        return max(0.05, v)  # sanity check: 防止 0/负数, 允许测试用极小值
+    except (ValueError, TypeError):
+        return 120.0
 
 
 @dataclass
@@ -461,11 +487,42 @@ class Brain:
         # 转换响应: LLMClient -> Anthropic Message
         return self._convert_response_to_anthropic(response)
 
-    async def messages_create_async(self, use_thinking: bool = None, thinking_depth: str | None = None, **kwargs) -> AnthropicMessage:
-        """异步版本的 messages_create，直接 await LLMClient.chat()。
+    def _supports_stream_accumulation(self) -> bool:
+        """当前 LLMClient 所有 providers 是否都是 OpenAI 系 (支持流式归一化事件格式)。
 
-        用于已处在事件循环中的场景（如取消收尾），避免 asyncio.to_thread + asyncio.run
-        创建新事件循环导致 httpx 连接池竞争。
+        非 OpenAI provider (如 Anthropic 原生) 的 chat_stream 事件格式不同,
+        brain 层累积器不识别, 此时走非流式兜底路径。
+        """
+        from ..llm.providers.openai import OpenAIProvider
+        providers = getattr(self._llm_client, "_providers", {}) or {}
+        if not providers:
+            return False
+        return all(isinstance(p, OpenAIProvider) for p in providers.values())
+
+    async def messages_create_async(self, use_thinking: bool = None, thinking_depth: str | None = None, **kwargs) -> AnthropicMessage:
+        """异步版本的 messages_create。
+
+        优先走流式 (chat_stream 累积) 以获得真正的 idle timeout 语义,
+        非 OpenAI provider 或 feature flag 关闭时自动降级到非流式 chat()。
+        """
+        if _is_brain_stream_disabled() or not self._supports_stream_accumulation():
+            return await self._messages_create_async_nonstream(
+                use_thinking=use_thinking, thinking_depth=thinking_depth, **kwargs,
+            )
+
+        async for event in self.messages_create_async_stream(
+            use_thinking=use_thinking, thinking_depth=thinking_depth, **kwargs,
+        ):
+            if event.get("type") == "done":
+                return event["response"]
+        raise RuntimeError("messages_create_async_stream ended without 'done' event")
+
+    async def _messages_create_async_nonstream(
+        self, use_thinking: bool = None, thinking_depth: str | None = None, **kwargs,
+    ) -> AnthropicMessage:
+        """非流式路径 (原 messages_create_async 行为)。
+
+        保留作兜底: SEEAGENT_BRAIN_DISABLE_STREAM=1 或非 OpenAI provider 时使用。
         """
         if use_thinking is None:
             use_thinking = self.is_thinking_enabled()
@@ -477,7 +534,7 @@ class Brain:
         conversation_id = kwargs.get("conversation_id")
 
         logger.info(
-            f"[Brain] messages_create_async called: msg_count={len(llm_messages)}, "
+            f"[Brain] messages_create_async called (nonstream): msg_count={len(llm_messages)}, "
             f"max_tokens={max_tokens}, use_thinking={use_thinking}, "
             f"tools_count={len(llm_tools) if llm_tools else 0}, model_kwarg={kwargs.get('model', 'N/A')}"
         )
@@ -503,7 +560,7 @@ class Brain:
             _choices = getattr(response, 'choices', None) or []
             _content = getattr(response, 'content', None) or []
             logger.info(
-                f"[Brain] messages_create_async success: "
+                f"[Brain] messages_create_async success (nonstream): "
                 f"choices={len(_choices)}, content_blocks={len(_content)}"
             )
         except Exception as e:
@@ -511,11 +568,223 @@ class Brain:
             raise
 
         self._dump_llm_response(response, caller="messages_create_async", request_id=req_id, duration=duration)
-
-        # 记录 token 用量
         self._record_usage(response)
 
         return self._convert_response_to_anthropic(response)
+
+    async def messages_create_async_stream(
+        self, use_thinking: bool = None, thinking_depth: str | None = None, **kwargs,
+    ) -> AsyncIterator[dict]:
+        """流式版 messages_create_async。消费 chat_stream 增量累积成 LLMResponse,
+        同时向上层 yield 增量 reasoning_delta 用于前端实时 thinking 显示。
+
+        Yields:
+            {"type": "reasoning_delta", "text": "<增量 thinking 片段>"}
+            {"type": "done", "response": AnthropicMessage, "chunk_count": N}
+
+        Note:
+            text_delta 不向上 yield (只在内部累积), 避免与 reason_stream 的
+            final answer 分片 yield 路径 (strip_thinking_tags / verify 回退等) 重复。
+        """
+        if use_thinking is None:
+            use_thinking = self.is_thinking_enabled()
+
+        llm_messages = self._convert_messages_to_llm(kwargs.get("messages", []))
+        system = kwargs.get("system", "")
+        llm_tools = self._convert_tools_to_llm(kwargs.get("tools", []))
+        max_tokens = kwargs.get("max_tokens", self.max_tokens)
+        conversation_id = kwargs.get("conversation_id")
+        extra_params = kwargs.get("extra_params")
+
+        logger.info(
+            f"[Brain] messages_create_async called (stream): msg_count={len(llm_messages)}, "
+            f"max_tokens={max_tokens}, use_thinking={use_thinking}, "
+            f"tools_count={len(llm_tools) if llm_tools else 0}, model_kwarg={kwargs.get('model', 'N/A')}"
+        )
+
+        req_id = self._dump_llm_request(system, llm_messages, llm_tools, caller="messages_create_async_stream")
+
+        # 累积状态
+        text_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        tool_acc: dict[int, dict] = {}
+        usage_data: dict | None = None
+        stop_reason_raw: str = ""
+        model_name: str = ""
+        response_id: str = ""
+        chunk_count = 0
+
+        import time
+        start_time = time.monotonic()
+        idle_limit = _get_brain_stream_idle_limit()
+
+        # 显式持有底层 generator 以便:
+        # 1. 用 asyncio.wait_for 给每个 __anext__ 加 chunk 级 idle timeout
+        #    (idle 检测放在最接近底层 chunk 的位置, 不依赖上层事件转发频率)
+        # 2. finally 中显式 aclose 释放 httpx 连接
+        stream_gen = self._llm_client.chat_stream(
+            messages=llm_messages,
+            system=system,
+            tools=llm_tools,
+            max_tokens=max_tokens,
+            enable_thinking=use_thinking,
+            thinking_depth=thinking_depth,
+            conversation_id=conversation_id,
+            extra_params=extra_params,
+        )
+        stream_iter = stream_gen.__aiter__()
+
+        try:
+            try:
+                while True:
+                    try:
+                        event = await asyncio.wait_for(
+                            stream_iter.__anext__(),
+                            timeout=idle_limit,
+                        )
+                    except asyncio.TimeoutError:
+                        from ..llm.types import LLMError
+                        raise LLMError(
+                            f"Brain stream chunk idle > {idle_limit:.0f}s; "
+                            f"assumed hang (chunks_received={chunk_count})"
+                        ) from None
+                    except StopAsyncIteration:
+                        break
+
+                    chunk_count += 1
+
+                    if event.get("usage"):
+                        usage_data = event["usage"]
+
+                    etype = event.get("type")
+                    delta = event.get("delta") or {}
+                    dtype = delta.get("type")
+
+                    if dtype == "text":
+                        text_parts.append(delta.get("text") or "")
+                    elif dtype == "reasoning":
+                        chunk_reasoning = delta.get("reasoning") or ""
+                        reasoning_parts.append(chunk_reasoning)
+                        if chunk_reasoning:
+                            yield {"type": "reasoning_delta", "text": chunk_reasoning}
+                    elif dtype == "tool_calls_delta":
+                        for tc in delta.get("tool_calls") or []:
+                            idx = tc.get("index", 0)
+                            entry = tool_acc.setdefault(
+                                idx, {"id": "", "name": "", "arg_parts": []},
+                            )
+                            if tc.get("id"):
+                                entry["id"] = tc["id"]
+                            func = tc.get("function") or {}
+                            if func.get("name"):
+                                entry["name"] = func["name"]
+                            if func.get("arguments") is not None:
+                                entry["arg_parts"].append(func["arguments"])
+
+                    if etype == "message_stop":
+                        if event.get("stop_reason"):
+                            stop_reason_raw = event["stop_reason"]
+                        if event.get("model"):
+                            model_name = event["model"]
+                        if event.get("id"):
+                            response_id = event["id"]
+            except Exception as e:
+                partial_text = len("".join(text_parts))
+                partial_reasoning = len("".join(reasoning_parts))
+                logger.warning(
+                    f"[Brain] messages_create_async_stream failed after {chunk_count} chunks, "
+                    f"partial_text={partial_text}, partial_reasoning={partial_reasoning}: "
+                    f"{type(e).__name__}: {e}"
+                )
+                raise
+        finally:
+            # 显式关闭底层 generator (释放 httpx 连接, 避免任务取消时连接泄漏)
+            try:
+                await stream_gen.aclose()
+            except Exception:
+                pass
+
+        duration = time.monotonic() - start_time
+
+        if chunk_count == 0:
+            logger.error("[Brain] messages_create_async_stream FAILED: empty stream, no chunks")
+            from ..llm.types import LLMError
+            raise LLMError("Stream returned no chunks (empty response)")
+
+        if not stop_reason_raw:
+            logger.warning(
+                f"[Brain] stream ended without finish_reason after {chunk_count} chunks, "
+                "defaulting to END_TURN"
+            )
+            stop_reason_raw = "stop"
+
+        # 组装 tool_calls
+        from ..llm.converters.tools import convert_tool_calls_from_openai
+        openai_tool_calls = [
+            {
+                "id": entry["id"],
+                "type": "function",
+                "function": {
+                    "name": entry["name"],
+                    "arguments": "".join(entry["arg_parts"]),
+                },
+            }
+            for _, entry in sorted(tool_acc.items())
+        ]
+        tool_blocks = convert_tool_calls_from_openai(openai_tool_calls) if openai_tool_calls else []
+
+        # 组装 content blocks
+        final_content: list = []
+        text_str = "".join(text_parts)
+        if text_str:
+            final_content.append(TextBlock(text=text_str))
+        final_content.extend(tool_blocks)
+        if not final_content:
+            final_content.append(TextBlock(text=""))
+
+        stop_reason_map = {
+            "stop": StopReason.END_TURN,
+            "length": StopReason.MAX_TOKENS,
+            "tool_calls": StopReason.TOOL_USE,
+            "function_call": StopReason.TOOL_USE,
+        }
+        stop_reason = stop_reason_map.get(stop_reason_raw, StopReason.END_TURN)
+        if tool_blocks:
+            stop_reason = StopReason.TOOL_USE
+
+        if usage_data:
+            usage = Usage(
+                input_tokens=usage_data.get("prompt_tokens", 0),
+                output_tokens=usage_data.get("completion_tokens", 0),
+            )
+        else:
+            usage = Usage()
+
+        reasoning_str = "".join(reasoning_parts)
+
+        response = LLMResponse(
+            id=response_id or f"stream_{uuid.uuid4().hex[:8]}",
+            content=final_content,
+            stop_reason=stop_reason,
+            usage=usage,
+            model=model_name,
+            reasoning_content=reasoning_str or None,
+            endpoint_name="",
+        )
+
+        logger.info(
+            f"[Brain] messages_create_async success (stream): chunks={chunk_count}, "
+            f"text_len={len(text_str)}, reasoning_len={len(reasoning_str)}, "
+            f"tool_calls={len(tool_blocks)}, stop_reason={stop_reason_raw}"
+        )
+
+        self._dump_llm_response(
+            response, caller="messages_create_async_stream", request_id=req_id, duration=duration,
+        )
+        self._record_usage(response)
+
+        anthropic_msg = self._convert_response_to_anthropic(response)
+        yield {"type": "done", "response": anthropic_msg, "chunk_count": chunk_count}
 
     # ========================================================================
     # Token 用量记录
