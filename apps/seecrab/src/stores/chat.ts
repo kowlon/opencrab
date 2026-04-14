@@ -143,13 +143,20 @@ export const useChatStore = defineStore('chat', () => {
 
       case 'bp_instance_created': {
         const bpStore = useBestPracticeStore()
-        bpStore.handleInstanceCreated(event)
+        const e = event as any
+        bpStore.handleInstanceCreated({
+          instance_id: e.instance_id,
+          bp_id: e.bp_id,
+          bp_name: e.bp_name,
+          run_mode: e.run_mode,
+          subtasks: e.subtasks ?? [],
+        })
         reply.bpInstanceCreated = {
-          instanceId: (event as any).instance_id,
-          bpId: (event as any).bp_id,
-          bpName: (event as any).bp_name,
-          runMode: (event as any).run_mode,
-          subtasks: (event as any).subtasks,
+          instanceId: e.instance_id,
+          bpId: e.bp_id,
+          bpName: e.bp_name,
+          runMode: e.run_mode,
+          subtasks: e.subtasks,
         }
         break
       }

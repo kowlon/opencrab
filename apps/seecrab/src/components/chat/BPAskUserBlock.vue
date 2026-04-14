@@ -15,7 +15,9 @@ const emit = defineEmits<{
   submit: [data: Record<string, unknown>]
 }>()
 
-const formData = reactive<Record<string, unknown>>({})
+type FormFieldValue = string | number | null
+
+const formData = reactive<Record<string, FormFieldValue>>({})
 const submitting = ref(false)
 
 // Initialize form data from missing fields
@@ -39,7 +41,16 @@ function getFieldLabel(field: string): string {
 
 function handleSubmit() {
   submitting.value = true
-  emit('submit', { ...formData })
+  const normalized: Record<string, unknown> = {}
+  for (const field of props.askUser.missingFields) {
+    const raw = formData[field]
+    if (getFieldType(field) === 'boolean') {
+      normalized[field] = raw === 'true' ? true : raw === 'false' ? false : null
+    } else {
+      normalized[field] = raw
+    }
+  }
+  emit('submit', normalized)
 }
 </script>
 
@@ -70,8 +81,8 @@ function handleSubmit() {
           :id="'bp-field-' + field"
           v-model="formData[field]"
         >
-          <option :value="true">是</option>
-          <option :value="false">否</option>
+          <option value="true">是</option>
+          <option value="false">否</option>
         </select>
         <input
           v-else
