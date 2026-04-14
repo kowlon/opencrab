@@ -13,6 +13,10 @@
 
 import json
 import logging
+import os
+import shutil
+import time
+from collections.abc import Iterator
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -24,6 +28,10 @@ logger = logging.getLogger(__name__)
 
 class MemoryConsolidator:
     """记忆整合器 - 批量处理对话历史"""
+
+    # 对话历史按月份分片：conversation_history/YYYYMM/{session_id}.jsonl
+    # _UNKNOWN_BUCKET 兜底遗留格式（无法从 session_id 或 mtime 判定月份的文件）
+    _UNKNOWN_BUCKET = "unknown"
 
     def __init__(
         self,
@@ -50,6 +58,87 @@ class MemoryConsolidator:
         # 已整理的会话
         self.summaries_file = self.data_dir / "session_summaries.json"
 
+        # 无时间戳 session_id 的动态月份缓存（写入时决定，之后保持同一 session 追加到同目录）
+        self._dynamic_month_cache: dict[str, str] = {}
+
+        # 首次启动检测旧扁平布局，自动按月归档
+        self._migrate_flat_history_if_needed()
+
+    # ==================== 分片工具 ====================
+
+    def _month_from_session_id(self, session_id: str) -> str | None:
+        """从 session_id 提取月份，识别 2 种格式：
+
+        1. ``{channel}_{chat_id}_{YYYYMMDDHHMMSS}_{uuid8}`` — parts[2] 前 6 位
+           （``Session.create()`` 规范格式）
+        2. ``{YYYYMMDD}_{HHMMSS}_{uuid8}`` — parts[0] 前 6 位
+           （``core/agent.py:849`` Agent 通用启动格式）
+
+        识别不出（如 seecrab 的 ``seecrab__seecrab_<hex>__seecrab_user``）返回 None。
+        """
+        parts = session_id.split("_")
+        # Pattern 1: parts[2] 是 YYYYMMDDHHMMSS
+        if len(parts) >= 3:
+            ts = parts[2]
+            if len(ts) >= 6 and ts[:6].isdigit() and 190000 <= int(ts[:6]) <= 999912:
+                return ts[:6]
+        # Pattern 2: parts[0] 是 YYYYMMDD
+        if parts:
+            head = parts[0]
+            if len(head) == 8 and head.isdigit() and 19000101 <= int(head) <= 99991231:
+                return head[:6]
+        return None
+
+    def _resolve_dynamic_month(self, session_id: str) -> str:
+        """无时间戳 session_id 的月份决定：
+
+        - 若已有同名文件落在某月份子目录（含 unknown/，如迁移历史），沿用其月份
+          → 保证同一 session 的后续 append 继续追加到同一文件
+        - 否则用当前月份 → 新会话按写入时刻分片
+        """
+        cached = self._dynamic_month_cache.get(session_id)
+        if cached is not None:
+            return cached
+
+        for existing in self.history_dir.glob(f"*/{session_id}.jsonl"):
+            m = existing.parent.name
+            self._dynamic_month_cache[session_id] = m
+            return m
+
+        m = datetime.now().strftime("%Y%m")
+        self._dynamic_month_cache[session_id] = m
+        return m
+
+    def _month_dir_for_session(self, session_id: str) -> Path:
+        """返回 session 对应的月份子目录（自动创建）。
+
+        - 可从 session_id 解析出月份 → 用解析结果
+        - 否则走动态兜底（_resolve_dynamic_month）：已有文件保持追加；首次写用当前月份
+        """
+        month = self._month_from_session_id(session_id)
+        if month is None:
+            month = self._resolve_dynamic_month(session_id)
+        d = self.history_dir / month
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _iter_history_files(self, since: datetime | None = None) -> Iterator[Path]:
+        """遍历所有对话 jsonl 文件。
+
+        Args:
+            since: 若提供，只遍历 ``YYYYMM >= since.YYYYMM`` 的月份子目录；
+                   ``unknown/`` 始终纳入（保守）。None 则遍历全部。
+        """
+        if since is None:
+            yield from self.history_dir.glob("*/*.jsonl")
+            return
+        cutoff_month = since.strftime("%Y%m")
+        for sub in self.history_dir.iterdir():
+            if not sub.is_dir():
+                continue
+            if sub.name == self._UNKNOWN_BUCKET or sub.name >= cutoff_month:
+                yield from sub.glob("*.jsonl")
+
     def save_conversation_turn(
         self,
         session_id: str,
@@ -58,18 +147,28 @@ class MemoryConsolidator:
         """
         保存对话轮次 (实时保存)
 
-        每个会话一个文件，追加写入
+        每个会话一个文件，追加写入，按月份子目录分片
         """
-        session_file = self.history_dir / f"{session_id}.jsonl"
+        session_file = self._month_dir_for_session(session_id) / f"{session_id}.jsonl"
 
         with open(session_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(turn.to_dict(), ensure_ascii=False) + "\n")
 
     def load_session_history(self, session_id: str) -> list[ConversationTurn]:
-        """加载会话历史"""
-        session_file = self.history_dir / f"{session_id}.jsonl"
+        """加载会话历史（按月份目录定位，缺失时兜底扫描）"""
+        month = self._month_from_session_id(session_id)
+        candidates: list[Path] = []
+        if month:
+            candidates.append(self.history_dir / month / f"{session_id}.jsonl")
+        candidates.append(self.history_dir / self._UNKNOWN_BUCKET / f"{session_id}.jsonl")
 
-        if not session_file.exists():
+        session_file = next((p for p in candidates if p.exists()), None)
+        if session_file is None:
+            # 兜底：老格式文件可能被归到非预期月份
+            for hit in self.history_dir.glob(f"*/{session_id}.jsonl"):
+                session_file = hit
+                break
+        if session_file is None:
             return []
 
         turns = []
@@ -91,10 +190,11 @@ class MemoryConsolidator:
     def get_today_sessions(self) -> list[str]:
         """获取今天的所有会话 ID"""
         today = datetime.now().date()
+        # 只扫当月子目录（含 unknown/）即可——今天的文件不可能出现在更早的月份
+        since = datetime(today.year, today.month, 1)
         sessions = []
 
-        for file in self.history_dir.glob("*.jsonl"):
-            # 检查文件修改时间
+        for file in self._iter_history_files(since=since):
             mtime = datetime.fromtimestamp(file.stat().st_mtime)
             if mtime.date() == today:
                 sessions.append(file.stem)
@@ -114,7 +214,7 @@ class MemoryConsolidator:
 
         # 找出未处理的
         unprocessed = []
-        for file in self.history_dir.glob("*.jsonl"):
+        for file in self._iter_history_files():
             if file.stem not in processed:
                 unprocessed.append(file.stem)
 
@@ -313,7 +413,7 @@ class MemoryConsolidator:
         cutoff = datetime.now() - timedelta(days=days)
         deleted = 0
 
-        for file in self.history_dir.glob("*.jsonl"):
+        for file in self._iter_history_files():
             mtime = datetime.fromtimestamp(file.stat().st_mtime)
             if mtime < cutoff:
                 file.unlink()
@@ -347,7 +447,7 @@ class MemoryConsolidator:
         deleted["by_age"] = self.cleanup_old_history(days=self.MAX_HISTORY_DAYS)
 
         # 获取所有历史文件，按修改时间排序（最旧的在前）
-        files = sorted(self.history_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime)
+        files = sorted(self._iter_history_files(), key=lambda f: f.stat().st_mtime)
 
         # 2. 按文件数清理
         if len(files) > self.MAX_HISTORY_FILES:
@@ -391,7 +491,7 @@ class MemoryConsolidator:
         Returns:
             统计信息字典
         """
-        files = list(self.history_dir.glob("*.jsonl"))
+        files = list(self._iter_history_files())
         total_size = sum(f.stat().st_size for f in files)
 
         return {
@@ -401,3 +501,94 @@ class MemoryConsolidator:
             "max_size_mb": self.MAX_HISTORY_SIZE_MB,
             "max_days": self.MAX_HISTORY_DAYS,
         }
+
+    # ==================== 扁平 → 月份分片迁移 ====================
+
+    def _write_sentinel(self, path: Path, count: int) -> None:
+        """原子写入迁移哨兵文件。"""
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(
+            json.dumps(
+                {"migrated_at": datetime.now().isoformat(), "count": count},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        os.replace(tmp, path)
+
+    def _migrate_flat_history_if_needed(self) -> None:
+        """首次启动时把扁平布局的 jsonl 文件按月归档到子目录。
+
+        哨兵文件: ``data_dir/.history_layout_v2``（放父目录防止用户清空 history_dir 时误删）
+
+        幂等策略:
+          - 哨兵存在 → 直接返回
+          - 扁平层无 jsonl 且哨兵不存在 → 写哨兵，标记迁移完成（count=0）
+          - 有扁平文件 → 按 session_id 识别月份，失败则用 mtime 兜底，最后落 unknown/
+          - 仅当全部成功才写哨兵；否则下次启动会继续重试剩余文件
+        """
+        sentinel = self.data_dir / ".history_layout_v2"
+        if sentinel.exists():
+            return
+
+        flat_files = [
+            p for p in self.history_dir.iterdir()
+            if p.is_file() and p.suffix == ".jsonl"
+        ]
+        if not flat_files:
+            try:
+                self._write_sentinel(sentinel, 0)
+            except Exception as e:
+                logger.warning(f"Failed to write history migration sentinel: {e}")
+            return
+
+        moved, failed = 0, 0
+        now = datetime.now()
+
+        for src in flat_files:
+            try:
+                month = self._month_from_session_id(src.stem)
+                if not month:
+                    # mtime 兜底
+                    try:
+                        mtime = datetime.fromtimestamp(src.stat().st_mtime)
+                    except OSError:
+                        mtime = now
+                    if mtime.year < 2000 or mtime > now + timedelta(days=1):
+                        month = self._UNKNOWN_BUCKET
+                    else:
+                        month = mtime.strftime("%Y%m")
+
+                dst_dir = self.history_dir / month
+                dst_dir.mkdir(parents=True, exist_ok=True)
+                dst = dst_dir / src.name
+
+                if dst.exists():
+                    # 目标已存在：若大小一致视为同份数据，直接删源（幂等）
+                    if dst.stat().st_size == src.stat().st_size:
+                        src.unlink()
+                        moved += 1
+                        continue
+                    # 否则写成 conflict 副本，避免覆盖
+                    dst = dst_dir / f"{src.stem}.conflict-{int(time.time())}.jsonl"
+
+                try:
+                    src.rename(dst)
+                except OSError:
+                    # 跨设备 EXDEV 等：copy + unlink fallback
+                    shutil.copy2(src, dst)
+                    src.unlink()
+                moved += 1
+            except Exception as e:
+                logger.error(f"Failed to migrate history file {src.name}: {e}")
+                failed += 1
+
+        if failed == 0:
+            try:
+                self._write_sentinel(sentinel, moved)
+            except Exception as e:
+                logger.warning(f"Failed to write history migration sentinel: {e}")
+
+        logger.info(
+            f"conversation_history migration: moved={moved}, failed={failed}"
+        )

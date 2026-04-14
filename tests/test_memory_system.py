@@ -574,52 +574,56 @@ class TestMemoryConsolidator:
         mc = MemoryConsolidator(data_dir=temp_data_dir)
         turn = ConversationTurn(role="user", content="测试消息")
         mc.save_conversation_turn("test_session", turn)
-        
-        files = list((temp_data_dir / "conversation_history").glob("*.jsonl"))
+
+        # 新布局：按月份分片，非标准 session_id 归到 unknown/
+        files = list((temp_data_dir / "conversation_history").glob("*/*.jsonl"))
         assert len(files) == 1
-    
+
     def test_42_cleanup_old_history_by_days(self, temp_data_dir):
         """测试按天数清理历史"""
         mc = MemoryConsolidator(data_dir=temp_data_dir)
         history_dir = temp_data_dir / "conversation_history"
-        history_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 创建旧文件
-        old_file = history_dir / "old_session.jsonl"
+        # 老文件放月份子目录下（模拟迁移后的布局）
+        bucket = history_dir / "unknown"
+        bucket.mkdir(parents=True, exist_ok=True)
+
+        old_file = bucket / "old_session.jsonl"
         old_file.write_text("{}")
         import os
         old_time = (datetime.now() - timedelta(days=40)).timestamp()
         os.utime(old_file, (old_time, old_time))
-        
+
         deleted = mc.cleanup_old_history(days=30)
         assert deleted == 1
-    
+
     def test_43_cleanup_history_by_count(self, temp_data_dir):
         """测试按文件数清理"""
         mc = MemoryConsolidator(data_dir=temp_data_dir)
         mc.MAX_HISTORY_FILES = 5  # 设置较小的限制
         history_dir = temp_data_dir / "conversation_history"
-        history_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 创建多个文件
+        bucket = history_dir / "unknown"
+        bucket.mkdir(parents=True, exist_ok=True)
+
+        # 创建多个文件（放月份子目录）
         for i in range(10):
-            f = history_dir / f"session_{i:03d}.jsonl"
+            f = bucket / f"session_{i:03d}.jsonl"
             f.write_text("{}")
-        
+
         result = mc.cleanup_history()
         assert result["by_count"] == 5  # 应该删除 5 个
-    
+
     def test_44_cleanup_history_by_size(self, temp_data_dir):
         """测试按大小清理"""
         mc = MemoryConsolidator(data_dir=temp_data_dir)
         mc.MAX_HISTORY_SIZE_MB = 0.001  # 设置很小的限制 (约 1KB)
         history_dir = temp_data_dir / "conversation_history"
-        history_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 创建一个大文件
-        large_file = history_dir / "large.jsonl"
+        bucket = history_dir / "unknown"
+        bucket.mkdir(parents=True, exist_ok=True)
+
+        # 创建一个大文件（放月份子目录）
+        large_file = bucket / "large.jsonl"
         large_file.write_text("x" * 2000)  # 2KB
-        
+
         result = mc.cleanup_history()
         assert result["by_size"] >= 1
     
@@ -650,10 +654,195 @@ class TestMemoryConsolidator:
         session_id = datetime.now().strftime("%Y%m%d_%H%M%S_unprocessed")
         turn = ConversationTurn(role="user", content="未处理消息")
         mc.save_conversation_turn(session_id, turn)
-        
+
         sessions = mc.get_unprocessed_sessions()
         # 新创建的会话应该是未处理的
         assert len(sessions) >= 1
+
+
+# ============================================================
+# 按月份分片 + 迁移测试
+# ============================================================
+
+class TestConversationHistorySharding:
+    """对话历史按月份分片 + 迁移测试"""
+
+    def test_writes_to_month_subdir(self, temp_data_dir):
+        """标准 session_id 应写入对应月份子目录，根目录无 jsonl。"""
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        sid = "telegram_chat1_20260414120000_abcd1234"
+        mc.save_conversation_turn(sid, ConversationTurn(role="user", content="hi"))
+
+        history_dir = temp_data_dir / "conversation_history"
+        assert (history_dir / "202604" / f"{sid}.jsonl").exists()
+        # 根目录应无 jsonl 文件
+        flat = [p for p in history_dir.iterdir() if p.is_file() and p.suffix == ".jsonl"]
+        assert flat == []
+
+    def test_writes_unknown_format_fallback_to_current_month(self, temp_data_dir):
+        """无时间戳 session_id（seecrab 风格）首次写入落到当前月份，不进 unknown/。"""
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        # seecrab channel 的真实格式：没有时间戳段
+        sid = "seecrab__seecrab_abc123__seecrab_user"
+        mc.save_conversation_turn(sid, ConversationTurn(role="user", content="x"))
+
+        history_dir = temp_data_dir / "conversation_history"
+        this_month = datetime.now().strftime("%Y%m")
+        assert (history_dir / this_month / f"{sid}.jsonl").exists()
+        # 不应落 unknown/
+        assert not (history_dir / "unknown" / f"{sid}.jsonl").exists()
+
+    def test_writes_unknown_format_reuses_existing_subdir(self, temp_data_dir):
+        """无时间戳 session_id 的 session 已有文件时，后续 append 沿用同一目录。"""
+        history_dir = temp_data_dir / "conversation_history"
+        # 预置：一个老 session 的文件已在 unknown/（模拟旧版本迁移来的）
+        legacy_bucket = history_dir / "unknown"
+        legacy_bucket.mkdir(parents=True, exist_ok=True)
+        sid = "seecrab__seecrab_legacy__seecrab_user"
+        prior = legacy_bucket / f"{sid}.jsonl"
+        prior.write_text('{"role":"user","content":"prev"}\n', encoding="utf-8")
+
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        mc.save_conversation_turn(sid, ConversationTurn(role="user", content="next"))
+
+        # 应追加到原文件，而不是在当前月份新建
+        assert prior.exists()
+        content = prior.read_text(encoding="utf-8")
+        assert "prev" in content and "next" in content
+        this_month = datetime.now().strftime("%Y%m")
+        assert not (history_dir / this_month / f"{sid}.jsonl").exists()
+
+    def test_month_parser_recognizes_yyyymmdd_prefix(self, temp_data_dir):
+        """Agent 通用格式 YYYYMMDD_HHMMSS_uuid 也能识别月份（parts[0]）。"""
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        assert mc._month_from_session_id("20260415_120000_abcd1234") == "202604"
+        assert mc._month_from_session_id("20251130_230000_cafebabe") == "202511"
+        # 无效日期段应返回 None 再交给动态兜底
+        assert mc._month_from_session_id("abcd1234_120000_xxx") is None
+        assert mc._month_from_session_id("short") is None
+
+    def test_load_session_history_from_month_subdir(self, temp_data_dir):
+        """load 能按月份定位到已分片的文件。"""
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        sid = "cli_local_20260301090000_deadbeef"
+        mc.save_conversation_turn(sid, ConversationTurn(role="user", content="msg1"))
+        mc.save_conversation_turn(sid, ConversationTurn(role="assistant", content="msg2"))
+
+        turns = mc.load_session_history(sid)
+        assert len(turns) == 2
+        assert turns[0].content == "msg1"
+        assert turns[1].content == "msg2"
+
+    def test_migrate_flat_history_preserves_content(self, temp_data_dir):
+        """迁移：扁平文件按 session_id 月份归档，内容 sha256 不变。"""
+        import hashlib
+        import os
+
+        history_dir = temp_data_dir / "conversation_history"
+        history_dir.mkdir(parents=True, exist_ok=True)
+
+        # 标准 session_id：应按 session_id 月份归档到 202603/
+        sid_std = "telegram_c1_20260314080000_11112222"
+        payload_std = '{"role":"user","content":"hello","timestamp":"2026-03-14T08:00:00"}\n'
+        (history_dir / f"{sid_std}.jsonl").write_text(payload_std, encoding="utf-8")
+
+        # 遗留格式：应用 mtime 兜底，设 mtime=2025-11
+        sid_legacy = "12345_telegram_user"
+        payload_legacy = '{"role":"user","content":"old","timestamp":"2025-11-10T10:00:00"}\n'
+        legacy_path = history_dir / f"{sid_legacy}.jsonl"
+        legacy_path.write_text(payload_legacy, encoding="utf-8")
+        legacy_mtime = datetime(2025, 11, 15).timestamp()
+        os.utime(legacy_path, (legacy_mtime, legacy_mtime))
+
+        sha_std = hashlib.sha256(payload_std.encode()).hexdigest()
+        sha_legacy = hashlib.sha256(payload_legacy.encode()).hexdigest()
+
+        # 实例化触发自动迁移
+        MemoryConsolidator(data_dir=temp_data_dir)
+
+        # 验证归档位置
+        assert (history_dir / "202603" / f"{sid_std}.jsonl").exists()
+        assert (history_dir / "202511" / f"{sid_legacy}.jsonl").exists()
+
+        # 根目录无 jsonl 残留
+        flat = [p for p in history_dir.iterdir() if p.is_file() and p.suffix == ".jsonl"]
+        assert flat == []
+
+        # 哨兵存在
+        sentinel = temp_data_dir / ".history_layout_v2"
+        assert sentinel.exists()
+        data = json.loads(sentinel.read_text(encoding="utf-8"))
+        assert data["count"] == 2
+
+        # 内容 sha256 不变
+        moved_std = (history_dir / "202603" / f"{sid_std}.jsonl").read_bytes()
+        moved_legacy = (history_dir / "202511" / f"{sid_legacy}.jsonl").read_bytes()
+        assert hashlib.sha256(moved_std).hexdigest() == sha_std
+        assert hashlib.sha256(moved_legacy).hexdigest() == sha_legacy
+
+    def test_migration_idempotent(self, temp_data_dir, caplog):
+        """连续两次实例化，第二次应打印 moved=0（哨兵已存在直接返回）。"""
+        import logging
+
+        history_dir = temp_data_dir / "conversation_history"
+        history_dir.mkdir(parents=True, exist_ok=True)
+        sid = "cli_local_20260401120000_cafebabe"
+        (history_dir / f"{sid}.jsonl").write_text("{}\n", encoding="utf-8")
+
+        with caplog.at_level(logging.INFO, logger="seeagent.memory.consolidator"):
+            MemoryConsolidator(data_dir=temp_data_dir)
+        first_logs = [r for r in caplog.records if "migration" in r.message]
+        assert any("moved=1" in r.message for r in first_logs)
+
+        caplog.clear()
+        # 第二次实例化——哨兵存在，不应再扫描
+        with caplog.at_level(logging.INFO, logger="seeagent.memory.consolidator"):
+            MemoryConsolidator(data_dir=temp_data_dir)
+        second_logs = [r for r in caplog.records if "migration" in r.message]
+        assert second_logs == []  # 哨兵命中直接返回，不打日志
+
+    def test_migration_mtime_fallback_to_unknown_for_invalid_mtime(self, temp_data_dir):
+        """mtime 异常（太老/未来）的遗留文件归到 unknown/。"""
+        import os
+
+        history_dir = temp_data_dir / "conversation_history"
+        history_dir.mkdir(parents=True, exist_ok=True)
+        sid_legacy = "abc_legacy_xyz"
+        legacy_path = history_dir / f"{sid_legacy}.jsonl"
+        legacy_path.write_text("{}\n", encoding="utf-8")
+        # 设 mtime 到 1999 年（< 2000 的异常时间）
+        ancient = datetime(1999, 6, 1).timestamp()
+        os.utime(legacy_path, (ancient, ancient))
+
+        MemoryConsolidator(data_dir=temp_data_dir)
+
+        assert (history_dir / "unknown" / f"{sid_legacy}.jsonl").exists()
+
+    def test_iter_history_files_respects_since_cutoff(self, temp_data_dir):
+        """_iter_history_files(since=...) 按月份过滤子目录。"""
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        history_dir = temp_data_dir / "conversation_history"
+
+        # 手工构造 3 个月份子目录
+        for month, name in [
+            ("202601", "old.jsonl"),
+            ("202604", "recent.jsonl"),
+            ("unknown", "legacy.jsonl"),
+        ]:
+            d = history_dir / month
+            d.mkdir(parents=True, exist_ok=True)
+            (d / name).write_text("{}\n", encoding="utf-8")
+
+        # since=2026-03 → 应包含 202604/ 和 unknown/，排除 202601/
+        since = datetime(2026, 3, 1)
+        names = {p.name for p in mc._iter_history_files(since=since)}
+        assert "recent.jsonl" in names
+        assert "legacy.jsonl" in names
+        assert "old.jsonl" not in names
+
+        # since=None → 全部
+        all_names = {p.name for p in mc._iter_history_files()}
+        assert {"old.jsonl", "recent.jsonl", "legacy.jsonl"} <= all_names
 
 
 # ============================================================
@@ -843,8 +1032,8 @@ class TestIntegration:
         mm.record_turn("user", "你好")
         mm.record_turn("assistant", "你好！有什么可以帮助你的？")
         
-        # 3. 检查历史文件
-        history_files = list((temp_data_dir / "conversation_history").glob("*.jsonl"))
+        # 3. 检查历史文件（新布局：按月份子目录）
+        history_files = list((temp_data_dir / "conversation_history").glob("*/*.jsonl"))
         assert len(history_files) >= 1
     
     def test_60_memory_persistence(self, temp_data_dir, temp_memory_md, sample_memory):

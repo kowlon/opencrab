@@ -121,7 +121,17 @@ def recover_sessions(workspace_path: str, output_path: str | None = None):
     print(f"现有 chat_ids: {existing_chat_ids}")
 
     recovered_count = 0
-    jsonl_files = sorted(conv_history_dir.glob("*.jsonl"))
+    # 新布局：按月份子目录分片；兼容扁平层残留（迁移未完成或 --rollback 的场景）
+    jsonl_files = sorted(conv_history_dir.glob("*/*.jsonl"))
+    flat_residue = sorted(
+        p for p in conv_history_dir.glob("*.jsonl") if p.is_file()
+    )
+    if flat_residue:
+        print(
+            f"[WARN] 检测到扁平层残留 {len(flat_residue)} 个 .jsonl 文件 "
+            f"(可能迁移未完成)，会一起尝试恢复"
+        )
+        jsonl_files = flat_residue + jsonl_files
 
     for jsonl_file in jsonl_files:
         chat_id, channel, user_id = extract_chat_id_from_filename(jsonl_file.name)
