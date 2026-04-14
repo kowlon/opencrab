@@ -309,10 +309,11 @@ class MemoryInteractionTester:
     def test_session_history_persistence(self):
         """测试会话历史持久化"""
         history_dir = self.data_dir / "conversation_history"
-        files_before = len(list(history_dir.glob("*.jsonl")))
-        
+        # 新布局：按月份子目录分片
+        files_before = len(list(history_dir.glob("*/*.jsonl")))
+
         # 已经在上一个测试中记录了轮次，检查文件是否增加
-        files_after = len(list(history_dir.glob("*.jsonl")))
+        files_after = len(list(history_dir.glob("*/*.jsonl")))
         self.log("会话管理-历史持久化", files_after >= files_before, f"文件数: {files_after}")
     
     def test_session_memory_update(self):

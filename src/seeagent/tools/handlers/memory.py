@@ -581,9 +581,30 @@ class MemoryHandler:
         results: list[dict],
         seen_timestamps: set[str],
     ) -> None:
-        """搜索 conversation_history/*.jsonl，跳过 SQLite 已返回的条目"""
+        """搜索 conversation_history/YYYYMM/*.jsonl，跳过 SQLite 已返回的条目。
+
+        性能优化：按 ``cutoff`` 的月份裁剪要遍历的子目录，``unknown/`` 始终纳入。
+        """
         count = 0
-        for jsonl_file in sorted(history_dir.glob("*.jsonl"), reverse=True):
+        cutoff_month = cutoff.strftime("%Y%m")
+        candidate_dirs: list[Path] = []
+        try:
+            for sub in history_dir.iterdir():
+                if not sub.is_dir():
+                    continue
+                if sub.name == "unknown" or sub.name >= cutoff_month:
+                    candidate_dirs.append(sub)
+        except FileNotFoundError:
+            return
+
+        # 按目录名倒序 → 新月份在前；配合 session_id 里的 YYYYMMDDHHMMSS 基本按时间倒序
+        candidate_dirs.sort(key=lambda p: p.name, reverse=True)
+        jsonl_iter = (
+            f for sub in candidate_dirs
+            for f in sorted(sub.glob("*.jsonl"), reverse=True)
+        )
+
+        for jsonl_file in jsonl_iter:
             if session_id_filter and session_id_filter not in jsonl_file.stem:
                 continue
             try:

@@ -574,52 +574,56 @@ class TestMemoryConsolidator:
         mc = MemoryConsolidator(data_dir=temp_data_dir)
         turn = ConversationTurn(role="user", content="测试消息")
         mc.save_conversation_turn("test_session", turn)
-        
-        files = list((temp_data_dir / "conversation_history").glob("*.jsonl"))
+
+        # 新布局：按月份分片，非标准 session_id 归到 unknown/
+        files = list((temp_data_dir / "conversation_history").glob("*/*.jsonl"))
         assert len(files) == 1
-    
+
     def test_42_cleanup_old_history_by_days(self, temp_data_dir):
         """测试按天数清理历史"""
         mc = MemoryConsolidator(data_dir=temp_data_dir)
         history_dir = temp_data_dir / "conversation_history"
-        history_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 创建旧文件
-        old_file = history_dir / "old_session.jsonl"
+        bucket = history_dir / "unknown"
+        bucket.mkdir(parents=True, exist_ok=True)
+
+        # 创建旧文件（放月份子目录）
+        old_file = bucket / "old_session.jsonl"
         old_file.write_text("{}")
         import os
         old_time = (datetime.now() - timedelta(days=40)).timestamp()
         os.utime(old_file, (old_time, old_time))
-        
+
         deleted = mc.cleanup_old_history(days=30)
         assert deleted == 1
-    
+
     def test_43_cleanup_history_by_count(self, temp_data_dir):
         """测试按文件数清理"""
         mc = MemoryConsolidator(data_dir=temp_data_dir)
         mc.MAX_HISTORY_FILES = 5  # 设置较小的限制
         history_dir = temp_data_dir / "conversation_history"
-        history_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 创建多个文件
+        bucket = history_dir / "unknown"
+        bucket.mkdir(parents=True, exist_ok=True)
+
+        # 创建多个文件（放月份子目录）
         for i in range(10):
-            f = history_dir / f"session_{i:03d}.jsonl"
+            f = bucket / f"session_{i:03d}.jsonl"
             f.write_text("{}")
-        
+
         result = mc.cleanup_history()
         assert result["by_count"] == 5  # 应该删除 5 个
-    
+
     def test_44_cleanup_history_by_size(self, temp_data_dir):
         """测试按大小清理"""
         mc = MemoryConsolidator(data_dir=temp_data_dir)
         mc.MAX_HISTORY_SIZE_MB = 0.001  # 设置很小的限制 (约 1KB)
         history_dir = temp_data_dir / "conversation_history"
-        history_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 创建一个大文件
-        large_file = history_dir / "large.jsonl"
+        bucket = history_dir / "unknown"
+        bucket.mkdir(parents=True, exist_ok=True)
+
+        # 创建一个大文件（放月份子目录）
+        large_file = bucket / "large.jsonl"
         large_file.write_text("x" * 2000)  # 2KB
-        
+
         result = mc.cleanup_history()
         assert result["by_size"] >= 1
     
@@ -843,8 +847,8 @@ class TestIntegration:
         mm.record_turn("user", "你好")
         mm.record_turn("assistant", "你好！有什么可以帮助你的？")
         
-        # 3. 检查历史文件
-        history_files = list((temp_data_dir / "conversation_history").glob("*.jsonl"))
+        # 3. 检查历史文件（新布局：按月份子目录）
+        history_files = list((temp_data_dir / "conversation_history").glob("*/*.jsonl"))
         assert len(history_files) >= 1
     
     def test_60_memory_persistence(self, temp_data_dir, temp_memory_md, sample_memory):
