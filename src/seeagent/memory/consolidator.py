@@ -29,9 +29,12 @@ logger = logging.getLogger(__name__)
 class MemoryConsolidator:
     """记忆整合器 - 批量处理对话历史"""
 
-    # 对话历史按月份分片：conversation_history/YYYYMM/{session_id}.jsonl
-    # _UNKNOWN_BUCKET 兜底遗留格式（无法从 session_id 或 mtime 判定月份的文件）
+    # 对话历史按月份分片 + 时间戳前缀：
+    #   conversation_history/YYYYMM/{YYYYMMDDHHMMSS}__{session_id}.jsonl
+    # 时间戳前缀使 IDE 字母序 == 时间序，最近的会话在列表底部。
+    # _UNKNOWN_BUCKET 兜底：无法判定月份的遗留文件。
     _UNKNOWN_BUCKET = "unknown"
+    _TS_PREFIX_LEN = 14  # YYYYMMDDHHMMSS
 
     def __init__(
         self,
@@ -58,11 +61,13 @@ class MemoryConsolidator:
         # 已整理的会话
         self.summaries_file = self.data_dir / "session_summaries.json"
 
-        # 无时间戳 session_id 的动态月份缓存（写入时决定，之后保持同一 session 追加到同目录）
-        self._dynamic_month_cache: dict[str, str] = {}
+        # session_id → 已定位/创建的 jsonl 文件路径（进程内缓存，减少 glob 开销）
+        self._file_cache: dict[str, Path] = {}
 
-        # 首次启动检测旧扁平布局，自动按月归档
+        # 首次启动迁移：扁平 → 月份分片
         self._migrate_flat_history_if_needed()
+        # 第二次迁移：为缺失时间戳前缀的文件补前缀
+        self._migrate_add_timestamp_prefix_if_needed()
 
     # ==================== 分片工具 ====================
 
@@ -89,38 +94,60 @@ class MemoryConsolidator:
                 return head[:6]
         return None
 
-    def _resolve_dynamic_month(self, session_id: str) -> str:
-        """无时间戳 session_id 的月份决定：
+    def _session_id_from_stem(self, stem: str) -> str | None:
+        """从新格式文件名 stem（``{14digits}__{session_id}``）提取 session_id。
 
-        - 若已有同名文件落在某月份子目录（含 unknown/，如迁移历史），沿用其月份
-          → 保证同一 session 的后续 append 继续追加到同一文件
-        - 否则用当前月份 → 新会话按写入时刻分片
+        不匹配新格式（遗留文件）返回 None。
         """
-        cached = self._dynamic_month_cache.get(session_id)
+        if "__" not in stem:
+            return None
+        prefix, _, rest = stem.partition("__")
+        if len(prefix) == self._TS_PREFIX_LEN and prefix.isdigit():
+            return rest
+        return None
+
+    def _find_session_file(self, session_id: str) -> Path | None:
+        """查找已存在的 session 文件（含时间戳前缀的新格式）。
+
+        命中顺序：
+        1. 进程内缓存（若文件仍存在）
+        2. glob 扫描所有月份子目录，精确匹配 ``{14digits}__{session_id}.jsonl``
+        3. 兼容遗留：无前缀的 ``{session_id}.jsonl``（老文件可能未迁移或迁移期间）
+
+        未找到返回 None。
+        """
+        cached = self._file_cache.get(session_id)
         if cached is not None:
-            return cached
+            if cached.exists():
+                return cached
+            del self._file_cache[session_id]
 
-        for existing in self.history_dir.glob(f"*/{session_id}.jsonl"):
-            m = existing.parent.name
-            self._dynamic_month_cache[session_id] = m
-            return m
+        # 新格式：{ts}__{session_id}.jsonl
+        suffix = f"__{session_id}.jsonl"
+        for candidate in self.history_dir.glob(f"*/*{suffix}"):
+            if self._session_id_from_stem(candidate.stem) == session_id:
+                self._file_cache[session_id] = candidate
+                return candidate
 
-        m = datetime.now().strftime("%Y%m")
-        self._dynamic_month_cache[session_id] = m
-        return m
+        # 兼容遗留：{session_id}.jsonl（无前缀）
+        for candidate in self.history_dir.glob(f"*/{session_id}.jsonl"):
+            self._file_cache[session_id] = candidate
+            return candidate
 
-    def _month_dir_for_session(self, session_id: str) -> Path:
-        """返回 session 对应的月份子目录（自动创建）。
+        return None
 
-        - 可从 session_id 解析出月份 → 用解析结果
-        - 否则走动态兜底（_resolve_dynamic_month）：已有文件保持追加；首次写用当前月份
+    def _new_file_for_session(self, session_id: str) -> Path:
+        """为 session 创建新的带时间戳前缀的文件路径（首次写入用）。
+
+        - 月份子目录：优先用 session_id 解析出的月份；否则用当前月份
+        - 时间戳前缀：``datetime.now()`` 的 ``YYYYMMDDHHMMSS``
+        - 目录自动创建；文件不预先 touch，由调用方 append 时创建
         """
-        month = self._month_from_session_id(session_id)
-        if month is None:
-            month = self._resolve_dynamic_month(session_id)
-        d = self.history_dir / month
-        d.mkdir(parents=True, exist_ok=True)
-        return d
+        month = self._month_from_session_id(session_id) or datetime.now().strftime("%Y%m")
+        month_dir = self.history_dir / month
+        month_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d%H%M%S")
+        return month_dir / f"{ts}__{session_id}.jsonl"
 
     def _iter_history_files(self, since: datetime | None = None) -> Iterator[Path]:
         """遍历所有对话 jsonl 文件。
@@ -147,27 +174,20 @@ class MemoryConsolidator:
         """
         保存对话轮次 (实时保存)
 
-        每个会话一个文件，追加写入，按月份子目录分片
+        每个会话一个文件，追加写入；首次写入创建 ``{YYYYMMDDHHMMSS}__{session_id}.jsonl``
+        （时间戳 = 首次写入时刻），后续 append 沿用同一文件。
         """
-        session_file = self._month_dir_for_session(session_id) / f"{session_id}.jsonl"
+        session_file = self._find_session_file(session_id)
+        if session_file is None:
+            session_file = self._new_file_for_session(session_id)
+            self._file_cache[session_id] = session_file
 
         with open(session_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(turn.to_dict(), ensure_ascii=False) + "\n")
 
     def load_session_history(self, session_id: str) -> list[ConversationTurn]:
-        """加载会话历史（按月份目录定位，缺失时兜底扫描）"""
-        month = self._month_from_session_id(session_id)
-        candidates: list[Path] = []
-        if month:
-            candidates.append(self.history_dir / month / f"{session_id}.jsonl")
-        candidates.append(self.history_dir / self._UNKNOWN_BUCKET / f"{session_id}.jsonl")
-
-        session_file = next((p for p in candidates if p.exists()), None)
-        if session_file is None:
-            # 兜底：老格式文件可能被归到非预期月份
-            for hit in self.history_dir.glob(f"*/{session_id}.jsonl"):
-                session_file = hit
-                break
+        """加载会话历史（glob 所有月份子目录，命中第一个匹配文件）"""
+        session_file = self._find_session_file(session_id)
         if session_file is None:
             return []
 
@@ -197,7 +217,7 @@ class MemoryConsolidator:
         for file in self._iter_history_files(since=since):
             mtime = datetime.fromtimestamp(file.stat().st_mtime)
             if mtime.date() == today:
-                sessions.append(file.stem)
+                sessions.append(self._session_id_from_stem(file.stem) or file.stem)
 
         return sessions
 
@@ -215,8 +235,9 @@ class MemoryConsolidator:
         # 找出未处理的
         unprocessed = []
         for file in self._iter_history_files():
-            if file.stem not in processed:
-                unprocessed.append(file.stem)
+            sid = self._session_id_from_stem(file.stem) or file.stem
+            if sid not in processed:
+                unprocessed.append(sid)
 
         return unprocessed
 
@@ -591,4 +612,81 @@ class MemoryConsolidator:
 
         logger.info(
             f"conversation_history migration: moved={moved}, failed={failed}"
+        )
+
+    # ==================== 时间戳前缀补齐迁移 ====================
+
+    def _read_first_timestamp(self, path: Path) -> datetime | None:
+        """读第一行 JSON 的 ``timestamp`` 字段；失败返回 None。"""
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    ts_str = json.loads(line).get("timestamp", "")
+                    if ts_str:
+                        return datetime.fromisoformat(ts_str)
+                    return None
+        except (OSError, json.JSONDecodeError, ValueError):
+            pass
+        return None
+
+    def _migrate_add_timestamp_prefix_if_needed(self) -> None:
+        """给缺失时间戳前缀的 jsonl 文件补 ``{YYYYMMDDHHMMSS}__`` 前缀。
+
+        哨兵: ``data_dir/.history_layout_v3``
+
+        时间戳来源优先级：第一行 JSON ``timestamp`` > 文件 mtime > 当前时间
+
+        幂等：哨兵存在或无需要迁移文件时直接返回；失败文件下次启动重试。
+        """
+        sentinel = self.data_dir / ".history_layout_v3"
+        if sentinel.exists():
+            return
+
+        legacy_files = [
+            p for p in self.history_dir.glob("*/*.jsonl")
+            if self._session_id_from_stem(p.stem) is None
+        ]
+        if not legacy_files:
+            try:
+                self._write_sentinel(sentinel, 0)
+            except Exception as e:
+                logger.warning(f"Failed to write history prefix sentinel: {e}")
+            return
+
+        renamed, failed = 0, 0
+        for src in legacy_files:
+            try:
+                ts = self._read_first_timestamp(src)
+                if ts is None:
+                    try:
+                        ts = datetime.fromtimestamp(src.stat().st_mtime)
+                    except OSError:
+                        ts = datetime.now()
+                prefix = ts.strftime("%Y%m%d%H%M%S")
+
+                dst = src.parent / f"{prefix}__{src.name}"
+                if dst.exists():
+                    # 极罕见：同秒同 session_id 已存在前缀版本 → conflict 后缀避免覆盖
+                    dst = src.parent / f"{prefix}__{src.stem}.conflict-{int(time.time())}.jsonl"
+
+                try:
+                    src.rename(dst)
+                except OSError:
+                    shutil.copy2(src, dst)
+                    src.unlink()
+                renamed += 1
+            except Exception as e:
+                logger.error(f"Failed to add timestamp prefix to {src.name}: {e}")
+                failed += 1
+
+        if failed == 0:
+            try:
+                self._write_sentinel(sentinel, renamed)
+            except Exception as e:
+                logger.warning(f"Failed to write history prefix sentinel: {e}")
+
+        logger.info(
+            f"conversation_history prefix migration: renamed={renamed}, failed={failed}"
         )

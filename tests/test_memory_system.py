@@ -668,13 +668,17 @@ class TestConversationHistorySharding:
     """对话历史按月份分片 + 迁移测试"""
 
     def test_writes_to_month_subdir(self, temp_data_dir):
-        """标准 session_id 应写入对应月份子目录，根目录无 jsonl。"""
+        """标准 session_id 应写入对应月份子目录，文件名带时间戳前缀，根目录无 jsonl。"""
         mc = MemoryConsolidator(data_dir=temp_data_dir)
         sid = "telegram_chat1_20260414120000_abcd1234"
         mc.save_conversation_turn(sid, ConversationTurn(role="user", content="hi"))
 
         history_dir = temp_data_dir / "conversation_history"
-        assert (history_dir / "202604" / f"{sid}.jsonl").exists()
+        files = list((history_dir / "202604").glob(f"*__{sid}.jsonl"))
+        assert len(files) == 1
+        # 文件名前缀应是 14 位时间戳
+        prefix = files[0].stem.split("__", 1)[0]
+        assert len(prefix) == 14 and prefix.isdigit()
         # 根目录应无 jsonl 文件
         flat = [p for p in history_dir.iterdir() if p.is_file() and p.suffix == ".jsonl"]
         assert flat == []
@@ -688,29 +692,36 @@ class TestConversationHistorySharding:
 
         history_dir = temp_data_dir / "conversation_history"
         this_month = datetime.now().strftime("%Y%m")
-        assert (history_dir / this_month / f"{sid}.jsonl").exists()
+        files = list((history_dir / this_month).glob(f"*__{sid}.jsonl"))
+        assert len(files) == 1
         # 不应落 unknown/
-        assert not (history_dir / "unknown" / f"{sid}.jsonl").exists()
+        assert not list((history_dir / "unknown").glob(f"*__{sid}.jsonl"))
 
     def test_writes_unknown_format_reuses_existing_subdir(self, temp_data_dir):
-        """无时间戳 session_id 的 session 已有文件时，后续 append 沿用同一目录。"""
+        """无时间戳 session_id 的 session 已有文件时，后续 append 沿用同一文件。
+
+        场景：老版本（未加时间戳前缀）的文件已在 unknown/。
+        v3 迁移会在实例化时给它补前缀；save_conversation_turn 应继续 append 到同一文件，
+        不在当前月份新建。
+        """
         history_dir = temp_data_dir / "conversation_history"
-        # 预置：一个老 session 的文件已在 unknown/（模拟旧版本迁移来的）
         legacy_bucket = history_dir / "unknown"
         legacy_bucket.mkdir(parents=True, exist_ok=True)
         sid = "seecrab__seecrab_legacy__seecrab_user"
         prior = legacy_bucket / f"{sid}.jsonl"
         prior.write_text('{"role":"user","content":"prev"}\n', encoding="utf-8")
 
-        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        mc = MemoryConsolidator(data_dir=temp_data_dir)  # 触发 v3 迁移，prior 被重命名
         mc.save_conversation_turn(sid, ConversationTurn(role="user", content="next"))
 
-        # 应追加到原文件，而不是在当前月份新建
-        assert prior.exists()
-        content = prior.read_text(encoding="utf-8")
+        # 迁移后的文件仍在 unknown/（目录不变，只加前缀），内容含 prev + next
+        renamed = list(legacy_bucket.glob(f"*__{sid}.jsonl"))
+        assert len(renamed) == 1
+        content = renamed[0].read_text(encoding="utf-8")
         assert "prev" in content and "next" in content
+        # 不应在当前月份新建
         this_month = datetime.now().strftime("%Y%m")
-        assert not (history_dir / this_month / f"{sid}.jsonl").exists()
+        assert not list((history_dir / this_month).glob(f"*{sid}*.jsonl"))
 
     def test_month_parser_recognizes_yyyymmdd_prefix(self, temp_data_dir):
         """Agent 通用格式 YYYYMMDD_HHMMSS_uuid 也能识别月份（parts[0]）。"""
@@ -734,7 +745,7 @@ class TestConversationHistorySharding:
         assert turns[1].content == "msg2"
 
     def test_migrate_flat_history_preserves_content(self, temp_data_dir):
-        """迁移：扁平文件按 session_id 月份归档，内容 sha256 不变。"""
+        """迁移：扁平文件按 session_id 月份归档 + 补时间戳前缀，内容 sha256 不变。"""
         import hashlib
         import os
 
@@ -757,28 +768,39 @@ class TestConversationHistorySharding:
         sha_std = hashlib.sha256(payload_std.encode()).hexdigest()
         sha_legacy = hashlib.sha256(payload_legacy.encode()).hexdigest()
 
-        # 实例化触发自动迁移
+        # 实例化触发两级迁移（v2：扁平→月份分片；v3：补时间戳前缀）
         MemoryConsolidator(data_dir=temp_data_dir)
 
-        # 验证归档位置
-        assert (history_dir / "202603" / f"{sid_std}.jsonl").exists()
-        assert (history_dir / "202511" / f"{sid_legacy}.jsonl").exists()
+        # 验证归档位置（新格式：带时间戳前缀）
+        std_hits = list((history_dir / "202603").glob(f"*__{sid_std}.jsonl"))
+        legacy_hits = list((history_dir / "202511").glob(f"*__{sid_legacy}.jsonl"))
+        assert len(std_hits) == 1
+        assert len(legacy_hits) == 1
 
         # 根目录无 jsonl 残留
         flat = [p for p in history_dir.iterdir() if p.is_file() and p.suffix == ".jsonl"]
         assert flat == []
 
-        # 哨兵存在
-        sentinel = temp_data_dir / ".history_layout_v2"
-        assert sentinel.exists()
-        data = json.loads(sentinel.read_text(encoding="utf-8"))
+        # v2 哨兵存在
+        sentinel_v2 = temp_data_dir / ".history_layout_v2"
+        assert sentinel_v2.exists()
+        data = json.loads(sentinel_v2.read_text(encoding="utf-8"))
         assert data["count"] == 2
 
-        # 内容 sha256 不变
-        moved_std = (history_dir / "202603" / f"{sid_std}.jsonl").read_bytes()
-        moved_legacy = (history_dir / "202511" / f"{sid_legacy}.jsonl").read_bytes()
-        assert hashlib.sha256(moved_std).hexdigest() == sha_std
-        assert hashlib.sha256(moved_legacy).hexdigest() == sha_legacy
+        # v3 哨兵存在（两个文件都被加前缀）
+        sentinel_v3 = temp_data_dir / ".history_layout_v3"
+        assert sentinel_v3.exists()
+        assert json.loads(sentinel_v3.read_text(encoding="utf-8"))["count"] == 2
+
+        # 内容 sha256 不变（重命名不碰内容）
+        assert hashlib.sha256(std_hits[0].read_bytes()).hexdigest() == sha_std
+        assert hashlib.sha256(legacy_hits[0].read_bytes()).hexdigest() == sha_legacy
+
+        # v3 优先用首行 JSON 的 timestamp 字段做前缀
+        std_prefix = std_hits[0].stem.split("__", 1)[0]
+        assert std_prefix == "20260314080000"
+        legacy_prefix = legacy_hits[0].stem.split("__", 1)[0]
+        assert legacy_prefix == "20251110100000"
 
     def test_migration_idempotent(self, temp_data_dir, caplog):
         """连续两次实例化，第二次应打印 moved=0（哨兵已存在直接返回）。"""
@@ -802,7 +824,7 @@ class TestConversationHistorySharding:
         assert second_logs == []  # 哨兵命中直接返回，不打日志
 
     def test_migration_mtime_fallback_to_unknown_for_invalid_mtime(self, temp_data_dir):
-        """mtime 异常（太老/未来）的遗留文件归到 unknown/。"""
+        """mtime 异常（太老/未来）的遗留文件归到 unknown/，并被 v3 补前缀。"""
         import os
 
         history_dir = temp_data_dir / "conversation_history"
@@ -816,7 +838,8 @@ class TestConversationHistorySharding:
 
         MemoryConsolidator(data_dir=temp_data_dir)
 
-        assert (history_dir / "unknown" / f"{sid_legacy}.jsonl").exists()
+        hits = list((history_dir / "unknown").glob(f"*__{sid_legacy}.jsonl"))
+        assert len(hits) == 1
 
     def test_iter_history_files_respects_since_cutoff(self, temp_data_dir):
         """_iter_history_files(since=...) 按月份过滤子目录。"""
@@ -843,6 +866,108 @@ class TestConversationHistorySharding:
         # since=None → 全部
         all_names = {p.name for p in mc._iter_history_files()}
         assert {"old.jsonl", "recent.jsonl", "legacy.jsonl"} <= all_names
+
+
+class TestTimestampPrefix:
+    """文件名时间戳前缀（IDE 字母序 = 时间序）。"""
+
+    def test_first_write_adds_timestamp_prefix(self, temp_data_dir):
+        """首次写入应产生 {14digits}__{session_id}.jsonl 格式。"""
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        sid = "seecrab__seecrab_xyz__seecrab_user"
+        mc.save_conversation_turn(sid, ConversationTurn(role="user", content="hi"))
+
+        files = list((temp_data_dir / "conversation_history").glob(f"*/*__{sid}.jsonl"))
+        assert len(files) == 1
+        prefix = files[0].stem.split("__", 1)[0]
+        assert len(prefix) == 14 and prefix.isdigit()
+
+    def test_subsequent_writes_append_to_same_file(self, temp_data_dir):
+        """同 session 的多次写入应 append 到同一带前缀的文件，不新建。"""
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        sid = "seecrab__seecrab_append__seecrab_user"
+        mc.save_conversation_turn(sid, ConversationTurn(role="user", content="first"))
+        mc.save_conversation_turn(sid, ConversationTurn(role="assistant", content="second"))
+        mc.save_conversation_turn(sid, ConversationTurn(role="user", content="third"))
+
+        files = list((temp_data_dir / "conversation_history").glob(f"*/*__{sid}.jsonl"))
+        assert len(files) == 1
+        content = files[0].read_text(encoding="utf-8")
+        assert "first" in content and "second" in content and "third" in content
+        assert content.count("\n") == 3
+
+    def test_load_after_prefix_rename(self, temp_data_dir):
+        """load_session_history 能跨前缀找到会话文件。"""
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        sid = "cli_local_20260301090000_deadbeef"
+        mc.save_conversation_turn(sid, ConversationTurn(role="user", content="msg1"))
+
+        # 新实例（清缓存）模拟进程重启
+        mc2 = MemoryConsolidator(data_dir=temp_data_dir)
+        turns = mc2.load_session_history(sid)
+        assert len(turns) == 1 and turns[0].content == "msg1"
+
+    def test_filename_sorts_chronologically(self, temp_data_dir):
+        """同月内多个 session 的文件名字母序 = 写入时间序。"""
+        import time as _time
+
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        for sid in ["seecrab__s1__u", "seecrab__s2__u", "seecrab__s3__u"]:
+            mc.save_conversation_turn(sid, ConversationTurn(role="user", content=sid))
+            _time.sleep(1.01)  # 保证 14 位秒级时间戳不同
+
+        this_month = datetime.now().strftime("%Y%m")
+        files = sorted((temp_data_dir / "conversation_history" / this_month).glob("*.jsonl"))
+        # 字母序 = 时间序：s1 最老在前，s3 最新在后
+        assert files[0].stem.endswith("__seecrab__s1__u")
+        assert files[-1].stem.endswith("__seecrab__s3__u")
+
+    def test_v3_migration_uses_first_line_timestamp(self, temp_data_dir):
+        """v3 迁移优先用首行 JSON 的 timestamp 字段生成前缀。"""
+        history_dir = temp_data_dir / "conversation_history"
+        (history_dir / "202604").mkdir(parents=True, exist_ok=True)
+        sid = "seecrab__seecrab_v3test__seecrab_user"
+        legacy = history_dir / "202604" / f"{sid}.jsonl"
+        legacy.write_text(
+            '{"role":"user","content":"x","timestamp":"2026-04-10T15:30:45"}\n',
+            encoding="utf-8",
+        )
+
+        MemoryConsolidator(data_dir=temp_data_dir)
+
+        hits = list((history_dir / "202604").glob(f"*__{sid}.jsonl"))
+        assert len(hits) == 1
+        assert hits[0].stem.split("__", 1)[0] == "20260410153045"
+
+    def test_v3_migration_idempotent_on_already_prefixed(self, temp_data_dir):
+        """v3 迁移只处理缺前缀文件，已带前缀的不动。"""
+        history_dir = temp_data_dir / "conversation_history"
+        (history_dir / "202604").mkdir(parents=True, exist_ok=True)
+        sid = "already_prefixed"
+        already = history_dir / "202604" / f"20260401120000__{sid}.jsonl"
+        already.write_text("{}\n", encoding="utf-8")
+        original_mtime = already.stat().st_mtime
+
+        MemoryConsolidator(data_dir=temp_data_dir)
+
+        # 文件未被重命名，路径和 mtime 不变
+        assert already.exists()
+        assert already.stat().st_mtime == original_mtime
+        # 无多余副本
+        assert len(list((history_dir / "202604").glob("*.jsonl"))) == 1
+
+    def test_session_id_from_stem(self, temp_data_dir):
+        """_session_id_from_stem 解析边界情况。"""
+        mc = MemoryConsolidator(data_dir=temp_data_dir)
+        # 新格式
+        assert mc._session_id_from_stem("20260414120000__foo_bar") == "foo_bar"
+        assert mc._session_id_from_stem("20260414120000__a__b__c") == "a__b__c"
+        # 前缀长度不足 14
+        assert mc._session_id_from_stem("2026041__foo") is None
+        # 前缀非数字
+        assert mc._session_id_from_stem("abcdefghijklmn__foo") is None
+        # 无 __
+        assert mc._session_id_from_stem("no_separator") is None
 
 
 # ============================================================
