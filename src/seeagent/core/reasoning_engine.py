@@ -19,6 +19,7 @@ import copy
 import hashlib
 import json
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -47,6 +48,25 @@ from .tool_executor import ToolExecutor
 logger = logging.getLogger(__name__)
 
 _SSE_RESULT_PREVIEW_CHARS = 32000
+
+# 把 LLM 偶尔输出的 inline markdown list 修正为多行
+# 典型失败样例: "请提供: - **开始时间**: ... - **结束时间**: ..."
+# 修正后: "请提供:\n- **开始时间**: ...\n- **结束时间**: ..."
+_ASK_USER_INLINE_LIST_PATTERN = re.compile(r" (-\s\*\*)")
+
+
+def _normalize_ask_user_question(text: str) -> str:
+    """确保 markdown 粗体列表项 `- **xxx**` 各占一行。
+
+    LLM 有时把多字段列表写成单行（空格分隔而非换行），前端渲染时
+    列表项会挤在一起无法视觉分组。这里用正则在每个 ` - **` 前插入
+    换行符，恢复多行结构。
+
+    模式 ` - **` 是 markdown 粗体列表项的独特标识，不会误伤自然文本。
+    """
+    if not text:
+        return text
+    return _ASK_USER_INLINE_LIST_PATTERN.sub(r"\n\1", text)
 
 
 class DecisionType(Enum):
@@ -1003,7 +1023,7 @@ class ReasoningEngine:
                             ask_input = {}
                     if not isinstance(ask_input, dict):
                         ask_input = {}
-                    question = ask_input.get("question", "")
+                    question = _normalize_ask_user_question(ask_input.get("question", ""))
                     ask_tool_id = ask_user_calls[0].get("id", "ask_user_0")
 
                     # 合并 LLM 的文本回复 + 问题
@@ -1931,7 +1951,7 @@ class ReasoningEngine:
                                 ask_input = {}
                         if not isinstance(ask_input, dict):
                             ask_input = {}
-                        ask_q = ask_input.get("question", "")
+                        ask_q = _normalize_ask_user_question(ask_input.get("question", ""))
                         ask_options = ask_input.get("options")
                         ask_allow_multiple = ask_input.get("allow_multiple", False)
                         ask_questions = ask_input.get("questions")
