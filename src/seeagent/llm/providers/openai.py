@@ -695,32 +695,47 @@ class OpenAIProvider(LLMProvider):
         )
 
     def _convert_stream_event(self, event: dict) -> dict:
-        """转换流式事件为统一格式"""
+        """转换流式事件为统一格式。
+
+        修复历史 gap:
+        - delta.content is None (glm-5 thinking 阶段) 不再错误进入 text 分支
+        - delta.reasoning_content 识别为 reasoning delta (glm-5/DeepSeek/Kimi)
+        - tool_calls 保留完整列表 (含 index), 由上层按 index 聚合
+        - 顶层 usage 在末 chunk 时 relay 给上层
+        """
+        result: dict = {}
+
+        if event.get("usage"):
+            result["usage"] = event["usage"]
+
         choices = event.get("choices", [])
         if not choices:
-            return {"type": "ping"}
+            result["type"] = "ping"
+            return result
 
         choice = choices[0]
         delta = choice.get("delta", {})
+        result["type"] = "content_block_delta"
 
-        result = {"type": "content_block_delta"}
+        content = delta.get("content")
+        reasoning = delta.get("reasoning_content")
 
-        if "content" in delta:
-            result["delta"] = {"type": "text", "text": delta["content"]}
-        elif "tool_calls" in delta:
-            tool_calls = delta["tool_calls"]
-            if tool_calls:
-                tc = tool_calls[0]
-                result["delta"] = {
-                    "type": "tool_use",
-                    "id": tc.get("id"),
-                    "name": tc.get("function", {}).get("name"),
-                    "arguments": tc.get("function", {}).get("arguments"),
-                }
+        if content is not None:
+            result["delta"] = {"type": "text", "text": content}
+        elif reasoning is not None:
+            result["delta"] = {"type": "reasoning", "reasoning": reasoning}
+        elif delta.get("tool_calls"):
+            # 保留完整列表 (含 index), 由 brain 层按 index 聚合
+            result["delta"] = {
+                "type": "tool_calls_delta",
+                "tool_calls": delta["tool_calls"],
+            }
 
         if choice.get("finish_reason"):
             result["type"] = "message_stop"
             result["stop_reason"] = choice["finish_reason"]
+            result["model"] = event.get("model", "")
+            result["id"] = event.get("id", "")
 
         return result
 

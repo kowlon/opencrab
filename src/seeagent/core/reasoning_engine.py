@@ -1676,6 +1676,7 @@ class ReasoningEngine:
 
                 try:
                     decision = None
+                    _streamed_thinking = False
                     async for hb_event in self._reason_with_heartbeat(
                         working_messages,
                         system_prompt=effective_prompt,
@@ -1687,9 +1688,16 @@ class ReasoningEngine:
                         iteration=_iteration,
                         agent_profile_id=agent_profile_id,
                     ):
-                        if hb_event["type"] == "heartbeat":
+                        _hb_type = hb_event["type"]
+                        if _hb_type == "heartbeat":
                             yield {"type": "heartbeat"}
-                        elif hb_event["type"] == "decision":
+                        elif _hb_type == "thinking_delta_incremental":
+                            yield {
+                                "type": "thinking_delta",
+                                "content": hb_event["content"],
+                            }
+                            _streamed_thinking = True
+                        elif _hb_type == "decision":
                             decision = hb_event["decision"]
                     if decision is None:
                         raise RuntimeError("_reason returned no decision")
@@ -1764,7 +1772,8 @@ class ReasoningEngine:
                 # Emit thinking content
                 _thinking_duration = int((time.time() - _thinking_t0) * 1000)
                 _has_thinking = bool(decision.thinking_content)
-                if _has_thinking:
+                if _has_thinking and not _streamed_thinking:
+                    # 兜底: 非流式 fallback 路径下一次性 dump; 流式路径已增量 yield 过
                     yield {"type": "thinking_delta", "content": decision.thinking_content}
                 yield {
                     "type": "thinking_end",
@@ -2758,6 +2767,8 @@ class ReasoningEngine:
     # ==================== 心跳保活 ====================
 
     _HEARTBEAT_INTERVAL = 15  # 秒：LLM 等待期间心跳间隔
+    # 注: stream chunk 级 idle / hang 检测下沉到 brain 层 (最接近底层 chunk 的位置),
+    # 见 brain._get_brain_stream_idle_limit()。reasoning_engine 这一层只负责发 SSE heartbeat。
 
     async def _reason_with_heartbeat(
         self,
@@ -2773,6 +2784,167 @@ class ReasoningEngine:
         agent_profile_id: str = "default",
     ):
         """
+        派发入口: 优先消费 brain.messages_create_async_stream 实现真正的 idle timeout
+        + 增量 thinking 转发, 不可用时降级 _reason_with_heartbeat_nonstream。
+
+        Yields:
+            {"type": "heartbeat"}                            — idle 心跳
+            {"type": "thinking_delta_incremental", "content"} — 增量 thinking 片段
+            {"type": "decision", "decision": Decision}       — 最终决策
+        """
+        from .brain import _is_brain_stream_disabled
+
+        # 自动降级条件: feature flag 关 / brain 不支持 / 非 OpenAI provider
+        if (
+            _is_brain_stream_disabled()
+            or not hasattr(self._brain, "messages_create_async_stream")
+            or not self._brain._supports_stream_accumulation()
+        ):
+            async for ev in self._reason_with_heartbeat_nonstream(
+                messages,
+                system_prompt=system_prompt,
+                tools=tools,
+                current_model=current_model,
+                conversation_id=conversation_id,
+                thinking_mode=thinking_mode,
+                thinking_depth=thinking_depth,
+                iteration=iteration,
+                agent_profile_id=agent_profile_id,
+            ):
+                yield ev
+            return
+
+        # 决定 thinking 模式
+        use_thinking = None
+        if thinking_mode == "on":
+            use_thinking = True
+        elif thinking_mode == "off":
+            use_thinking = False
+
+        # 获取 cancel_event
+        state = (
+            self._state.get_task_for_session(conversation_id)
+            if conversation_id
+            else None
+        ) or self._state.current_task
+        cancel_event = state.cancel_event if state else asyncio.Event()
+
+        tracer = get_tracer()
+        with tracer.llm_span(model=current_model) as span:
+            _tt = set_tracking_context(TokenTrackingContext(
+                session_id=conversation_id or "",
+                operation_type="chat_react_iteration",
+                channel="api",
+                iteration=iteration,
+                agent_profile_id=agent_profile_id,
+            ))
+            try:
+                brain_stream = self._brain.messages_create_async_stream(
+                    use_thinking=use_thinking,
+                    thinking_depth=thinking_depth,
+                    model=current_model,
+                    max_tokens=self._brain.max_tokens,
+                    system=system_prompt,
+                    tools=tools,
+                    messages=messages,
+                    conversation_id=conversation_id,
+                )
+                aiter = brain_stream.__aiter__()
+                pending: asyncio.Future | None = None
+                final_response: Any = None
+
+                try:
+                    while True:
+                        if pending is None:
+                            pending = asyncio.ensure_future(aiter.__anext__())
+                        cancel_task = asyncio.ensure_future(cancel_event.wait())
+
+                        done, _ = await asyncio.wait(
+                            {pending, cancel_task},
+                            timeout=self._HEARTBEAT_INTERVAL,
+                            return_when=asyncio.FIRST_COMPLETED,
+                        )
+                        if not cancel_task.done():
+                            cancel_task.cancel()
+
+                        if not done:
+                            # idle 心跳: 仅 SSE 保活, 不做 hang 检测
+                            # (chunk 级 hang 检测已下沉到 brain 层)
+                            yield {"type": "heartbeat"}
+                            continue
+
+                        if cancel_task in done and cancel_task.result():
+                            pending.cancel()
+                            try:
+                                await pending
+                            except (asyncio.CancelledError, Exception):
+                                pass
+                            pending = None
+                            cancel_reason = state.cancel_reason if state else "用户请求停止"
+                            raise UserCancelledError(
+                                reason=cancel_reason,
+                                source="llm_call_stream",
+                            )
+
+                        try:
+                            event = pending.result()
+                        except StopAsyncIteration:
+                            pending = None
+                            break
+                        pending = None
+
+                        etype = event.get("type")
+                        if etype == "reasoning_delta":
+                            yield {
+                                "type": "thinking_delta_incremental",
+                                "content": event.get("text", ""),
+                            }
+                        elif etype == "done":
+                            final_response = event["response"]
+                            break
+
+                    if final_response is None:
+                        raise RuntimeError("brain stream ended without 'done' event")
+                finally:
+                    if pending is not None and not pending.done():
+                        pending.cancel()
+                        try:
+                            await pending
+                        except (asyncio.CancelledError, Exception):
+                            pass
+
+                # 复用 _parse_decision 拆解 AnthropicMessage
+                if hasattr(final_response, "usage"):
+                    span.set_attribute(
+                        "input_tokens", getattr(final_response.usage, "input_tokens", 0)
+                    )
+                    span.set_attribute(
+                        "output_tokens", getattr(final_response.usage, "output_tokens", 0)
+                    )
+
+                decision = self._parse_decision(final_response)
+                span.set_attribute("decision_type", decision.type.value)
+                span.set_attribute("tool_count", len(decision.tool_calls))
+                yield {"type": "decision", "decision": decision}
+            finally:
+                reset_tracking_context(_tt)
+
+    async def _reason_with_heartbeat_nonstream(
+        self,
+        messages: list[dict],
+        *,
+        system_prompt: str,
+        tools: list[dict],
+        current_model: str,
+        conversation_id: str | None = None,
+        thinking_mode: str | None = None,
+        thinking_depth: str | None = None,
+        iteration: int = 0,
+        agent_profile_id: str = "default",
+    ):
+        """
+        非流式心跳兜底实现 (原 _reason_with_heartbeat 行为)。
+
         包装 _reason()，在等待 LLM 响应期间每隔 HEARTBEAT_INTERVAL 秒
         产出 heartbeat 事件，防止前端 SSE idle timeout。
 
