@@ -209,6 +209,7 @@ class SkillsHandler:
         body = skill.get_body() or "(无详细指令)"
 
         # 自动内联 SKILL.md body 中引用的同目录 .md 文件
+        skill_dir: Path | None = None
         if skill.skill_path:
             skill_dir = Path(skill.skill_path).parent
             body = self._inline_referenced_files(body, skill_dir)
@@ -223,10 +224,62 @@ class SkillsHandler:
             output += f"**许可证**: {skill.license}\n"
         if skill.compatibility:
             output += f"**兼容性**: {skill.compatibility}\n"
+
+        # 暴露技能目录 + 脚本清单，避免 agent 再去 ls/glob 猜路径
+        if skill_dir is not None:
+            output += f"**技能目录 (绝对路径)**: `{skill_dir}`\n"
+            scripts = self._list_scripts_for_display(skill_dir)
+            if scripts:
+                shown = scripts[:10]
+                more = f"（共 {len(scripts)} 个，仅显示前 10 个）" if len(scripts) > 10 else ""
+                output += f"**可执行脚本**: {', '.join(shown)}{more}\n"
+                output += (
+                    f"> 优先用 `run_skill_script(skill_name=\"{skill.skill_id}\", "
+                    f"script_name=...)` 执行——该工具会自动把 cwd 设为技能目录；"
+                    f"若 SKILL.md 要求 `bash scripts/xxx.sh python scripts/yyy.py` 这种包装命令，"
+                    f"请在 run_shell 中把 `cwd` 显式设为上面的绝对路径，不要再去 ls/glob 查找。\n"
+                )
+            else:
+                output += (
+                    f"> 该技能无可执行脚本；按 SKILL.md 指令操作时，若需文件系统路径，"
+                    f"直接使用上面的绝对路径，不必再查找。\n"
+                )
+
         output += "\n---\n\n"
         output += body
 
         return self._truncate_skill_content("get_skill_info", output)
+
+    _SCRIPT_SUFFIXES = frozenset({".py", ".sh", ".bash", ".js", ".ts", ".mjs"})
+    _SCRIPT_IGNORE = frozenset({"__init__.py", "__pycache__"})
+
+    @classmethod
+    def _list_scripts_for_display(cls, skill_dir: Path) -> list[str]:
+        """列出技能下的可执行脚本（``scripts/`` 递归 + 根目录顶层）。
+
+        仅用于 ``get_skill_info`` 的展示，与 ``SkillLoader._list_available_scripts`` 的
+        行为保持一致，但不需要 ``ParsedSkill`` 对象，直接从磁盘读。
+        """
+        scripts: list[str] = []
+        scripts_dir = skill_dir / "scripts"
+        if scripts_dir.is_dir():
+            for f in sorted(scripts_dir.rglob("*")):
+                if (
+                    f.is_file()
+                    and f.suffix in cls._SCRIPT_SUFFIXES
+                    and f.name not in cls._SCRIPT_IGNORE
+                ):
+                    rel = f.relative_to(scripts_dir)
+                    scripts.append(f"scripts/{rel.as_posix()}")
+        if skill_dir.is_dir():
+            for f in sorted(skill_dir.iterdir()):
+                if (
+                    f.is_file()
+                    and f.suffix in cls._SCRIPT_SUFFIXES
+                    and f.name not in cls._SCRIPT_IGNORE
+                ):
+                    scripts.append(f.name)
+        return scripts
 
     def _run_skill_script(self, params: dict) -> str:
         """运行技能脚本"""
@@ -316,20 +369,23 @@ class SkillsHandler:
         """加载新创建的技能"""
         skill_name = params["skill_name"]
 
-        # 查找技能目录（使用项目根目录，避免依赖 CWD）
+        # 查找技能目录：支持扁平布局 skills/{name}/ 和分组布局 skills/{group}/{name}/
         try:
             from seeagent.config import settings
             skills_dir = settings.project_root / "skills"
         except Exception:
             skills_dir = Path("skills")
-        skill_dir = skills_dir / skill_name
 
-        if not skill_dir.exists():
-            return f"❌ 技能目录不存在: {skill_dir}\n\n请确保技能已保存到 skills/{skill_name}/ 目录"
+        from seeagent.skills.loader import SkillLoader
+        skill_dir = SkillLoader.resolve_skill_dir(skills_dir, skill_name)
 
-        skill_md = skill_dir / "SKILL.md"
-        if not skill_md.exists():
-            return f"❌ 技能定义文件不存在: {skill_md}\n\n请确保目录中包含 SKILL.md 文件"
+        if skill_dir is None:
+            return (
+                f"❌ 技能目录不存在\n\n"
+                f"已在 {skills_dir} 下扁平层与一级分组子目录中查找 "
+                f"'{skill_name}/SKILL.md'，未找到。\n"
+                f"请确认技能已保存到 skills/{skill_name}/ 或 skills/<分组>/{skill_name}/ 下。"
+            )
 
         # 检查是否已加载
         existing = self.agent.skill_registry.get(skill_name)

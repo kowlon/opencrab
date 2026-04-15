@@ -106,6 +106,8 @@ identity/runtime/persona.custom.md
 # skills/ 目录全部是内置技能，需要被 git 完整跟踪。
 # 用户通过技能市场安装的技能存放在 ~/.opencrab/workspaces/default/skills/，
 # 不在仓库目录内，无需 ignore。
+# 技能运行/调试产生的输出目录（任意路径下名为 skills_result 的文件夹）
+skills_result/
 
 # Plugins (keep structure)
 plugins/*
