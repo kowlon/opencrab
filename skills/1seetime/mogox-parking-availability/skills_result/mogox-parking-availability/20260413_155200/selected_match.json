@@ -1,0 +1,33 @@
+{
+  "parkingId": "582",
+  "parkingName": "体育公园停车场",
+  "coordSystem": "gcj02",
+  "location": {
+    "lat": 29.7239888665,
+    "lng": 120.2588953756
+  },
+  "entrances": [
+    {
+      "entryId": "1191",
+      "entryName": "停车区",
+      "location": {
+        "lat": 29.7239888665,
+        "lng": 120.2588953756
+      }
+    }
+  ],
+  "totalSpotsKnown": true,
+  "cameras": [
+    {
+      "cameraId": 3577,
+      "cameraRole": "spots",
+      "entryId": "1191",
+      "cameraStatus": 1,
+      "snapshotTime": 1776066610958,
+      "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/16587375b77646058a9f22e687caeb62.jpg",
+      "totalSpots": 19,
+      "availableSpots": 8,
+      "matchScore": 1
+    }
+  ]
+}

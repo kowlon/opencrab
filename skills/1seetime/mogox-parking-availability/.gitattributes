@@ -1,0 +1,11 @@
+# 确保 shell 脚本始终使用 Unix 换行符（LF）
+*.sh text eol=lf
+
+# Python 文件使用 LF
+*.py text eol=lf
+
+# Markdown 文件使用 LF
+*.md text eol=lf
+
+# JSON 文件使用 LF
+*.json text eol=lf

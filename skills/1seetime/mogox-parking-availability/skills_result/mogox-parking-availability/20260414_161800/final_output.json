@@ -1,0 +1,23 @@
+{
+  "parkingScenarios": [
+    {
+      "parkingId": null,
+      "status": "no_camera",
+      "coverageStatus": "uncovered",
+      "measuredStatus": "unknown",
+      "parkingName": "未找到匹配停车场",
+      "statusText": "暂未找到相关停车场",
+      "statusDescription": "请尝试更具体的停车场名称或附近地标",
+      "hasNavigation": false,
+      "hasRefresh": false,
+      "hasNearbyParking": true,
+      "processedBy": "SeeClaw",
+      "userMessage": "遂昌站停车场",
+      "location": {
+        "latitude": 0.0,
+        "longitude": 0.0,
+        "coordSystem": "wgs84"
+      }
+    }
+  ]
+}

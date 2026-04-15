@@ -1,0 +1,150 @@
+{
+  "totalFound": 7,
+  "rankedList": [
+    {
+      "rank": 1,
+      "parkingId": "1155",
+      "status": "normal",
+      "coverageStatus": "covered",
+      "measuredStatus": "spacious",
+      "parkingName": "东兴支路路边停车场",
+      "snapshots": [
+        {
+          "cameraId": "4826",
+          "cameraName": "摄像头1",
+          "url": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/12c0979f91cc4f679317356850d1a363.jpg",
+          "timestamp": "2026-04-14T18:10:13+08:00",
+          "isAvailable": true
+        }
+      ],
+      "statusText": "空位充足，适合现在前往",
+      "statusDescription": "已覆盖区域空位较充裕，进场顺畅",
+      "dataTimestamp": "2026-04-14T18:10:13+08:00",
+      "hasNavigation": true,
+      "hasRefresh": true,
+      "hasNearbyParking": false,
+      "processedBy": "SeeClaw",
+      "userMessage": "遂昌站停车场",
+      "location": {
+        "latitude": 29.710166081,
+        "longitude": 120.2573191614,
+        "coordSystem": "wgs84"
+      },
+      "availability": {
+        "totalSpots": 8,
+        "availableSpots": 8,
+        "occupancyRate": "0.0%",
+        "totalSpotsKnown": true
+      },
+      "entrances": [
+        {
+          "entryId": "2262",
+          "location": {
+            "lat": 29.710166081,
+            "lng": 120.2573191614
+          },
+          "direction": "未知方向"
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "parkingId": "582",
+      "status": "normal",
+      "coverageStatus": "covered",
+      "measuredStatus": "spacious",
+      "parkingName": "体育公园停车场",
+      "snapshots": [
+        {
+          "cameraId": "3577",
+          "cameraName": "摄像头1",
+          "url": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/6ebdd15fb3bd48e8a1c190e56c3574f9.jpg",
+          "timestamp": "2026-04-14T18:10:11+08:00",
+          "isAvailable": true
+        }
+      ],
+      "statusText": "空位适中，可以前往",
+      "statusDescription": "已覆盖区域有一定空位，建议尽快前往",
+      "dataTimestamp": "2026-04-14T18:10:11+08:00",
+      "hasNavigation": true,
+      "hasRefresh": true,
+      "hasNearbyParking": false,
+      "processedBy": "SeeClaw",
+      "userMessage": "遂昌站停车场",
+      "location": {
+        "latitude": 29.7239888665,
+        "longitude": 120.2588953756,
+        "coordSystem": "wgs84"
+      },
+      "availability": {
+        "totalSpots": 19,
+        "availableSpots": 9,
+        "occupancyRate": "52.6%",
+        "totalSpotsKnown": true
+      },
+      "entrances": [
+        {
+          "entryId": "1191",
+          "location": {
+            "lat": 29.7239888665,
+            "lng": 120.2588953756
+          },
+          "direction": "未知方向"
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "parkingId": "1195",
+      "status": "normal",
+      "coverageStatus": "covered",
+      "measuredStatus": "spacious",
+      "parkingName": "城市广场停车场",
+      "snapshots": [
+        {
+          "cameraId": "3512",
+          "cameraName": "摄像头1",
+          "url": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/ea309675b6c247a58bf3ac64351e6913.jpg",
+          "timestamp": "2026-04-14T18:05:46+08:00",
+          "isAvailable": true
+        },
+        {
+          "cameraId": "4256",
+          "cameraName": "摄像头2",
+          "url": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/11e1b564e3824499b0523b822542a583.jpg",
+          "timestamp": "2026-04-14T18:08:19+08:00",
+          "isAvailable": true
+        }
+      ],
+      "statusText": "空位充足，适合现在前往",
+      "statusDescription": "已覆盖区域空位较充裕，进场顺畅",
+      "dataTimestamp": "2026-04-14T18:08:19+08:00",
+      "hasNavigation": true,
+      "hasRefresh": true,
+      "hasNearbyParking": false,
+      "processedBy": "SeeClaw",
+      "userMessage": "遂昌站停车场",
+      "location": {
+        "latitude": 29.7086855732,
+        "longitude": 120.2415321243,
+        "coordSystem": "wgs84"
+      },
+      "availability": {
+        "totalSpots": 21,
+        "availableSpots": 18,
+        "occupancyRate": "14.3%",
+        "totalSpotsKnown": true
+      },
+      "entrances": [
+        {
+          "entryId": "2351",
+          "location": {
+            "lat": 29.7086855732,
+            "lng": 120.2415321243
+          },
+          "direction": "未知方向"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,143 @@
+{
+  "totalFound": 7,
+  "rankedList": [
+    {
+      "rank": 1,
+      "parkingId": "1155",
+      "status": "normal",
+      "coverageStatus": "covered",
+      "measuredStatus": "spacious",
+      "parkingName": "东兴支路路边停车场",
+      "snapshots": [
+        {
+          "cameraId": "4826",
+          "cameraName": "摄像头1",
+          "url": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/5931214a0770464296bab4675924c73a.jpg",
+          "timestamp": "2026-04-14T18:00:13+08:00",
+          "isAvailable": true
+        }
+      ],
+      "statusText": "空位充足，适合现在前往",
+      "statusDescription": "已覆盖区域空位较充裕，进场顺畅",
+      "dataTimestamp": "2026-04-14T18:00:13+08:00",
+      "hasNavigation": true,
+      "hasRefresh": true,
+      "hasNearbyParking": false,
+      "processedBy": "SeeClaw",
+      "userMessage": "遂昌站停车场",
+      "location": {
+        "latitude": 29.710166081,
+        "longitude": 120.2573191614,
+        "coordSystem": "wgs84"
+      },
+      "availability": {
+        "totalSpots": 8,
+        "availableSpots": 8,
+        "occupancyRate": "0.0%",
+        "totalSpotsKnown": true
+      },
+      "entrances": [
+        {
+          "entryId": "2262",
+          "location": {
+            "lat": 29.710166081,
+            "lng": 120.2573191614
+          },
+          "direction": "未知方向"
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "parkingId": "582",
+      "status": "normal",
+      "coverageStatus": "covered",
+      "measuredStatus": "spacious",
+      "parkingName": "体育公园停车场",
+      "snapshots": [
+        {
+          "cameraId": "3577",
+          "cameraName": "摄像头1",
+          "url": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/d1df392deb504104b8b052f0d7731db0.jpg",
+          "timestamp": "2026-04-14T18:05:10+08:00",
+          "isAvailable": true
+        }
+      ],
+      "statusText": "空位充足，适合现在前往",
+      "statusDescription": "已覆盖区域空位较充裕，进场顺畅",
+      "dataTimestamp": "2026-04-14T18:05:10+08:00",
+      "hasNavigation": true,
+      "hasRefresh": true,
+      "hasNearbyParking": false,
+      "processedBy": "SeeClaw",
+      "userMessage": "遂昌站停车场",
+      "location": {
+        "latitude": 29.7239888665,
+        "longitude": 120.2588953756,
+        "coordSystem": "wgs84"
+      },
+      "availability": {
+        "totalSpots": 19,
+        "availableSpots": 10,
+        "occupancyRate": "47.4%",
+        "totalSpotsKnown": true
+      },
+      "entrances": [
+        {
+          "entryId": "1191",
+          "location": {
+            "lat": 29.7239888665,
+            "lng": 120.2588953756
+          },
+          "direction": "未知方向"
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "parkingId": "633",
+      "status": "normal",
+      "coverageStatus": "covered",
+      "measuredStatus": "spacious",
+      "parkingName": "一百超市停车场",
+      "snapshots": [
+        {
+          "cameraId": "3684",
+          "cameraName": "摄像头1",
+          "url": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/46fed781c711411ebe3bec8292664894.jpg",
+          "timestamp": "2026-04-14T18:03:23+08:00",
+          "isAvailable": true
+        }
+      ],
+      "statusText": "空位充足，适合现在前往",
+      "statusDescription": "已覆盖区域空位较充裕，进场顺畅",
+      "dataTimestamp": "2026-04-14T18:03:23+08:00",
+      "hasNavigation": true,
+      "hasRefresh": true,
+      "hasNearbyParking": false,
+      "processedBy": "SeeClaw",
+      "userMessage": "遂昌站停车场",
+      "location": {
+        "latitude": 29.7104361581,
+        "longitude": 120.2432361075,
+        "coordSystem": "wgs84"
+      },
+      "availability": {
+        "totalSpots": 24,
+        "availableSpots": 15,
+        "occupancyRate": "37.5%",
+        "totalSpotsKnown": true
+      },
+      "entrances": [
+        {
+          "entryId": "1276",
+          "location": {
+            "lat": 29.7104361581,
+            "lng": 120.2432361075
+          },
+          "direction": "未知方向"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,267 @@
+{
+  "code": 200,
+  "msg": "success",
+  "data": [
+    {
+      "parkingId": "582",
+      "parkingName": "体育公园停车场",
+      "coordSystem": "gcj02",
+      "location": {
+        "lat": 29.7239888665,
+        "lng": 120.2588953756
+      },
+      "entrances": [
+        {
+          "entryId": "1191",
+          "entryName": "停车区",
+          "location": {
+            "lat": 29.7239888665,
+            "lng": 120.2588953756
+          }
+        }
+      ],
+      "totalSpotsKnown": true,
+      "cameras": [
+        {
+          "cameraId": 3577,
+          "cameraRole": "spots",
+          "entryId": "1191",
+          "cameraStatus": 1,
+          "snapshotTime": 1776164110919,
+          "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/e18e1832e7b0440aa7f36cf316e0ffe1.jpg",
+          "totalSpots": 19,
+          "availableSpots": 9,
+          "matchScore": 1
+        }
+      ]
+    },
+    {
+      "parkingId": "633",
+      "parkingName": "一百超市停车场",
+      "coordSystem": "gcj02",
+      "location": {
+        "lat": 29.7104361581,
+        "lng": 120.2432361075
+      },
+      "entrances": [
+        {
+          "entryId": "1276",
+          "entryName": "地上停车位",
+          "location": {
+            "lat": 29.7104361581,
+            "lng": 120.2432361075
+          }
+        }
+      ],
+      "totalSpotsKnown": true,
+      "cameras": [
+        {
+          "cameraId": 3684,
+          "cameraRole": "spots",
+          "entryId": "1276",
+          "cameraStatus": 1,
+          "snapshotTime": 1776163403890,
+          "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/8554826e7bb942e4aacd25a5940c2dab.jpg",
+          "totalSpots": 24,
+          "availableSpots": 11,
+          "matchScore": 1
+        }
+      ]
+    },
+    {
+      "parkingId": "918",
+      "parkingName": "西施故里停车场",
+      "coordSystem": "gcj02",
+      "location": {
+        "lat": 29.6961718692,
+        "lng": 120.232961611
+      },
+      "entrances": [
+        {
+          "entryId": "1785",
+          "entryName": "停车位",
+          "location": {
+            "lat": 29.6961718692,
+            "lng": 120.232961611
+          }
+        }
+      ],
+      "totalSpotsKnown": true,
+      "cameras": [
+        {
+          "cameraId": 4227,
+          "cameraRole": "spots",
+          "entryId": "1785",
+          "cameraStatus": 1,
+          "snapshotTime": 1776164152109,
+          "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/fb19e0101b9e4a2b855f8738d5bf771b.jpg",
+          "totalSpots": 13,
+          "availableSpots": 11,
+          "matchScore": 1
+        }
+      ]
+    },
+    {
+      "parkingId": "1155",
+      "parkingName": "东兴支路路边停车场",
+      "coordSystem": "gcj02",
+      "location": {
+        "lat": 29.710166081,
+        "lng": 120.2573191614
+      },
+      "entrances": [
+        {
+          "entryId": "2262",
+          "entryName": "路侧停车位",
+          "location": {
+            "lat": 29.710166081,
+            "lng": 120.2573191614
+          }
+        }
+      ],
+      "totalSpotsKnown": true,
+      "cameras": [
+        {
+          "cameraId": 4826,
+          "cameraRole": "spots",
+          "entryId": "2262",
+          "cameraStatus": 1,
+          "snapshotTime": 1776164113886,
+          "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/adbd21fcf73b4b5da7d5f38445b193b9.jpg",
+          "totalSpots": 8,
+          "availableSpots": 8,
+          "matchScore": 1
+        }
+      ]
+    },
+    {
+      "parkingId": "1176",
+      "parkingName": "不夜城停车场",
+      "coordSystem": "gcj02",
+      "location": {
+        "lat": 29.7148759698,
+        "lng": 120.2648512503
+      },
+      "entrances": [
+        {
+          "entryId": "2296",
+          "entryName": "北侧停车位",
+          "location": {
+            "lat": 29.7148759698,
+            "lng": 120.2648512503
+          }
+        },
+        {
+          "entryId": "2374",
+          "entryName": "东侧停车位",
+          "location": {
+            "lat": 29.7148759698,
+            "lng": 120.2648512503
+          }
+        }
+      ],
+      "totalSpotsKnown": true,
+      "cameras": [
+        {
+          "cameraId": 9056,
+          "cameraRole": "spots",
+          "entryId": "2296",
+          "cameraStatus": 1,
+          "snapshotTime": 1776163414092,
+          "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/afb91e51ffd24939af529c7030660691.jpg",
+          "totalSpots": 8,
+          "availableSpots": 1,
+          "matchScore": 1
+        },
+        {
+          "cameraId": 3461,
+          "cameraRole": "spots",
+          "entryId": "2374",
+          "cameraStatus": 1,
+          "snapshotTime": 1776164016879,
+          "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/432aff5c24d249258fdfd135ce140f75.jpg",
+          "totalSpots": 3,
+          "availableSpots": 0,
+          "matchScore": 1
+        }
+      ]
+    },
+    {
+      "parkingId": "1195",
+      "parkingName": "城市广场停车场",
+      "coordSystem": "gcj02",
+      "location": {
+        "lat": 29.7086855732,
+        "lng": 120.2415321243
+      },
+      "entrances": [
+        {
+          "entryId": "2351",
+          "entryName": "停车位",
+          "location": {
+            "lat": 29.7086855732,
+            "lng": 120.2415321243
+          }
+        }
+      ],
+      "totalSpotsKnown": true,
+      "cameras": [
+        {
+          "cameraId": 3512,
+          "cameraRole": "spots",
+          "entryId": "2351",
+          "cameraStatus": 1,
+          "snapshotTime": 1776164146122,
+          "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/494ebad0ed3f4e208cf4ff7b837d76f2.jpg",
+          "totalSpots": 3,
+          "availableSpots": 3,
+          "matchScore": 1
+        },
+        {
+          "cameraId": 4256,
+          "cameraRole": "spots",
+          "entryId": "2351",
+          "cameraStatus": 1,
+          "snapshotTime": 1776163999814,
+          "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/861c6926092f4f14bf7be8a657b8987f.jpg",
+          "totalSpots": 18,
+          "availableSpots": 12,
+          "matchScore": 1
+        }
+      ]
+    },
+    {
+      "parkingId": "1200",
+      "parkingName": "云众人才市场停车场",
+      "coordSystem": "gcj02",
+      "location": {
+        "lat": 29.6999416114,
+        "lng": 120.1560424291
+      },
+      "entrances": [
+        {
+          "entryId": "2373",
+          "entryName": "停车区",
+          "location": {
+            "lat": 29.6999416114,
+            "lng": 120.1560424291
+          }
+        }
+      ],
+      "totalSpotsKnown": true,
+      "cameras": [
+        {
+          "cameraId": 3747,
+          "cameraRole": "spots",
+          "entryId": "2373",
+          "cameraStatus": 1,
+          "snapshotTime": 1776163472067,
+          "snapshotUrl": "https://aidata-oss-cloud-prod.zhidaozhixing.com/oss-cloud/open/files/tmp/f1d88a70e89f4f2aa0db55b508a2afdb.jpg",
+          "totalSpots": 51,
+          "availableSpots": 45,
+          "matchScore": 1
+        }
+      ]
+    }
+  ]
+}
