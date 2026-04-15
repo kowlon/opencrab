@@ -369,22 +369,28 @@ class SkillsHandler:
         """加载新创建的技能"""
         skill_name = params["skill_name"]
 
-        # 查找技能目录：支持扁平布局 skills/{name}/ 和分组布局 skills/{group}/{name}/
+        # 查找技能目录：先用户工作区（install_skill 的落点），再项目 skills/（开发模式）。
+        # 支持扁平布局 {root}/{name}/ 和分组布局 {root}/{group}/{name}/。
+        from seeagent.skills.loader import SkillLoader
         try:
             from seeagent.config import settings
-            skills_dir = settings.project_root / "skills"
+            skills_roots = [settings.skills_path, settings.project_root / "skills"]
         except Exception:
-            skills_dir = Path("skills")
+            skills_roots = [Path("skills")]
 
-        from seeagent.skills.loader import SkillLoader
-        skill_dir = SkillLoader.resolve_skill_dir(skills_dir, skill_name)
+        skill_dir = None
+        for root in skills_roots:
+            skill_dir = SkillLoader.resolve_skill_dir(root, skill_name)
+            if skill_dir is not None:
+                break
 
         if skill_dir is None:
+            tried = "\n".join(f"  - {r}" for r in skills_roots)
             return (
                 f"❌ 技能目录不存在\n\n"
-                f"已在 {skills_dir} 下扁平层与一级分组子目录中查找 "
-                f"'{skill_name}/SKILL.md'，未找到。\n"
-                f"请确认技能已保存到 skills/{skill_name}/ 或 skills/<分组>/{skill_name}/ 下。"
+                f"已在以下根目录的扁平层与一级分组子目录中查找 "
+                f"'{skill_name}/SKILL.md'，均未找到：\n{tried}\n"
+                f"请确认技能已安装到上述任一路径下的 {skill_name}/ 或 <分组>/{skill_name}/ 中。"
             )
 
         # 检查是否已加载
