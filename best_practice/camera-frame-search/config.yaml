@@ -9,8 +9,8 @@ final_output_schema:
     title: { type: string, description: "最终报告的标题" }
     frame_results:
       type: array
-      description: "特征检索命中的图像帧列表"
-      items: 
+      description: "特征检索命中的图像帧列表(由引擎从 frame-search 自动聚合,LLM 无需产出)"
+      items:
         type: object
         properties:
           camera_id: { type: string, description: "相机 ID" }
@@ -22,9 +22,12 @@ final_output_schema:
           latitude: { type: number, description: "纬度" }
           longitude: { type: number, description: "经度" }
         required: [camera_id, camera_name, location, image_url, timestamp]
-    visual_report_path: { type: string, description: "生成的可视化报告绝对路径" }
+    visual_report_path: { type: string, description: "生成的可视化报告 PNG 绝对路径" }
     summary: { type: string, description: "执行结果的总结描述" }
   required: [title, frame_results, visual_report_path]
+  # 引擎自动从 frame-search 的 output 聚合 frame_results 字段,LLM 不需要产出
+  upstream_from:
+    frame_results: frame-search
 
 triggers:
   - type: command
@@ -98,15 +101,15 @@ subtasks:
 
   - id: "result-visualize"
     name: "检索结果画图"
-    description: "将特征检索的结果（包含图像URL）渲染为可视化展示文档。"
+    description: "调用 gen-image skill 把 frame_results 渲染为 PNG 图表"
     agent_profile: "result-visualizer"
     input_schema:
       type: object
       properties:
         frame_results:
           type: array
-          description: "包含图像帧URL、时间戳和摄像头信息的检索结果数组"
-          items: 
+          description: "上游 frame-search 传入的图像帧检索结果数组"
+          items:
             type: object
             properties:
               camera_id: { type: string, description: "相机 ID" }
@@ -118,9 +121,5 @@ subtasks:
               latitude: { type: number, description: "纬度" }
               longitude: { type: number, description: "经度" }
             required: [camera_id, camera_name, location, image_url, timestamp]
-        output_report_path:
-          type: string
-          description: "输出的可视化报告文件路径"
-          default: "result_report.md"
       required: [frame_results]
       upstream: [frame_results]
