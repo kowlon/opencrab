@@ -96,7 +96,7 @@ python3 -m pip install -r requirements.txt
 | `video_url` | 是 | - | 视频 HTTP/HTTPS 链接 |
 | `--model` | 否 | `Qwen3.5-122B-A10B-FP8` | 使用的模型 |
 | `--fps` | 否 | `2.0` | 视频采样帧率 |
-| `--output-dir` | 否 | `skills_result/mogox-traffic-accident-detector/<video>/<time>` | 输出目录 |
+| `--output-dir` | 否 | `../../../data/skills_result/mogox-traffic-accident-detector/<video>/<time>` | 输出目录 |
 | `--api-key` | 否 | 配置值 | API Key |
 | `--base-url` | 否 | 配置值 | API Base URL |
 
@@ -171,7 +171,7 @@ python3 -m pip install -r requirements.txt
 ### 输出目录结构
 
 ```
-workspace/skills_result/mogox-traffic-accident-detector/video_name/20260409_120000/
+../../../data/skills_result/mogox-traffic-accident-detector/video_name/20260409_120000/
 ├── accident_intervals.json
 ├── analysis_report.txt
 └── frames/

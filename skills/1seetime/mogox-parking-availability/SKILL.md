@@ -98,7 +98,7 @@ bash scripts/run_in_venv.sh python scripts/emit_seeclaw_output.py [args...]
 
 ## 临时文件存储规范
 
-所有产物输出到用户指定的目录，推荐使用 `workspace/skills_result/mogox-parking-availability/<任务时间>/`，任务时间格式为 `YYYYMMDD_HHMMSS`。
+所有产物输出到 `../../../data/skills_result/mogox-parking-availability/<任务时间>/`，任务时间格式为 `YYYYMMDD_HHMMSS`。
 
 **强制一致性约束（新增）**：
 - 单次任务必须先生成一次 `RUN_ID`，并在后续所有脚本命令中复用同一个 `OUTPUT_DIR`
@@ -106,12 +106,15 @@ bash scripts/run_in_venv.sh python scripts/emit_seeclaw_output.py [args...]
 
 ```bash
 RUN_ID="$(date +%Y%m%d_%H%M%S)"
-OUTPUT_DIR="skills_result/mogox-parking-availability/${RUN_ID}"
+OUTPUT_DIR="../../../data/skills_result/mogox-parking-availability/${RUN_ID}"
 mkdir -p "${OUTPUT_DIR}"
 ```
 
 ```
-skills_result/mogox-parking-availability/20260331_143000/
+../../../data/skills_result/mogox-parking-availability/20260331_143000/
+
+```
+data/skills_result/mogox-parking-availability/20260331_143000/
 ├── query_params.json        # 查询参数
 ├── api_response.json        # API 原始响应
 ├── selected_match.json      # LLM 选择的最佳匹配
