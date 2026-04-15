@@ -125,6 +125,33 @@ class SkillManager:
         else:
             return await self._install_from_url(source, name, extra_files, skills_dir)
 
+    def _check_group_conflict(self, skills_dir: Path, skill_name: str) -> str | None:
+        """检测分组子目录（如 ``1seetime/``）中是否已存在同名技能。
+
+        扁平层 ``skills/{name}/`` 的同名冲突由安装流程的 ``shutil.rmtree`` 主动覆盖，
+        维持原行为；此处仅拒绝跨"扁平 vs 分组"产生的重复。
+
+        Returns:
+            冲突提示串（调用方作为错误结果返回）；无冲突返回 None。
+        """
+        from ..skills.loader import SkillLoader
+
+        hits = SkillLoader.find_skill_dirs_by_name(skills_dir, skill_name)
+        group_hits = [p for p in hits if p.parent != skills_dir]
+        if not group_hits:
+            return None
+
+        paths = "\n".join(f"  - {p}" for p in group_hits)
+        return (
+            f"❌ 技能 '{skill_name}' 已存在于分组子目录：\n{paths}\n\n"
+            f"继续安装会在 {skills_dir / skill_name} 再创建一份，"
+            f"导致下次启动时重复注册并覆盖（产生 WARNING）。\n"
+            f"请任选其一：\n"
+            f"1. 若要更新分组下的现有技能：直接编辑 {group_hits[0]}，再 reload_skill('{skill_name}')。\n"
+            f"2. 若确需替换：先删除分组下的目录，再重试安装。\n"
+            f"3. 以不同名称安装：使用 name 参数指定新名。"
+        )
+
     def update_shell_tool_description(self, tools: list[dict]) -> None:
         """动态更新 shell 工具描述，包含当前操作系统信息"""
         import platform
@@ -193,6 +220,10 @@ class SkillManager:
             skill_name = name or extracted_name or skill_source_dir.name
             skill_name = self._normalize_skill_name(skill_name)
 
+            conflict = self._check_group_conflict(skills_dir, skill_name)
+            if conflict:
+                return conflict
+
             target_dir = skills_dir / skill_name
             if target_dir.exists():
                 shutil.rmtree(target_dir)
@@ -248,6 +279,11 @@ class SkillManager:
                 skill_name = path.split("/")[-1].replace(".md", "").replace("skill", "").strip("-_")
 
             skill_name = self._normalize_skill_name(skill_name or "custom-skill")
+
+            conflict = self._check_group_conflict(skills_dir, skill_name)
+            if conflict:
+                return conflict
+
             skill_dir = skills_dir / skill_name
             skill_dir.mkdir(parents=True, exist_ok=True)
             (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
