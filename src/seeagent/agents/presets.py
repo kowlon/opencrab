@@ -500,6 +500,7 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="网络浏览与信息采集专家",
         type=AgentType.SYSTEM,
         skills=[
+            "bocha-web-search",
             "news-search",
             "browser-click", "browser-get-content", "browser-list-tabs",
             "browser-navigate", "browser-new-tab", "browser-open",
@@ -512,6 +513,8 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
             "你是网络浏览与信息采集专家。擅长搜索信息、浏览网页、截图取证。"
+            "当任务涉及网络信息查询时，优先使用 bocha-web-search-1.0.1（技能名 bocha-web-search）进行检索。"
+            "只有在 bocha-web-search 无法满足（不可用、报错、结果不足）时，才回退到现有网络查询能力（如 web_search/news_search/browser 工具）。"
             "对于不需要网络操作的任务，建议切换到通用助手。"
         ),
         icon="🌐",

@@ -8,6 +8,7 @@
 """
 
 import logging
+import re
 import sys
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
@@ -46,6 +47,10 @@ class ColoredConsoleHandler(logging.StreamHandler):
     """
 
     # ANSI 颜色码
+    DIM = "\033[2m"
+    CYAN = "\033[36m"
+    MAGENTA = "\033[35m"
+    BOLD = "\033[1m"
     COLORS = {
         logging.DEBUG: "\033[90m",  # 灰色
         logging.INFO: "\033[0m",  # 默认
@@ -109,9 +114,49 @@ class ColoredConsoleHandler(logging.StreamHandler):
 
         if self._supports_color:
             color = self.COLORS.get(record.levelno, self.RESET)
+            # 仅在常规日志格式上做结构化着色，避免污染 traceback 多行内容
+            # 目标格式: asctime - name - levelname - message
+            if " - " in message and message.count(" - ") >= 3:
+                parts = message.split(" - ", 3)
+                ts, name, level, msg = parts[0], parts[1], parts[2], parts[3]
+                msg = self._highlight_keywords(msg, record.levelno)
+                return (
+                    f"{self.DIM}{ts}{self.RESET} - "
+                    f"{self.CYAN}{name}{self.RESET} - "
+                    f"{self.BOLD}{color}{level}{self.RESET} - "
+                    f"{msg}"
+                )
             return f"{color}{message}{self.RESET}"
 
         return message
+
+    def _highlight_keywords(self, msg: str, levelno: int) -> str:
+        """高亮常见故障关键词，帮助快速定位问题。"""
+        # 事件标签高亮（所有级别都生效）
+        event_tags = {
+            r"\[SEARCH\]": "\033[94;1m",  # 蓝色: 发起搜索
+            r"\[RESULT\]": "\033[92;1m",  # 绿色: 搜索成功返回
+            r"\[SEARCH_FAIL\]": "\033[91;1m",  # 红色: 搜索失败
+        }
+        out = msg
+        for pat, hcolor in event_tags.items():
+            out = re.sub(pat, lambda m: f"{hcolor}{m.group(0)}{self.RESET}", out, flags=re.IGNORECASE)
+
+        if levelno < logging.WARNING:
+            return out
+        highlights = {
+            r"\b(timeout|timed out)\b": "\033[95m",  # 紫色
+            r"\b(error|exception|failed|traceback)\b": "\033[91;1m",  # 红色加粗
+            r"\b(retry|fallback)\b": "\033[93;1m",  # 黄色加粗
+        }
+        for pat, hcolor in highlights.items():
+            out = re.sub(
+                pat,
+                lambda m: f"{hcolor}{m.group(0)}{self.RESET}",
+                out,
+                flags=re.IGNORECASE,
+            )
+        return out
 
 
 class SessionLogHandler(logging.Handler):

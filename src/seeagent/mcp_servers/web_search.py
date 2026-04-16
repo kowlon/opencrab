@@ -12,11 +12,41 @@ Web Search MCP 服务器
 """
 
 import logging
+import os
+import re
 import traceback
+from html import unescape
+from urllib.parse import quote_plus
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
+_BOCHA_ENDPOINT = "https://api.bocha.cn/v1/web-search"
+_CN_ENGINES = ("sogou", "so360")
+
+
+def _ddgs_backend() -> str:
+    return os.getenv("DDGS_BACKEND", "duckduckgo").strip() or "duckduckgo"
+
+
+def _ddgs_timeout() -> int:
+    raw = (os.getenv("DDGS_TIMEOUT") or "").strip()
+    if raw.isdigit():
+        return max(2, min(int(raw), 60))
+    return 8
+
+
+def _ddgs_proxy() -> str | None:
+    for key in ("DDGS_PROXY", "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+        val = (os.getenv(key) or "").strip()
+        if val:
+            return val
+    return None
+
+
+def _bocha_api_key() -> str:
+    return (os.getenv("BOCHA_API_KEY") or "").strip()
 
 # 创建 MCP 服务器实例
 mcp = FastMCP(
@@ -28,8 +58,8 @@ mcp = FastMCP(
 - news_search: 搜索新闻，返回最新新闻文章
 
 使用示例：
-- 搜索信息：web_search(query="Python 教程", max_results=5)
-- 搜索新闻：news_search(query="AI 最新进展", max_results=5)
+- 搜索信息：web_search(query="Python 教程", max_results=10)
+- 搜索新闻：news_search(query="AI 最新进展", max_results=10)
 """,
 )
 
@@ -71,9 +101,129 @@ def _format_news_results(results: list) -> str:
     return "\n".join(output)
 
 
+def _strip_html(text: str) -> str:
+    text = re.sub(r"<[^>]+>", "", text)
+    return unescape(re.sub(r"\s+", " ", text)).strip()
+
+
+def _extract_html_results(
+    html: str,
+    title_link_pattern: re.Pattern[str],
+    snippet_pattern: re.Pattern[str],
+    max_results: int,
+) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    snippets = [_strip_html(s) for s in snippet_pattern.findall(html)]
+    for idx, m in enumerate(title_link_pattern.finditer(html)):
+        href, title_html = m.group(1), m.group(2)
+        title = _strip_html(title_html)
+        if not href or not title:
+            continue
+        body = snippets[idx] if idx < len(snippets) else ""
+        items.append({"title": title, "href": href, "body": body})
+        if len(items) >= max_results:
+            break
+    return items
+
+
+def _fetch_search_html(url: str) -> str:
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/123.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    }
+    with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+        resp = client.get(url, headers=headers)
+    resp.raise_for_status()
+    return resp.text or ""
+
+
+def _search_sogou(query: str, max_results: int) -> list[dict[str, str]]:
+    url = f"https://www.sogou.com/web?query={quote_plus(query)}"
+    html = _fetch_search_html(url)
+    pattern = re.compile(
+        r'<h3[^>]*class="[^"]*vr-title[^"]*"[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?</h3>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    snippet_pattern = re.compile(
+        r'<p[^>]*class="[^"]*star-warp[^"]*"[^>]*>(.*?)</p>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    return _extract_html_results(html, pattern, snippet_pattern, max_results)
+
+
+def _search_so360(query: str, max_results: int) -> list[dict[str, str]]:
+    url = f"https://www.so.com/s?q={quote_plus(query)}"
+    html = _fetch_search_html(url)
+    pattern = re.compile(
+        r'<h3[^>]*class="[^"]*res-title[^"]*"[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?</h3>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    snippet_pattern = re.compile(
+        r'<p[^>]*class="[^"]*res-desc[^"]*"[^>]*>(.*?)</p>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    return _extract_html_results(html, pattern, snippet_pattern, max_results)
+
+
+def _try_cn_free_search(query: str, max_results: int) -> list[dict[str, str]] | None:
+    errors: list[str] = []
+    for engine in _CN_ENGINES:
+        try:
+            results = _search_sogou(query, max_results) if engine == "sogou" else _search_so360(query, max_results)
+            if results:
+                logger.info("[MCP WebSearch] Using CN free engine: %s", engine)
+                return results
+            errors.append(f"{engine}: empty")
+        except Exception as e:
+            errors.append(f"{engine}: {type(e).__name__}: {e}")
+    logger.warning("[MCP WebSearch] CN free engines unavailable, fallback to DDGS: %s", " | ".join(errors))
+    return None
+
+
+def _extract_bocha_results(payload: dict) -> list[dict[str, str]]:
+    web_pages = payload.get("data", {}).get("webPages", {}).get("value", [])
+    normalized: list[dict[str, str]] = []
+    for item in web_pages:
+        normalized.append(
+            {
+                "title": item.get("name", "无标题"),
+                "href": item.get("url", ""),
+                "body": item.get("snippet", "") or item.get("summary", ""),
+            }
+        )
+    return normalized
+
+
+def _try_bocha_search(query: str, max_results: int) -> list[dict[str, str]] | None:
+    api_key = _bocha_api_key()
+    if not api_key:
+        logger.info("[MCP WebSearch] BOCHA_API_KEY not set, fallback to CN/DDGS")
+        return None
+    payload = {"query": query, "freshness": "noLimit", "summary": True, "count": max_results}
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    try:
+        with httpx.Client(timeout=20.0) as client:
+            resp = client.post(_BOCHA_ENDPOINT, json=payload, headers=headers)
+        resp.raise_for_status()
+        data = resp.json() if resp.content else {}
+        results = _extract_bocha_results(data)
+        if results:
+            logger.info("[MCP WebSearch] Using Bocha search results")
+            return results
+        logger.warning("[MCP WebSearch] Bocha returned empty results, fallback to CN/DDGS")
+        return None
+    except Exception as e:
+        logger.warning("[MCP WebSearch] Bocha search failed, fallback to CN/DDGS: %s: %s", type(e).__name__, e)
+        return None
+
+
 @mcp.tool()
 def web_search(
-    query: str, max_results: int = 5, region: str = "wt-wt", safesearch: str = "moderate"
+    query: str, max_results: int = 10, region: str = "wt-wt", safesearch: str = "moderate"
 ) -> str:
     """
     Search the web using DuckDuckGo.
@@ -87,19 +237,40 @@ def web_search(
     Returns:
         Formatted search results with title, URL, and snippet
     """
+    # 限制结果数量
+    max_results = min(max(1, max_results), 20)
+
+    # 1) Bocha 优先
+    bocha_results = _try_bocha_search(query, max_results)
+    if bocha_results:
+        return _format_web_results(bocha_results)
+
+    # 2) 国内免费搜索补充
+    cn_results = _try_cn_free_search(query, max_results)
+    if cn_results:
+        return _format_web_results(cn_results)
+
+    # 3) DDGS 回退
     try:
         from ddgs import DDGS
     except ImportError:
         from seeagent.tools._import_helper import import_or_hint
         return f"错误：{import_or_hint('ddgs')}"
 
-    # 限制结果数量
-    max_results = min(max(1, max_results), 20)
+    backend = _ddgs_backend()
+    timeout = _ddgs_timeout()
+    proxy = _ddgs_proxy()
 
     try:
-        with DDGS() as ddgs:
+        with DDGS(proxy=proxy, timeout=timeout) as ddgs:
             results = list(
-                ddgs.text(query, max_results=max_results, region=region, safesearch=safesearch)
+                ddgs.text(
+                    query,
+                    max_results=max_results,
+                    region=region,
+                    safesearch=safesearch,
+                    backend=backend,
+                )
             )
             return _format_web_results(results)
     except Exception as e:
@@ -137,15 +308,19 @@ def news_search(
 
     # 限制结果数量
     max_results = min(max(1, max_results), 20)
+    backend = _ddgs_backend()
+    timeout = _ddgs_timeout()
+    proxy = _ddgs_proxy()
 
     try:
-        with DDGS() as ddgs:
+        with DDGS(proxy=proxy, timeout=timeout) as ddgs:
             results = ddgs.news(
                 query,
                 max_results=max_results,
                 region=region,
                 safesearch=safesearch,
                 timelimit=timelimit,
+                backend=backend,
             )
             return _format_news_results(results)
     except Exception as e:
