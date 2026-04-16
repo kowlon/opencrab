@@ -56,6 +56,47 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+.theme-light {
+  /* ── Depths ── */
+  --bg-abyss: #f5f7fa;
+  --bg-deep: #ffffff;
+  --bg-mid: #f0f2f5;
+  --bg-surface: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-hover: #e8ebf0;
+  --bg-glow: rgba(15, 34, 36, 0.04);
+
+  /* ── Typography ── */
+  --text-bright: #000000;
+  --text-primary: #000000;
+  --text-secondary: #000000;
+  --text-muted: #000000;
+  --text-ghost: #000000;
+
+  /* ── Accent: Teal ── */
+  --accent: #0d9dad;
+  --accent-dim: rgba(13, 157, 173, 0.1);
+  --accent-glow: rgba(13, 157, 173, 0.2);
+  --accent-bright: #12b5c8;
+
+  /* ── Accent 2: Coral ── */
+  --coral: #e05a4a;
+  --coral-dim: rgba(224, 90, 74, 0.1);
+
+  /* ── Status ── */
+  --success: #22a86e;
+  --success-dim: rgba(34, 168, 110, 0.1);
+  --error: #dc4a4a;
+  --error-dim: rgba(220, 74, 74, 0.1);
+  --warning: #c9a030;
+  --warning-dim: rgba(201, 160, 48, 0.1);
+
+  /* ── Borders ── */
+  --border: rgba(13, 157, 173, 0.12);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-accent: rgba(13, 157, 173, 0.3);
+}
+
 /* ── Reset ── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -68,6 +109,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.01em;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 #app {

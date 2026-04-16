@@ -4,6 +4,9 @@
     <div class="sidebar-brand">
       <span class="material-symbols-rounded brand-icon">smart_toy</span>
       <span class="brand-name">SeeAgent</span>
+      <button class="theme-toggle" @click="uiStore.toggleTheme" :title="uiStore.theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'">
+        <span class="material-symbols-rounded">{{ uiStore.theme === 'light' ? 'dark_mode' : 'light_mode' }}</span>
+      </button>
     </div>
 
     <div class="sidebar-actions">
@@ -49,11 +52,13 @@
 <script setup lang="ts">
 import { useSessionStore } from '@/stores/session'
 import { useChatStore } from '@/stores/chat'
+import { useUIStore } from '@/stores/ui'
 import { sseClient } from '@/api/sse-client'
 import type { Session } from '@/types'
 
 const sessionStore = useSessionStore()
 const chatStore = useChatStore()
+const uiStore = useUIStore()
 
 async function onNewChat() {
   sseClient.abort() // Cancel any in-progress stream
@@ -133,6 +138,26 @@ function formatTime(ts: number): string {
   font-weight: 700;
   color: var(--accent);
   letter-spacing: -0.02em;
+}
+.theme-toggle {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s var(--ease-out);
+}
+.theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+.theme-toggle .material-symbols-rounded {
+  font-size: 22px;
 }
 
 /* ── New Chat ── */

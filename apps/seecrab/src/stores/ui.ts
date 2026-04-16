@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 type RightPanelMode = 'step-detail' | 'subtask-output'
+type ThemeMode = 'light' | 'dark'
 
 export const useUIStore = defineStore('ui', () => {
   const rightPanelOpen = ref(false)
@@ -11,6 +12,7 @@ export const useUIStore = defineStore('ui', () => {
   const rightPanelMode = ref<RightPanelMode>('step-detail')
   const selectedSubtaskId = ref<string | null>(null)
   const selectedBPInstanceId = ref<string | null>(null)
+  const theme = ref<ThemeMode>('light')
 
   function selectStep(stepId: string) {
     selectedStepId.value = stepId
@@ -36,5 +38,9 @@ export const useUIStore = defineStore('ui', () => {
     thinkingExpanded.value = !thinkingExpanded.value
   }
 
-  return { rightPanelOpen, selectedStepId, thinkingExpanded, rightPanelMode, selectedSubtaskId, selectedBPInstanceId, selectStep, closeRightPanel, openSubtaskOutput, toggleThinking }
+  function toggleTheme() {
+    theme.value = theme.value === 'light' ? 'dark' : 'light'
+  }
+
+  return { rightPanelOpen, selectedStepId, thinkingExpanded, rightPanelMode, selectedSubtaskId, selectedBPInstanceId, theme, selectStep, closeRightPanel, openSubtaskOutput, toggleThinking, toggleTheme }
 })

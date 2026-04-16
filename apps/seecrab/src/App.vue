@@ -1,5 +1,5 @@
 <template>
-  <div class="app-layout">
+  <div class="app-layout" :class="{ 'theme-light': uiStore.theme === 'light' }">
     <div class="bg-mesh" aria-hidden="true"></div>
     <LeftSidebar class="sidebar" />
     <ChatArea class="main" />
@@ -49,6 +49,13 @@ onMounted(async () => {
     radial-gradient(ellipse 600px 400px at 10% 90%, rgba(56, 189, 204, 0.03), transparent),
     radial-gradient(ellipse 500px 500px at 85% 20%, rgba(240, 128, 108, 0.02), transparent),
     radial-gradient(ellipse 800px 600px at 50% 50%, rgba(56, 189, 204, 0.015), transparent);
+}
+
+.theme-light .bg-mesh {
+  background:
+    radial-gradient(ellipse 600px 400px at 10% 90%, rgba(13, 157, 173, 0.08), transparent),
+    radial-gradient(ellipse 500px 500px at 85% 20%, rgba(224, 90, 74, 0.05), transparent),
+    radial-gradient(ellipse 800px 600px at 50% 50%, rgba(13, 157, 173, 0.06), transparent);
 }
 
 .sidebar {
