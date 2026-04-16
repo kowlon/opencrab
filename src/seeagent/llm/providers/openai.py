@@ -390,12 +390,11 @@ class OpenAIProvider(LLMProvider):
             if self._is_local_endpoint():
                 api_key = "local"
             else:
-                hint = ""
-                if self.config.api_key_env:
-                    hint = f" (env var {self.config.api_key_env} is not set)"
+                src = self.config.api_key_raw or self.config.api_key_env or ""
+                hint = f" (source: {src})" if src else ""
                 raise AuthenticationError(
                     f"Missing API key for endpoint '{self.name}'{hint}. "
-                    "Set the environment variable or configure api_key/api_key_env."
+                    "Set the environment variable or configure api_key."
                 )
         return _BearerAuth(api_key)
 

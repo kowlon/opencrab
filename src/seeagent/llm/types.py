@@ -447,10 +447,14 @@ class EndpointConfig:
     name: str  # 端点名称
     provider: str  # 服务商标识 (anthropic, dashscope, openrouter, ...)
     api_type: str  # API 类型 ("anthropic" | "openai")
-    base_url: str  # API 地址
-    api_key_env: str | None = None  # API Key 环境变量名
-    api_key: str | None = None  # 直接存储的 API Key (不推荐，但支持)
-    model: str = ""  # 模型名称
+    base_url: str  # API 地址（展开后的值）
+    api_key_env: str | None = None  # [deprecated] API Key 环境变量名，请改用 api_key="${VAR}"
+    api_key: str | None = None  # API 密钥（展开后的值），支持 ${VAR} / ${VAR:-default} 模板语法
+    model: str = ""  # 模型名称（展开后的值）
+    # --- 原始模板（供 to_dict 回写，保留 ${VAR} 占位符） ---
+    base_url_raw: str = ""
+    api_key_raw: str = ""
+    model_raw: str = ""
     priority: int = 1  # 优先级 (越小越优先)
     max_tokens: int = 0  # 最大输出 tokens (0=不限制，使用模型默认上限)
     context_window: int = 200000  # 上下文窗口大小 (输入+输出总 token 上限)，配置缺失时的兜底值
@@ -479,14 +483,12 @@ class EndpointConfig:
         }
 
     def get_api_key(self) -> str | None:
-        """获取 API Key (优先使用直接存储的 key，然后从环境变量获取)"""
-        import os
+        """获取 API Key。
 
-        if self.api_key:
-            return self.api_key
-        if self.api_key_env:
-            return os.environ.get(self.api_key_env)
-        return None
+        from_dict 阶段已完成 ${VAR} 展开和 api_key_env 兼容转换，
+        self.api_key 即为最终可用的 key 值。
+        """
+        return self.api_key or None
 
     def calculate_cost(
         self,
@@ -520,14 +522,33 @@ class EndpointConfig:
 
     @classmethod
     def from_dict(cls, data: dict) -> "EndpointConfig":
+        from .config import _expand_env
+
+        # --- base_url: 展开模板 ---
+        base_url_raw = data.get("base_url", "")
+        base_url = _expand_env(base_url_raw) if base_url_raw else ""
+
+        # --- api_key: 新字段优先，旧 api_key_env 向后兼容 ---
+        api_key_raw = data.get("api_key") or ""
+        if not api_key_raw and data.get("api_key_env"):
+            api_key_raw = f"${{{data['api_key_env']}}}"
+        api_key = _expand_env(api_key_raw) if api_key_raw else None
+
+        # --- model: 展开模板 ---
+        model_raw = data.get("model", "")
+        model = _expand_env(model_raw) if model_raw else ""
+
         return cls(
             name=data["name"],
             provider=data["provider"],
             api_type=data["api_type"],
-            base_url=data["base_url"],
+            base_url=base_url,
             api_key_env=data.get("api_key_env"),
-            api_key=data.get("api_key"),
-            model=data.get("model", ""),
+            api_key=api_key,
+            model=model,
+            base_url_raw=base_url_raw if "${" in base_url_raw else "",
+            api_key_raw=api_key_raw if "${" in api_key_raw else "",
+            model_raw=model_raw if "${" in model_raw else "",
             priority=data.get("priority", 1),
             max_tokens=data.get("max_tokens", 0),
             context_window=data.get("context_window", 200000),
@@ -546,15 +567,17 @@ class EndpointConfig:
             "name": self.name,
             "provider": self.provider,
             "api_type": self.api_type,
-            "base_url": self.base_url,
-            "model": self.model,
+            "base_url": self.base_url_raw or self.base_url,
+            "model": self.model_raw or self.model,
             "priority": self.priority,
             "max_tokens": self.max_tokens,
             "context_window": self.context_window,
             "timeout": self.timeout,
         }
-        # API Key: 优先使用环境变量名，不保存明文 key 到配置
-        if self.api_key_env:
+        # API Key: 新格式用 api_key（可能含 ${VAR} 模板），旧格式保持 api_key_env
+        if self.api_key_raw:
+            result["api_key"] = self.api_key_raw
+        elif self.api_key_env:
             result["api_key_env"] = self.api_key_env
         elif self.api_key:
             result["api_key"] = self.api_key

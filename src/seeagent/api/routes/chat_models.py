@@ -7,7 +7,6 @@ Models route: GET /api/models
 from __future__ import annotations
 
 import logging
-import os
 
 from fastapi import APIRouter, Request
 
@@ -46,9 +45,8 @@ async def list_models(request: Request):
     for name, provider in llm_client._providers.items():
         status = "healthy" if provider.is_healthy else "unhealthy"
 
-        # Check if the API key env var actually has a value
-        key_env = getattr(provider.config, "api_key_env", "") or ""
-        has_key = bool(key_env and os.environ.get(key_env, "").strip())
+        # Check if the endpoint has a usable API key
+        has_key = bool(provider.config.get_api_key())
 
         models.append(ModelInfo(
             name=name,
