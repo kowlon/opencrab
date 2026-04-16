@@ -397,6 +397,127 @@ class TestValidateBpConfig:
         assert errors == []
 
 
+class TestValidateUpstreamFrom:
+    """方案 C: final_output_schema.upstream_from 静态校验。"""
+
+    def _make_bp(self, upstream_from, properties=None, required=None):
+        """构造一个 3 子任务的测试 BP,便于调整 upstream_from。"""
+        return BestPracticeConfig(
+            id="bp_uf", name="Test UF",
+            subtasks=[
+                SubtaskConfig(id="s1", name="S1", agent_profile="a"),
+                SubtaskConfig(id="s2", name="S2", agent_profile="b"),
+                SubtaskConfig(id="s3", name="S3", agent_profile="c"),
+            ],
+            final_output_schema={
+                "type": "object",
+                "properties": properties or {
+                    "title": {"type": "string"},
+                    "data": {"type": "array"},
+                },
+                "required": required or ["title"],
+                "upstream_from": upstream_from,
+            },
+        )
+
+    def test_valid_upstream_from_passes(self):
+        """合法的 upstream_from: src 是已知中间子任务,field 在 properties 里。"""
+        bp = self._make_bp(upstream_from={"data": "s2"})
+        errors = validate_bp_config(bp)
+        assert errors == [], f"unexpected errors: {errors}"
+
+    def test_unknown_source_subtask_errors(self):
+        """src_id 指向不存在的 subtask → 报错。"""
+        bp = self._make_bp(upstream_from={"data": "nonexistent"})
+        errors = validate_bp_config(bp)
+        assert any(
+            "upstream_from['data']" in e and "unknown source" in e and "nonexistent" in e
+            for e in errors
+        ), f"expected unknown-source error, got: {errors}"
+
+    def test_source_is_last_subtask_errors(self):
+        """src_id 指向最后一个 subtask 自身 → 报错(自引用无意义)。"""
+        bp = self._make_bp(upstream_from={"data": "s3"})  # s3 是最后一个
+        errors = validate_bp_config(bp)
+        assert any(
+            "upstream_from['data']" in e and "last subtask" in e
+            for e in errors
+        ), f"expected last-subtask error, got: {errors}"
+
+    def test_field_not_in_final_properties_errors(self):
+        """field 不在 final_output_schema.properties 里 → 报错。"""
+        bp = self._make_bp(
+            upstream_from={"ghost_field": "s2"},
+            properties={"title": {"type": "string"}, "data": {"type": "array"}},
+        )
+        errors = validate_bp_config(bp)
+        assert any(
+            "upstream_from['ghost_field']" in e
+            and "not found in final_output_schema.properties" in e
+            for e in errors
+        ), f"expected missing-property error, got: {errors}"
+
+    def test_upstream_from_not_dict_errors(self):
+        """upstream_from 不是 dict(比如 list)→ 报错。"""
+        bp = BestPracticeConfig(
+            id="bp_uf", name="Test UF",
+            subtasks=[
+                SubtaskConfig(id="s1", name="S1", agent_profile="a"),
+                SubtaskConfig(id="s2", name="S2", agent_profile="b"),
+            ],
+            final_output_schema={
+                "type": "object",
+                "properties": {"data": {"type": "array"}},
+                "upstream_from": ["data"],  # 错误:应该是 dict
+            },
+        )
+        errors = validate_bp_config(bp)
+        assert any(
+            "upstream_from must be a dict" in e for e in errors
+        ), f"expected dict-type error, got: {errors}"
+
+    def test_no_upstream_from_passes(self):
+        """没有声明 upstream_from 的 BP 完全不受影响。"""
+        bp = BestPracticeConfig(
+            id="bp_old", name="Old BP",
+            subtasks=[
+                SubtaskConfig(id="s1", name="S1", agent_profile="a"),
+                SubtaskConfig(id="s2", name="S2", agent_profile="b"),
+            ],
+            final_output_schema={
+                "type": "object",
+                "properties": {"title": {"type": "string"}},
+                "required": ["title"],
+            },
+        )
+        errors = validate_bp_config(bp)
+        assert errors == []
+
+    def test_multiple_upstream_from_entries(self):
+        """多个 upstream_from 条目都合法 → 通过。"""
+        bp = self._make_bp(
+            upstream_from={"data": "s2", "title": "s1"},
+            properties={
+                "title": {"type": "string"},
+                "data": {"type": "array"},
+            },
+        )
+        errors = validate_bp_config(bp)
+        assert errors == []
+
+    def test_mixed_valid_and_invalid_upstream_from(self):
+        """多个条目中只有一个错误时,只报告错误条目,不影响其他合法条目。"""
+        bp = self._make_bp(
+            upstream_from={"data": "s2", "ghost": "nonexistent"},
+            properties={"title": {"type": "string"}, "data": {"type": "array"}},
+        )
+        errors = validate_bp_config(bp)
+        # 应该有 "unknown source" 和 "not found in final_output_schema.properties" 两类错误
+        error_str = " ".join(errors)
+        assert "nonexistent" in error_str  # unknown source
+        assert "ghost" in error_str  # missing property OR unknown source (first-check wins)
+
+
 # ── BPInstanceSnapshot ─────────────────────────────────────────
 
 

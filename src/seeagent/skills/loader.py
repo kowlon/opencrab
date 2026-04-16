@@ -198,15 +198,17 @@ class SkillLoader:
 
         return loaded
 
-    def load_from_directory(self, directory: Path) -> int:
+    def load_from_directory(self, directory: Path, _depth: int = 0) -> int:
         """
         从目录加载所有技能
 
         每个子目录如果包含 SKILL.md 则被视为一个技能。
-        特殊处理: 'system' 子目录会被递归扫描，用于存放系统工具 skill。
+        无 SKILL.md 的子目录视作分组目录（如 ``system/``、``1seetime/``），
+        递归下探一层查找其中的技能。隐藏目录（``.`` 开头）始终跳过。
 
         Args:
             directory: 技能目录
+            _depth: 内部递归深度，用于限制最大 2 层嵌套，防止误扫爆炸
 
         Returns:
             加载的技能数量
@@ -218,7 +220,7 @@ class SkillLoader:
         loaded = 0
 
         for item in directory.iterdir():
-            if not item.is_dir():
+            if not item.is_dir() or item.name.startswith("."):
                 continue
 
             skill_md = item / "SKILL.md"
@@ -230,11 +232,62 @@ class SkillLoader:
                         loaded += 1
                 except Exception as e:
                     logger.error(f"Failed to load skill from {item}: {e}")
-            elif item.name in ("system", "external", "custom", "community", "builtin", "1seetime"):
-                loaded += self.load_from_directory(item)
+            elif _depth < 1:
+                # 无 SKILL.md 的子目录视作分组目录，递归一层
+                loaded += self.load_from_directory(item, _depth=_depth + 1)
 
         logger.info(f"Loaded {loaded} skills from {directory}")
         return loaded
+
+    @staticmethod
+    def resolve_skill_dir(skills_root: Path, skill_name: str) -> Path | None:
+        """在 ``skills_root`` 扁平层及其一级分组子目录中查找包含 ``SKILL.md`` 的技能目录。
+
+        查找顺序：
+        1. ``skills_root / {skill_name} / SKILL.md`` — 扁平布局
+        2. ``skills_root / {group} / {skill_name} / SKILL.md`` — 分组布局
+           （``group`` 本身不能是一个 skill，即其下无 ``SKILL.md``；隐藏目录跳过）
+
+        Returns:
+            命中的技能目录；未找到返回 None。
+        """
+        direct = skills_root / skill_name
+        if (direct / "SKILL.md").is_file():
+            return direct
+        if not skills_root.is_dir():
+            return None
+        for group in skills_root.iterdir():
+            if not group.is_dir() or group.name.startswith("."):
+                continue
+            # group 本身是 skill（有 SKILL.md），不是分组目录
+            if (group / "SKILL.md").is_file():
+                continue
+            candidate = group / skill_name
+            if (candidate / "SKILL.md").is_file():
+                return candidate
+        return None
+
+    @staticmethod
+    def find_skill_dirs_by_name(skills_root: Path, skill_name: str) -> list[Path]:
+        """枚举 ``skills_root`` 下所有名为 ``skill_name`` 的技能目录（扁平 + 分组一级）。
+
+        用于 install 前冲突检测：若返回 > 1 项说明会产生重复。
+        """
+        hits: list[Path] = []
+        if not skills_root.is_dir():
+            return hits
+        direct = skills_root / skill_name
+        if (direct / "SKILL.md").is_file():
+            hits.append(direct)
+        for group in skills_root.iterdir():
+            if not group.is_dir() or group.name.startswith("."):
+                continue
+            if (group / "SKILL.md").is_file():
+                continue
+            candidate = group / skill_name
+            if (candidate / "SKILL.md").is_file():
+                hits.append(candidate)
+        return hits
 
     @staticmethod
     def _is_os_compatible(supported_os: list[str]) -> bool:
