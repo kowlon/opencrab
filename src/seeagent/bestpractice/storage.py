@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 _DDL = """
 CREATE TABLE IF NOT EXISTS bp_instances (
     instance_id           TEXT PRIMARY KEY,
+    instance_title        TEXT DEFAULT '',
     bp_id                 TEXT NOT NULL,
     session_id            TEXT NOT NULL,
     status                TEXT NOT NULL DEFAULT 'active',
@@ -56,6 +57,14 @@ class BPStorage:
         if not self._initialized:
             await conn.executescript(_DDL)
             await conn.commit()
+            # Migration: add instance_title column for existing tables
+            try:
+                await conn.execute(
+                    "ALTER TABLE bp_instances ADD COLUMN instance_title TEXT DEFAULT ''"
+                )
+                await conn.commit()
+            except Exception:
+                pass  # Column already exists
             self._initialized = True
 
     @asynccontextmanager
@@ -76,14 +85,15 @@ class BPStorage:
             await conn.execute(
                 """
                 INSERT OR REPLACE INTO bp_instances (
-                    instance_id, bp_id, session_id, status, run_mode,
+                    instance_id, instance_title, bp_id, session_id, status, run_mode,
                     current_subtask_index, created_at, completed_at, suspended_at,
                     context_summary, subtask_statuses, initial_input,
                     subtask_outputs, supplemented_inputs, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     data["instance_id"],
+                    data.get("instance_title", ""),
                     data["bp_id"],
                     data["session_id"],
                     data["status"],
