@@ -1,5 +1,6 @@
 # tests/unit/test_step_aggregator.py
 """Tests for StepAggregator — aggregation state machine."""
+
 from __future__ import annotations
 
 import asyncio
@@ -43,9 +44,7 @@ class TestIDLEState:
     async def test_independent_card_completed_on_tool_end(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_tool_call_start(
-            "web_search", {"query": "test"}, "t1", FilterResult.WHITELIST
-        )
+        await agg.on_tool_call_start("web_search", {"query": "test"}, "t1", FilterResult.WHITELIST)
         events = await agg.on_tool_call_end("web_search", "t1", "results", False)
         assert len(events) == 1
         assert events[0]["status"] == "completed"
@@ -55,9 +54,7 @@ class TestIDLEState:
     async def test_independent_card_failed_on_error(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_tool_call_start(
-            "web_search", {"query": "test"}, "t1", FilterResult.WHITELIST
-        )
+        await agg.on_tool_call_start("web_search", {"query": "test"}, "t1", FilterResult.WHITELIST)
         events = await agg.on_tool_call_end("web_search", "t1", "error!", True)
         assert len(events) == 1
         assert events[0]["status"] == "failed"
@@ -75,7 +72,9 @@ class TestIDLEState:
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
         events = await agg.on_tool_call_start(
-            "call_mcp_tool", {"server": "github", "tool": "search"}, "t1",
+            "call_mcp_tool",
+            {"server": "github", "tool": "search"},
+            "t1",
             FilterResult.MCP_TRIGGER,
         )
         assert agg.state == AggregatorState.MCP_ABSORB
@@ -98,39 +97,36 @@ class TestSKILL_ABSORB:
     async def test_absorbs_tool_calls(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_tool_call_start(
-            "load_skill", {}, "t1", FilterResult.SKILL_TRIGGER
-        )
+        await agg.on_tool_call_start("load_skill", {}, "t1", FilterResult.SKILL_TRIGGER)
         events = await agg.on_tool_call_start(
             "web_search", {"query": "test"}, "t2", FilterResult.WHITELIST
         )
-        assert events == []
-        assert len(agg.pending_card.absorbed_calls) == 1
+        # Non-skill tool completes pending skill and creates independent card
+        assert len(events) == 2  # 1 completed skill + 1 running web_search card
+        completed = [e for e in events if e.get("status") == "completed"]
+        running = [e for e in events if e.get("status") == "running"]
+        assert len(completed) == 1
+        assert len(running) == 1
+        assert agg.pending_card is None  # skill completed
+        assert agg.state == AggregatorState.IDLE
 
     async def test_text_delta_completes_skill(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_tool_call_start(
-            "load_skill", {}, "t1", FilterResult.SKILL_TRIGGER
-        )
+        await agg.on_tool_call_start("load_skill", {}, "t1", FilterResult.SKILL_TRIGGER)
         events = await agg.on_text_delta()
         assert agg.state == AggregatorState.IDLE
         assert agg.pending_card is None
         completed = [
-            e for e in events
-            if e.get("type") == "step_card" and e.get("status") == "completed"
+            e for e in events if e.get("type") == "step_card" and e.get("status") == "completed"
         ]
         assert len(completed) == 1
 
     async def test_new_skill_completes_previous(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_tool_call_start(
-            "load_skill", {}, "t1", FilterResult.SKILL_TRIGGER
-        )
-        events = await agg.on_tool_call_start(
-            "load_skill", {}, "t2", FilterResult.SKILL_TRIGGER
-        )
+        await agg.on_tool_call_start("load_skill", {}, "t1", FilterResult.SKILL_TRIGGER)
+        events = await agg.on_tool_call_start("load_skill", {}, "t2", FilterResult.SKILL_TRIGGER)
         completed = [e for e in events if e.get("status") == "completed"]
         assert len(completed) == 1
         assert agg.state == AggregatorState.SKILL_ABSORB
@@ -143,11 +139,15 @@ class TestMCP_ABSORB:
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
         await agg.on_tool_call_start(
-            "call_mcp_tool", {"server": "gh", "tool": "t1"}, "t1",
+            "call_mcp_tool",
+            {"server": "gh", "tool": "t1"},
+            "t1",
             FilterResult.MCP_TRIGGER,
         )
         events = await agg.on_tool_call_start(
-            "call_mcp_tool", {"server": "gh", "tool": "t2"}, "t2",
+            "call_mcp_tool",
+            {"server": "gh", "tool": "t2"},
+            "t2",
             FilterResult.MCP_TRIGGER,
         )
         assert events == []
@@ -158,11 +158,15 @@ class TestMCP_ABSORB:
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
         await agg.on_tool_call_start(
-            "call_mcp_tool", {"server": "gh", "tool": "t1"}, "t1",
+            "call_mcp_tool",
+            {"server": "gh", "tool": "t1"},
+            "t1",
             FilterResult.MCP_TRIGGER,
         )
         events = await agg.on_tool_call_start(
-            "call_mcp_tool", {"server": "arxiv", "tool": "t2"}, "t2",
+            "call_mcp_tool",
+            {"server": "arxiv", "tool": "t2"},
+            "t2",
             FilterResult.MCP_TRIGGER,
         )
         completed = [e for e in events if e.get("status") == "completed"]
@@ -174,7 +178,9 @@ class TestMCP_ABSORB:
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
         await agg.on_tool_call_start(
-            "call_mcp_tool", {"server": "gh", "tool": "t1"}, "t1",
+            "call_mcp_tool",
+            {"server": "gh", "tool": "t1"},
+            "t1",
             FilterResult.MCP_TRIGGER,
         )
         events = await agg.on_tool_call_start(
@@ -191,12 +197,14 @@ class TestPLAN_ABSORB:
     async def test_plan_created_enters_absorb(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        events = await agg.on_plan_created({
-            "steps": [
-                {"id": "step_1", "description": "步骤1", "status": "pending"},
-                {"id": "step_2", "description": "步骤2", "status": "pending"},
-            ]
-        })
+        events = await agg.on_plan_created(
+            {
+                "steps": [
+                    {"id": "step_1", "description": "步骤1", "status": "pending"},
+                    {"id": "step_2", "description": "步骤2", "status": "pending"},
+                ]
+            }
+        )
         assert agg.state == AggregatorState.PLAN_ABSORB
         checklist = next(e for e in events if e["type"] == "plan_checklist")
         assert len(checklist["steps"]) == 2
@@ -208,28 +216,26 @@ class TestPLAN_ABSORB:
     async def test_plan_absorbs_all_tools(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_plan_created({
-            "steps": [{"id": "step_1", "description": "步骤1", "status": "pending"}]
-        })
+        await agg.on_plan_created(
+            {"steps": [{"id": "step_1", "description": "步骤1", "status": "pending"}]}
+        )
         await agg.on_plan_step_updated(1, "running")
-        events = await agg.on_tool_call_start(
-            "load_skill", {}, "t1", FilterResult.SKILL_TRIGGER
-        )
+        events = await agg.on_tool_call_start("load_skill", {}, "t1", FilterResult.SKILL_TRIGGER)
         assert events == []
-        events = await agg.on_tool_call_start(
-            "web_search", {}, "t2", FilterResult.WHITELIST
-        )
+        events = await agg.on_tool_call_start("web_search", {}, "t2", FilterResult.WHITELIST)
         assert events == []
 
     async def test_plan_step_completed(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_plan_created({
-            "steps": [
-                {"id": "step_1", "description": "步骤1", "status": "pending"},
-                {"id": "step_2", "description": "步骤2", "status": "pending"},
-            ]
-        })
+        await agg.on_plan_created(
+            {
+                "steps": [
+                    {"id": "step_1", "description": "步骤1", "status": "pending"},
+                    {"id": "step_2", "description": "步骤2", "status": "pending"},
+                ]
+            }
+        )
         await agg.on_plan_step_updated(1, "running")
         events = await agg.on_plan_step_updated(1, "completed")
         step_cards = [e for e in events if e["type"] == "step_card"]
@@ -238,9 +244,9 @@ class TestPLAN_ABSORB:
     async def test_plan_completed_returns_to_idle(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_plan_created({
-            "steps": [{"id": "step_1", "description": "步骤1", "status": "pending"}]
-        })
+        await agg.on_plan_created(
+            {"steps": [{"id": "step_1", "description": "步骤1", "status": "pending"}]}
+        )
         await agg.on_plan_step_updated(1, "running")
         await agg.on_plan_step_updated(1, "completed")
         events = await agg.on_plan_completed()
@@ -253,27 +259,21 @@ class TestToolCallEnd:
     async def test_updates_absorbed_call_result(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_tool_call_start(
-            "load_skill", {}, "t1", FilterResult.SKILL_TRIGGER
-        )
-        await agg.on_tool_call_start(
-            "web_search", {"query": "test"}, "t2", FilterResult.WHITELIST
-        )
+        await agg.on_tool_call_start("load_skill", {}, "t1", FilterResult.SKILL_TRIGGER)
+        await agg.on_tool_call_start("web_search", {"query": "test"}, "t2", FilterResult.WHITELIST)
         events = await agg.on_tool_call_end("web_search", "t2", "results", False)
-        assert len(agg.pending_card.absorbed_calls) == 1
-        assert agg.pending_card.absorbed_calls[0].get("result") == "results"
+        # web_search gets independent card, result stored in independent card
+        assert len(events) == 1
+        assert events[0].get("status") == "completed"
+        assert events[0].get("output") == "results"
 
     async def test_error_flag_recorded(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_tool_call_start(
-            "load_skill", {}, "t1", FilterResult.SKILL_TRIGGER
-        )
-        await agg.on_tool_call_start(
-            "web_search", {}, "t2", FilterResult.WHITELIST
-        )
-        await agg.on_tool_call_end("web_search", "t2", "error!", True)
-        assert agg.pending_card.absorbed_calls[0].get("is_error") is True
+        await agg.on_tool_call_start("load_skill", {}, "t1", FilterResult.SKILL_TRIGGER)
+        await agg.on_tool_call_start("web_search", {}, "t2", FilterResult.WHITELIST)
+        events = await agg.on_tool_call_end("web_search", "t2", "error!", True)
+        assert events[0].get("status") == "failed"
 
 
 class TestFlush:
@@ -282,9 +282,7 @@ class TestFlush:
     async def test_flush_completes_skill(self):
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
-        await agg.on_tool_call_start(
-            "load_skill", {}, "t1", FilterResult.SKILL_TRIGGER
-        )
+        await agg.on_tool_call_start("load_skill", {}, "t1", FilterResult.SKILL_TRIGGER)
         events = await agg.flush()
         assert agg.state == AggregatorState.IDLE
         assert any(e.get("status") == "completed" for e in events)
@@ -350,7 +348,10 @@ class TestAgentTrigger:
             FilterResult.AGENT_TRIGGER,
         )
         events = await agg.on_tool_call_end(
-            "delegate_to_agent", "t1", "研究结果...", False,
+            "delegate_to_agent",
+            "t1",
+            "研究结果...",
+            False,
         )
         assert len(events) == 1
         assert events[0]["status"] == "completed"
@@ -360,7 +361,10 @@ class TestAgentTrigger:
         tg, cb, timer = _make_deps()
         agg = StepAggregator(title_gen=tg, card_builder=cb, timer=timer)
         events = await agg.on_tool_call_start(
-            "delegate_to_agent", {}, "t1", FilterResult.AGENT_TRIGGER,
+            "delegate_to_agent",
+            {},
+            "t1",
+            FilterResult.AGENT_TRIGGER,
         )
         card = next(e for e in events if e["type"] == "step_card")
         assert "专家" in card["title"]

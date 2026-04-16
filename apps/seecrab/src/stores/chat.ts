@@ -240,6 +240,17 @@ export const useChatStore = defineStore('chat', () => {
         break
       }
 
+      case 'delegation_context':
+        reply.parentStepId = (event as any).parent_step_id ?? undefined
+        console.log(
+          '[SeeCrab][Chat] delegation_context received:',
+          'agentId=',
+          (event as any).agent_id ?? reply.agentId,
+          'parentStepId=',
+          reply.parentStepId,
+        )
+        break
+
       case 'agent_header':
         reply.agentId = (event as any).agent_id ?? 'main'
         reply.agentName = (event as any).agent_name ?? 'Agent'
@@ -308,18 +319,22 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function _upsertStepCard(reply: ReplyState, card: any) {
-    const idx = reply.stepCards.findIndex(c => c.stepId === card.step_id)
+    const agentId = card.agent_id || 'main'
+    const stepId = _normalizeStepId(card.step_id, agentId)
+    const parentStepId = card.parent_step_id || undefined
+    const idx = reply.stepCards.findIndex(c => c.stepId === stepId)
     const mapped: StepCard = {
-      stepId: card.step_id,
+      stepId,
       title: card.title,
       status: card.status,
       sourceType: card.source_type,
       cardType: card.card_type,
       duration: card.duration ?? null,
       planStepIndex: card.plan_step_index ?? null,
-      agentId: card.agent_id || 'main',
+      agentId,
       delegateAgentId: card.delegate_agent_id || undefined,
       subtaskId: card.subtask_id || undefined,
+      parentStepId,
       input: card.input ?? null,
       output: card.output ?? null,
       absorbedCalls: card.absorbed_calls ?? [],
@@ -328,6 +343,21 @@ export const useChatStore = defineStore('chat', () => {
       reply.stepCards[idx] = mapped
     } else {
       reply.stepCards.push(mapped)
+    }
+    if (agentId !== 'main' || parentStepId || mapped.cardType === 'delegate') {
+      console.log(
+        '[SeeCrab][Chat] step_card upsert:',
+        'stepId=',
+        stepId,
+        'agentId=',
+        agentId,
+        'parentStepId=',
+        parentStepId,
+        'cardType=',
+        mapped.cardType,
+        'status=',
+        mapped.status,
+      )
     }
   }
 
@@ -440,8 +470,9 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function _mapStepCard(raw: any): StepCard {
+    const agentId = raw.agent_id ?? 'main'
     return {
-      stepId: raw.step_id,
+      stepId: _normalizeStepId(raw.step_id, agentId),
       title: raw.title,
       // If a step_card was persisted as "running", it was interrupted (e.g. BP suspended)
       status: raw.status === 'running' ? 'cancelled' : raw.status,
@@ -449,13 +480,20 @@ export const useChatStore = defineStore('chat', () => {
       cardType: raw.card_type,
       duration: raw.duration ?? null,
       planStepIndex: raw.plan_step_index ?? null,
-      agentId: raw.agent_id ?? 'main',
+      agentId,
       delegateAgentId: raw.delegate_agent_id || undefined,
       subtaskId: raw.subtask_id || undefined,
+      parentStepId: raw.parent_step_id || undefined,
       input: raw.input ?? null,
       output: raw.output ?? null,
       absorbedCalls: raw.absorbed_calls ?? [],
     }
+  }
+
+  function _normalizeStepId(stepId: string, agentId: string): string {
+    if (!stepId) return stepId
+    if (!agentId || agentId === 'main') return stepId
+    return `${agentId}::${stepId}`
   }
 
   async function loadSessionMessages(sessionId: string) {

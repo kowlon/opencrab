@@ -9,6 +9,7 @@ export type SSEEventType =
   | 'bp_instance_created' | 'bp_subtask_start' | 'bp_subtask_complete'
   | 'bp_waiting_next' | 'bp_ask_user' | 'bp_complete' | 'bp_error'
   | 'bp_offer' | 'bp_cancelled'
+  | 'delegation_context'
 
 export interface SSEEvent {
   type: SSEEventType
@@ -57,6 +58,13 @@ export interface ReplyState {
   } | null
   bpOffer: BPOfferInfo | null
   errorMessage?: string
+  parentStepId?: string
+}
+
+export interface DelegationContextEvent {
+  type: 'delegation_context'
+  parent_step_id: string
+  agent_id: string
 }
 
 export interface StepCard {
@@ -70,6 +78,7 @@ export interface StepCard {
   agentId: string
   delegateAgentId?: string
   subtaskId?: string
+  parentStepId?: string
   input: Record<string, unknown> | null
   output: string | null
   absorbedCalls: AbsorbedCall[]
@@ -81,6 +90,7 @@ export interface StepCard {
   agent_id?: string
   delegate_agent_id?: string
   absorbed_calls?: AbsorbedCall[]
+  parent_step_id?: string
 }
 
 export interface AbsorbedCall {

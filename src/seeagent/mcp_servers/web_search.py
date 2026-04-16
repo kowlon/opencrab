@@ -175,12 +175,12 @@ def _try_cn_free_search(query: str, max_results: int) -> list[dict[str, str]] | 
         try:
             results = _search_sogou(query, max_results) if engine == "sogou" else _search_so360(query, max_results)
             if results:
-                logger.info("[MCP WebSearch] Using CN free engine: %s", engine)
+                logger.info("[RESULT] tool=mcp.web_search provider=%s", engine)
                 return results
             errors.append(f"{engine}: empty")
         except Exception as e:
             errors.append(f"{engine}: {type(e).__name__}: {e}")
-    logger.warning("[MCP WebSearch] CN free engines unavailable, fallback to DDGS: %s", " | ".join(errors))
+    logger.warning("[SEARCH_FAIL] mcp cn_free unavailable, fallback to DDGS: %s", " | ".join(errors))
     return None
 
 
@@ -201,7 +201,7 @@ def _extract_bocha_results(payload: dict) -> list[dict[str, str]]:
 def _try_bocha_search(query: str, max_results: int) -> list[dict[str, str]] | None:
     api_key = _bocha_api_key()
     if not api_key:
-        logger.info("[MCP WebSearch] BOCHA_API_KEY not set, fallback to CN/DDGS")
+        logger.warning("[SEARCH_FAIL] mcp bocha unavailable: BOCHA_API_KEY not set, fallback to CN/DDGS")
         return None
     payload = {"query": query, "freshness": "noLimit", "summary": True, "count": max_results}
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -212,12 +212,12 @@ def _try_bocha_search(query: str, max_results: int) -> list[dict[str, str]] | No
         data = resp.json() if resp.content else {}
         results = _extract_bocha_results(data)
         if results:
-            logger.info("[MCP WebSearch] Using Bocha search results")
+            logger.info("[RESULT] tool=mcp.web_search provider=bocha")
             return results
-        logger.warning("[MCP WebSearch] Bocha returned empty results, fallback to CN/DDGS")
+        logger.warning("[SEARCH_FAIL] mcp bocha empty results, fallback to CN/DDGS")
         return None
     except Exception as e:
-        logger.warning("[MCP WebSearch] Bocha search failed, fallback to CN/DDGS: %s: %s", type(e).__name__, e)
+        logger.warning("[SEARCH_FAIL] mcp bocha failed, fallback to CN/DDGS: %s: %s", type(e).__name__, e)
         return None
 
 
@@ -239,16 +239,22 @@ def web_search(
     """
     # 限制结果数量
     max_results = min(max(1, max_results), 20)
+    logger.info("[SEARCH] tool=mcp.web_search query=%r max_results=%s", query[:120], max_results)
+    trace: list[str] = [f"- 请求: mcp.web_search(query={query[:60]!r}, max_results={max_results})"]
 
     # 1) Bocha 优先
     bocha_results = _try_bocha_search(query, max_results)
     if bocha_results:
-        return _format_web_results(bocha_results)
+        logger.info("[RESULT] tool=mcp.web_search provider=bocha")
+        trace.append("- 路径: bocha (命中)")
+        return _with_trace(trace, _format_web_results(bocha_results))
 
     # 2) 国内免费搜索补充
     cn_results = _try_cn_free_search(query, max_results)
     if cn_results:
-        return _format_web_results(cn_results)
+        logger.info("[RESULT] tool=mcp.web_search provider=cn_free")
+        trace.append("- 路径: bocha -> cn_free (命中)")
+        return _with_trace(trace, _format_web_results(cn_results))
 
     # 3) DDGS 回退
     try:
@@ -272,11 +278,14 @@ def web_search(
                     backend=backend,
                 )
             )
-            return _format_web_results(results)
+            logger.info("[RESULT] tool=mcp.web_search provider=ddgs backend=%s", backend)
+            trace.append(f"- 路径: bocha -> cn_free -> ddgs(backend={backend}) (命中)")
+            return _with_trace(trace, _format_web_results(results))
     except Exception as e:
         tb = traceback.format_exc()
-        logger.error(f"Web search failed: {type(e).__name__}: {e}\n{tb}")
-        return f"搜索失败: {type(e).__name__}: {e}"
+        logger.error(f"[SEARCH_FAIL] Web search failed: {type(e).__name__}: {e}\n{tb}")
+        trace.append("- 路径: bocha -> cn_free -> ddgs (失败)")
+        return _with_trace(trace, f"搜索失败: {type(e).__name__}: {e}")
 
 
 @mcp.tool()
@@ -308,6 +317,8 @@ def news_search(
 
     # 限制结果数量
     max_results = min(max(1, max_results), 20)
+    logger.info("[SEARCH] tool=mcp.news_search query=%r max_results=%s", query[:120], max_results)
+    trace: list[str] = [f"- 请求: mcp.news_search(query={query[:60]!r}, max_results={max_results})"]
     backend = _ddgs_backend()
     timeout = _ddgs_timeout()
     proxy = _ddgs_proxy()
@@ -322,11 +333,18 @@ def news_search(
                 timelimit=timelimit,
                 backend=backend,
             )
-            return _format_news_results(results)
+            logger.info("[RESULT] tool=mcp.news_search provider=ddgs backend=%s", backend)
+            trace.append(f"- 路径: ddgs(backend={backend}) (命中)")
+            return _with_trace(trace, _format_news_results(results))
     except Exception as e:
         tb = traceback.format_exc()
-        logger.error(f"News search failed: {type(e).__name__}: {e}\n{tb}")
-        return f"新闻搜索失败: {type(e).__name__}: {e}"
+        logger.error(f"[SEARCH_FAIL] News search failed: {type(e).__name__}: {e}\n{tb}")
+        trace.append("- 路径: ddgs (失败)")
+        return _with_trace(trace, f"新闻搜索失败: {type(e).__name__}: {e}")
+
+
+def _with_trace(trace: list[str], content: str) -> str:
+    return "### 搜索执行过程\n" + "\n".join(trace) + "\n\n" + content
 
 
 # 作为模块运行时启动服务器

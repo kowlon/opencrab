@@ -22,7 +22,10 @@ BROWSER_TOOLS = [
         "category": "Browser",
         "description": "Intelligent browser task - delegates to browser-use Agent for complex multi-step interactions. Best for: (1) Complex workflows like login + fill form + submit, (2) Tasks requiring multiple clicks and interactions on the SAME page. **NOT recommended for search tasks** - use browser_navigate with URL params instead (e.g. https://www.baidu.com/s?wd=keyword). If browser_task fails once, switch to manual steps (browser_navigate + browser_get_content).",
         "related_tools": [
-            {"name": "web_search", "relation": "仅需快速获取搜索结果（无需页面交互）时改用 web_search，更快更省资源"},
+            {
+                "name": "web_search",
+                "relation": "仅需快速获取搜索结果（无需页面交互）时改用 web_search，更快更省资源",
+            },
             {"name": "browser_navigate", "relation": "搜索类任务优先使用，拼 URL 参数直达"},
             {
                 "name": "view_image",
@@ -48,9 +51,9 @@ BROWSER_TOOLS = [
                 "返回执行结果",
             ],
             notes=[
-                "⚠️ 搜索类任务请不要用 browser_task！直接用 browser_navigate 拼 URL 参数更可靠",
+                "⚠️ 简单搜索/导航任务请不要用 browser_task！直接用 browser_navigate 拼 URL 更高效",
+                "⚠️ browser_task 只用于需要多步规划、复杂交互的任务（登录、填表、多页面等）",
                 "⚠️ 如果 browser_task 失败 1 次，立即切换为手动分步操作",
-                "适合需要多次 UI 交互的复杂场景（登录、填表、筛选等）",
                 "通过 CDP 复用已启动的浏览器",
                 "任务描述要清晰具体，避免歧义",
                 "任务完成后用 browser_screenshot + view_image 验证结果",
@@ -63,16 +66,15 @@ BROWSER_TOOLS = [
         ],
         "prerequisites": [],
         "warnings": [
-            "Do NOT use for search tasks - use browser_navigate with URL params instead",
+            "Do NOT use for simple search/navigation - use browser_navigate with URL params instead",
+            "browser_task is only for complex multi-step tasks (login, forms, multiple pages)",
             "If browser_task fails once, immediately switch to manual browser tools",
             "Always verify results with browser_screenshot + view_image after completion",
         ],
         "examples": [
             {
                 "scenario": "淘宝筛选排序（复杂交互）",
-                "params": {
-                    "task": "在淘宝商品列表页筛选价格200-500元，按销量排序"
-                },
+                "params": {"task": "在淘宝商品列表页筛选价格200-500元，按销量排序"},
                 "expected": "Agent automatically: filters price → sorts by sales",
             },
             {
@@ -90,7 +92,7 @@ BROWSER_TOOLS = [
                 },
                 "max_steps": {
                     "type": "integer",
-                    "description": "最大执行步骤数，默认15。复杂任务可以增加。",
+                    "description": "最大执行步骤数。简单任务3-5步，中等5-8步，复杂10-15步，超复杂15-20步。例：搜索+提取信息选5-8，多页面交互选10-15",
                     "default": 15,
                 },
             },
@@ -146,7 +148,10 @@ BROWSER_TOOLS = [
             },
         ],
         "related_tools": [
-            {"name": "browser_navigate", "relation": "打开后导航到目标 URL（搜索任务推荐直接拼 URL 参数）"},
+            {
+                "name": "browser_navigate",
+                "relation": "打开后导航到目标 URL（搜索任务推荐直接拼 URL 参数）",
+            },
             {"name": "browser_task", "relation": "仅在需要复杂 UI 交互时使用"},
             {"name": "browser_close", "relation": "使用完毕后关闭"},
         ],
@@ -221,7 +226,10 @@ BROWSER_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "url": {"type": "string", "description": "要访问的 URL（必须包含协议）。搜索类任务直接在 URL 中带参数"},
+                "url": {
+                    "type": "string",
+                    "description": "要访问的 URL（必须包含协议）。搜索类任务直接在 URL 中带参数",
+                },
             },
             "required": ["url"],
         },
@@ -416,7 +424,10 @@ BROWSER_TOOLS = [
             },
         ],
         "related_tools": [
-            {"name": "browser_screenshot", "relation": "take screenshot first, then view_image to analyze"},
+            {
+                "name": "browser_screenshot",
+                "relation": "take screenshot first, then view_image to analyze",
+            },
         ],
         "input_schema": {
             "type": "object",

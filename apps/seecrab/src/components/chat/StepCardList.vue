@@ -39,14 +39,61 @@ const props = defineProps<{
   agentThinking?: Record<string, { content: string; done: boolean }>
 }>()
 
+function orderCardsByDelegation(cards: StepCardType[]): StepCardType[] {
+  const byStepId = new Map(cards.map(card => [card.stepId, card]))
+  const children = new Map<string, StepCardType[]>()
+  const roots: StepCardType[] = []
+  let linkedCount = 0
+  let orphanCount = 0
+
+  for (const card of cards) {
+    const parentId = card.parentStepId
+    if (parentId && byStepId.has(parentId)) {
+      if (!children.has(parentId)) children.set(parentId, [])
+      children.get(parentId)!.push(card)
+      linkedCount += 1
+    } else {
+      roots.push(card)
+      if (parentId) orphanCount += 1
+    }
+  }
+
+  if (linkedCount > 0 || orphanCount > 0) {
+    console.log(
+      '[SeeCrab][StepCardList] delegation ordering:',
+      'cards=',
+      cards.length,
+      'linked=',
+      linkedCount,
+      'orphans=',
+      orphanCount,
+    )
+  }
+
+  const ordered: StepCardType[] = []
+  const visited = new Set<string>()
+  const appendTree = (card: StepCardType) => {
+    if (visited.has(card.stepId)) return
+    visited.add(card.stepId)
+    ordered.push(card)
+    for (const child of children.get(card.stepId) ?? []) {
+      appendTree(child)
+    }
+  }
+
+  for (const root of roots) appendTree(root)
+  return ordered
+}
+
 const renderItems = computed<RenderItem[]>(() => {
   const items: RenderItem[] = []
   const summaries = props.agentSummaries ?? {}
   const thinking = props.agentThinking ?? {}
   const emittedThinking = new Set<string>()
+  const orderedCards = orderCardsByDelegation(props.cards)
 
-  for (let i = 0; i < props.cards.length; i++) {
-    const card = props.cards[i]
+  for (let i = 0; i < orderedCards.length; i++) {
+    const card = orderedCards[i]
 
     // Insert thinking block before delegate card using subtaskId (fallback delegateAgentId)
     if (card.cardType === 'delegate' && (card.subtaskId || card.delegateAgentId)) {
@@ -71,7 +118,7 @@ const renderItems = computed<RenderItem[]>(() => {
 
     // For non-BP sub-agents (no preceding delegate card), insert thinking before first card of group
     if (card.agentId && card.agentId !== 'main' && !emittedThinking.has(card.agentId)) {
-      const prev = props.cards[i - 1]
+      const prev = orderedCards[i - 1]
       if (!prev || (prev.agentId !== card.agentId && prev.cardType !== 'delegate')) {
         const at = thinking[card.agentId]
         if (at && at.content) {
@@ -91,7 +138,7 @@ const renderItems = computed<RenderItem[]>(() => {
     // Detect end of sub-agent group: current card is sub-agent,
     // and next card is different agent or end of list
     if (card.agentId && card.agentId !== 'main') {
-      const next = props.cards[i + 1]
+      const next = orderedCards[i + 1]
       if (!next || next.agentId !== card.agentId) {
         const text = summaries[card.agentId]
         if (text) {

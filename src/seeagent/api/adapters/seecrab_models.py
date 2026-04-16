@@ -47,6 +47,8 @@ class StepFilterConfig:
         default_factory=lambda: [
             "web_search",
             "news_search",
+            "browser_*",
+            "navigate_*",
             "browser_task",
             "generate_image",
             "list_skills",

@@ -1,4 +1,5 @@
 """StepAggregator: state machine for step card aggregation."""
+
 from __future__ import annotations
 
 import asyncio
@@ -23,12 +24,18 @@ class StepAggregator:
         timer: TimerTracker,
         title_update_queue: asyncio.Queue | None = None,
         agent_id: str = "main",
+        parent_step_id: str | None = None,
+        show_subagent_actions: bool = False,
     ):
         self.title_gen = title_gen
         self.card_builder = card_builder
         self.timer = timer
         self._title_update_queue = title_update_queue
         self._agent_id = agent_id
+        self._parent_step_id = parent_step_id
+        # 仅在 STEP_FILTER_DEBUG_ENABLED=true 时为子 Agent 打开细粒度动作展示。
+        # false 时子 Agent 工具调用优先吸收到计划步骤中，不额外出独立动作卡。
+        self._show_subagent_actions = show_subagent_actions
         self.state = AggregatorState.IDLE
         self.pending_card: PendingCard | None = None
         # Plan mode state
@@ -42,12 +49,47 @@ class StepAggregator:
         self._delegation_title_tasks: list[asyncio.Task] = []
 
     async def on_tool_call_start(
-        self, tool_name: str, args: dict, tool_id: str,
+        self,
+        tool_name: str,
+        args: dict,
+        tool_id: str,
         filter_result: FilterResult,
     ) -> list[dict]:
         """Process tool_call_start. Returns events to emit."""
         # Plan mode absorbs everything
         if self.state == AggregatorState.PLAN_ABSORB:
+            # For delegated sub-agents, keep key tool calls visible as independent cards,
+            # so users can see concrete execution actions under the delegated agent.
+            if (
+                self._show_subagent_actions
+                and self._agent_id != "main"
+                and filter_result in (
+                FilterResult.WHITELIST,
+                FilterResult.USER_MENTION,
+                )
+            ):
+                # 调试模式下，子 Agent 在“执行计划”期间的关键工具动作也单独展示出来，
+                # 同时继续保留在 absorbed_calls 中，便于前端同时看到计划和动作。
+                logger.info(
+                    "[StepAggregator] expose sub-agent action in plan mode: agent=%s tool=%s filter=%s",
+                    self._agent_id,
+                    tool_name,
+                    filter_result.value,
+                )
+                if self._plan_step_card:
+                    self._plan_step_card.absorbed_calls.append(
+                        {"tool": tool_name, "args": args, "tool_id": tool_id}
+                    )
+                return self._create_independent_card(tool_name, args, tool_id)
+            if self._agent_id != "main":
+                # 正式模式下，子 Agent 的工具动作继续吸收到计划步骤中，不单独展示。
+                logger.info(
+                    "[StepAggregator] absorb sub-agent tool in plan mode: agent=%s tool=%s filter=%s show_subagent_actions=%s",
+                    self._agent_id,
+                    tool_name,
+                    filter_result.value,
+                    self._show_subagent_actions,
+                )
             if self._plan_step_card:
                 self._plan_step_card.absorbed_calls.append(
                     {"tool": tool_name, "args": args, "tool_id": tool_id}
@@ -61,12 +103,10 @@ class StepAggregator:
                 events = self._complete_pending()
                 events += self._start_skill(tool_name, args)
                 return events
-            # Absorb into current skill
-            if self.pending_card:
-                self.pending_card.absorbed_calls.append(
-                    {"tool": tool_name, "args": args, "tool_id": tool_id}
-                )
-            return []
+            # Non-skill tool → complete skill, handle as independent card
+            events = self._complete_pending()
+            events += self._handle_idle(tool_name, args, tool_id, filter_result)
+            return events
 
         # MCP absorb
         if self.state == AggregatorState.MCP_ABSORB:
@@ -100,16 +140,19 @@ class StepAggregator:
             step_id, original_title = self._independent_cards.pop(tool_id)
             duration = self.timer.end_step(step_id)
             status = "failed" if is_error else "completed"
-            return [self.card_builder.build_step_card(
-                step_id=step_id,
-                title=original_title,
-                status=status,
-                source_type="tool",
-                tool_name=tool_name,
-                agent_id=self._agent_id,
-                duration=duration,
-                output_data=result or None,
-            )]
+            return [
+                self.card_builder.build_step_card(
+                    step_id=step_id,
+                    title=original_title,
+                    status=status,
+                    source_type="tool",
+                    tool_name=tool_name,
+                    agent_id=self._agent_id,
+                    duration=duration,
+                    output_data=result or None,
+                    parent_step_id=self._parent_step_id,
+                )
+            ]
 
         # Update absorbed call with result (Plan mode)
         if self.state == AggregatorState.PLAN_ABSORB and self._plan_step_card:
@@ -177,15 +220,23 @@ class StepAggregator:
             step_id = f"plan_step_{step_index}"
             title = self._get_plan_step_title(step_index)
             self._plan_step_card = PendingCard(
-                step_id=step_id, title=title,
-                source_type="plan_step", plan_step_index=step_index,
+                step_id=step_id,
+                title=title,
+                source_type="plan_step",
+                plan_step_index=step_index,
             )
             self.timer.start_step(step_id)
-            events.append(self.card_builder.build_step_card(
-                step_id=step_id, title=title, status="running",
-                source_type="plan_step", tool_name="",
-                plan_step_index=step_index, agent_id=self._agent_id,
-            ))
+            events.append(
+                self.card_builder.build_step_card(
+                    step_id=step_id,
+                    title=title,
+                    status="running",
+                    source_type="plan_step",
+                    tool_name="",
+                    plan_step_index=step_index,
+                    agent_id=self._agent_id,
+                )
+            )
             # Update checklist
             self._update_plan_step_status(step_index, "running")
             events.append({"type": "plan_checklist", "steps": list(self._plan_steps)})
@@ -194,17 +245,19 @@ class StepAggregator:
             if self._plan_step_card:
                 step_id = self._plan_step_card.step_id
                 duration = self.timer.end_step(step_id)
-                events.append(self.card_builder.build_step_card(
-                    step_id=step_id,
-                    title=self._plan_step_card.title,
-                    status=status,
-                    source_type="plan_step",
-                    tool_name="",
-                    plan_step_index=step_index,
-                    agent_id=self._agent_id,
-                    duration=duration,
-                    absorbed_calls=self._plan_step_card.absorbed_calls,
-                ))
+                events.append(
+                    self.card_builder.build_step_card(
+                        step_id=step_id,
+                        title=self._plan_step_card.title,
+                        status=status,
+                        source_type="plan_step",
+                        tool_name="",
+                        plan_step_index=step_index,
+                        agent_id=self._agent_id,
+                        duration=duration,
+                        absorbed_calls=self._plan_step_card.absorbed_calls,
+                    )
+                )
                 self._plan_step_card = None
             self._update_plan_step_status(step_index, status)
             events.append({"type": "plan_checklist", "steps": list(self._plan_steps)})
@@ -259,7 +312,9 @@ class StepAggregator:
         step_id = f"skill_{uuid.uuid4().hex[:8]}"
         placeholder = "\u23f3"
         self.pending_card = PendingCard(
-            step_id=step_id, title=placeholder, source_type="skill",
+            step_id=step_id,
+            title=placeholder,
+            source_type="skill",
         )
         self.state = AggregatorState.SKILL_ABSORB
         self.timer.start_step(step_id)
@@ -270,11 +325,16 @@ class StepAggregator:
         self.pending_card.title_task = asyncio.create_task(
             self._resolve_skill_title(step_id, skill_meta)
         )
-        return [self.card_builder.build_step_card(
-            step_id=step_id, title=placeholder, status="running",
-            source_type="skill", tool_name=tool_name,
-            agent_id=self._agent_id,
-        )]
+        return [
+            self.card_builder.build_step_card(
+                step_id=step_id,
+                title=placeholder,
+                status="running",
+                source_type="skill",
+                tool_name=tool_name,
+                agent_id=self._agent_id,
+            )
+        ]
 
     async def _resolve_skill_title(self, step_id: str, meta: dict) -> None:
         """Async task: generate LLM title, update pending_card, emit title_update."""
@@ -286,21 +346,31 @@ class StepAggregator:
             self.pending_card.title = title
             # Enqueue title_update for the adapter to pick up
             if self._title_update_queue is not None:
-                await self._title_update_queue.put({
-                    "type": "step_card", "step_id": step_id,
-                    "title": title, "status": "running",
-                    "source_type": "skill", "card_type": "default",
-                    "duration": None, "plan_step_index": None,
-                    "agent_id": self.pending_card.agent_id,
-                    "input": None, "output": None, "absorbed_calls": [],
-                })
+                await self._title_update_queue.put(
+                    {
+                        "type": "step_card",
+                        "step_id": step_id,
+                        "title": title,
+                        "status": "running",
+                        "source_type": "skill",
+                        "card_type": "default",
+                        "duration": None,
+                        "plan_step_index": None,
+                        "agent_id": self.pending_card.agent_id,
+                        "input": None,
+                        "output": None,
+                        "absorbed_calls": [],
+                    }
+                )
 
     def _start_mcp(self, tool_name: str, args: dict) -> list[dict]:
         step_id = f"mcp_{uuid.uuid4().hex[:8]}"
         server = args.get("server", "unknown")
         placeholder = "\u23f3"
         self.pending_card = PendingCard(
-            step_id=step_id, title=placeholder, source_type="mcp",
+            step_id=step_id,
+            title=placeholder,
+            source_type="mcp",
             mcp_server=server,
         )
         self.state = AggregatorState.MCP_ABSORB
@@ -317,15 +387,18 @@ class StepAggregator:
         self.pending_card.title_task = asyncio.create_task(
             self._resolve_mcp_title(step_id, server_meta, tool_meta)
         )
-        return [self.card_builder.build_step_card(
-            step_id=step_id, title=placeholder, status="running",
-            source_type="mcp", tool_name=tool_name,
-            agent_id=self._agent_id,
-        )]
+        return [
+            self.card_builder.build_step_card(
+                step_id=step_id,
+                title=placeholder,
+                status="running",
+                source_type="mcp",
+                tool_name=tool_name,
+                agent_id=self._agent_id,
+            )
+        ]
 
-    async def _resolve_mcp_title(
-        self, step_id: str, server_meta: dict, tool_meta: dict
-    ) -> None:
+    async def _resolve_mcp_title(self, step_id: str, server_meta: dict, tool_meta: dict) -> None:
         """Async task: generate LLM title for MCP, update pending_card."""
         try:
             title = await self.title_gen.generate_mcp_title(server_meta, tool_meta)
@@ -334,17 +407,28 @@ class StepAggregator:
         if self.pending_card and self.pending_card.step_id == step_id:
             self.pending_card.title = title
             if self._title_update_queue is not None:
-                await self._title_update_queue.put({
-                    "type": "step_card", "step_id": step_id,
-                    "title": title, "status": "running",
-                    "source_type": "mcp", "card_type": "default",
-                    "duration": None, "plan_step_index": None,
-                    "agent_id": self.pending_card.agent_id,
-                    "input": None, "output": None, "absorbed_calls": [],
-                })
+                await self._title_update_queue.put(
+                    {
+                        "type": "step_card",
+                        "step_id": step_id,
+                        "title": title,
+                        "status": "running",
+                        "source_type": "mcp",
+                        "card_type": "default",
+                        "duration": None,
+                        "plan_step_index": None,
+                        "agent_id": self.pending_card.agent_id,
+                        "input": None,
+                        "output": None,
+                        "absorbed_calls": [],
+                    }
+                )
 
     def _create_independent_card(
-        self, tool_name: str, args: dict, tool_id: str = "",
+        self,
+        tool_name: str,
+        args: dict,
+        tool_id: str = "",
     ) -> list[dict]:
         step_id = f"tool_{uuid.uuid4().hex[:8]}"
         title = self.title_gen.humanize_tool_title(tool_name, args)
@@ -352,14 +436,24 @@ class StepAggregator:
         # Track for on_tool_call_end completion (store title for reuse)
         if tool_id:
             self._independent_cards[tool_id] = (step_id, title)
-        return [self.card_builder.build_step_card(
-            step_id=step_id, title=title, status="running",
-            source_type="tool", tool_name=tool_name,
-            agent_id=self._agent_id, input_data=args,
-        )]
+        return [
+            self.card_builder.build_step_card(
+                step_id=step_id,
+                title=title,
+                status="running",
+                source_type="tool",
+                tool_name=tool_name,
+                agent_id=self._agent_id,
+                input_data=args,
+                parent_step_id=self._parent_step_id,
+            )
+        ]
 
     def _start_agent_delegation(
-        self, tool_name: str, args: dict, tool_id: str,
+        self,
+        tool_name: str,
+        args: dict,
+        tool_id: str,
     ) -> list[dict]:
         """Create delegation card: instant title + async LLM upgrade."""
         step_id = f"agent_{uuid.uuid4().hex[:8]}"
@@ -379,15 +473,24 @@ class StepAggregator:
         }
         task = asyncio.create_task(
             self._resolve_delegation_title(
-                step_id, agent_meta, task_meta, instant_title,
+                step_id,
+                agent_meta,
+                task_meta,
+                instant_title,
             )
         )
         self._delegation_title_tasks.append(task)
-        return [self.card_builder.build_step_card(
-            step_id=step_id, title=instant_title, status="running",
-            source_type="tool", tool_name=tool_name,
-            agent_id=self._agent_id, input_data=args,
-        )]
+        return [
+            self.card_builder.build_step_card(
+                step_id=step_id,
+                title=instant_title,
+                status="running",
+                source_type="tool",
+                tool_name=tool_name,
+                agent_id=self._agent_id,
+                input_data=args,
+            )
+        ]
 
     async def _resolve_delegation_title(
         self,
@@ -399,7 +502,8 @@ class StepAggregator:
         """Async: generate LLM title for delegation, update tracked card."""
         try:
             title = await self.title_gen.generate_delegation_title(
-                agent_meta, task_meta,
+                agent_meta,
+                task_meta,
             )
         except Exception:
             title = fallback
@@ -410,14 +514,23 @@ class StepAggregator:
                 break
         # Enqueue title update for the adapter to pick up
         if self._title_update_queue is not None:
-            await self._title_update_queue.put({
-                "type": "step_card", "step_id": step_id,
-                "title": title, "status": "running",
-                "source_type": "tool", "card_type": "default",
-                "duration": None, "plan_step_index": None,
-                "agent_id": self._agent_id, "input": None,
-                "output": None, "absorbed_calls": [],
-            })
+            await self._title_update_queue.put(
+                {
+                    "type": "step_card",
+                    "step_id": step_id,
+                    "title": title,
+                    "status": "running",
+                    "source_type": "tool",
+                    "card_type": "default",
+                    "duration": None,
+                    "plan_step_index": None,
+                    "agent_id": self._agent_id,
+                    "input": None,
+                    "output": None,
+                    "absorbed_calls": [],
+                    "parent_step_id": self._parent_step_id,
+                }
+            )
 
     def _complete_pending(self) -> list[dict]:
         if self.pending_card is None:

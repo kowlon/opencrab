@@ -11,6 +11,7 @@ Plan 模式处理器
 import json
 import logging
 import secrets
+from difflib import SequenceMatcher
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -360,6 +361,14 @@ class PlanHandler:
                 steps = json.loads(steps)
             except (json.JSONDecodeError, TypeError):
                 return "❌ steps 参数格式错误，需要 JSON 数组"
+
+        task_summary = params.get("task_summary", "")
+
+        # 优化搜索规划：去除重复或高度相似的 web_search 步骤，避免重复检索空转
+        steps = self._optimize_search_steps(steps)
+        # 对攻略/调研类计划，额外拦截“写查询脚本/跑查询脚本”这类错误执行路径。
+        steps = self._guard_research_plan_steps(task_summary, steps)
+
         for step in steps:
             step["status"] = "pending"
             step["result"] = ""
@@ -371,7 +380,7 @@ class PlanHandler:
 
         _new_plan = {
             "id": plan_id,
-            "task_summary": params.get("task_summary", ""),
+            "task_summary": task_summary,
             "steps": steps,
             "status": "in_progress",
             "created_at": datetime.now().isoformat(),
@@ -389,7 +398,7 @@ class PlanHandler:
         self._save_plan_markdown()
 
         # 记录日志
-        self._add_log(f"计划创建：{params.get('task_summary', '')}")
+        self._add_log(f"计划创建：{task_summary}")
         for step in steps:
             logger.info(
                 f"[Plan] Step {step.get('id')} tool={step.get('tool','-')} skills={step.get('skills', [])}"
@@ -408,12 +417,162 @@ class PlanHandler:
             )
             if gateway and hasattr(gateway, "emit_progress_event"):
                 await gateway.emit_progress_event(
-                    session, f"📋 已创建计划：{params.get('task_summary', '')}\n{plan_message}"
+                    session, f"📋 已创建计划：{task_summary}\n{plan_message}"
                 )
         except Exception as e:
             logger.warning(f"Failed to emit plan progress: {e}")
 
         return f"✅ 计划已创建：{plan_id}\n\n{plan_message}"
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        return "".join(str(text).lower().split())
+
+    @classmethod
+    def _is_similar_search_step(cls, a: dict, b: dict) -> bool:
+        tool_a = str(a.get("tool", "") or "")
+        tool_b = str(b.get("tool", "") or "")
+        if tool_a != "web_search" or tool_b != "web_search":
+            return False
+        da = cls._normalize_text(a.get("description", ""))
+        db = cls._normalize_text(b.get("description", ""))
+        if not da or not db:
+            return False
+        # 阈值保守：仅在明显高度相似时去重
+        return SequenceMatcher(None, da, db).ratio() >= 0.78
+
+    @classmethod
+    def _optimize_search_steps(cls, steps: list[dict]) -> list[dict]:
+        """压缩重复 web_search 步骤，保留语义多样性。"""
+        if not isinstance(steps, list) or len(steps) <= 1:
+            return steps
+
+        optimized: list[dict] = []
+        removed = 0
+
+        for step in steps:
+            if not isinstance(step, dict):
+                optimized.append(step)
+                continue
+            duplicate = any(
+                cls._is_similar_search_step(step, existing)
+                for existing in optimized
+                if isinstance(existing, dict)
+            )
+            if duplicate:
+                removed += 1
+                continue
+            optimized.append(step)
+
+        if removed > 0:
+            logger.info(
+                f"[Plan] Optimized plan steps: removed {removed} redundant web_search step(s), "
+                f"remaining={len(optimized)}"
+            )
+        return optimized
+
+    @staticmethod
+    def _is_research_tool(tool_name: str) -> bool:
+        tool = str(tool_name or "").replace("-", "_")
+        return tool in {"web_search", "news_search", "browser_task"} or tool.startswith("browser_")
+
+    @classmethod
+    def _is_research_plan(cls, task_summary: str, steps: list[dict]) -> bool:
+        """识别“信息检索/攻略/报告”型计划，用于收紧脚本执行路径。"""
+        summary = cls._normalize_text(task_summary)
+        research_keywords = (
+            "攻略",
+            "游玩",
+            "游览",
+            "景点",
+            "旅游",
+            "行程",
+            "交通",
+            "门票",
+            "开放时间",
+            "美食",
+            "酒店",
+            "民宿",
+            "注意事项",
+            "推荐",
+            "调研",
+            "报告",
+            "分析",
+            "总结",
+            "信息",
+        )
+        summary_match = any(word in summary for word in research_keywords)
+
+        tool_steps = [step for step in steps if isinstance(step, dict) and step.get("tool")]
+        if not tool_steps:
+            return summary_match
+
+        research_count = sum(1 for step in tool_steps if cls._is_research_tool(step.get("tool", "")))
+        return summary_match or (research_count >= 2 and research_count >= max(1, len(tool_steps) // 2))
+
+    @classmethod
+    def _is_query_script_step(cls, step: dict) -> bool:
+        """识别“为查询而写临时脚本”的步骤，避免信息检索任务误入 data/temp 脚本流。"""
+        # 有些模型会产出连字符工具名（如 write-file / run-shell），这里统一归一化，
+        # 否则 research guard 会漏判，导致计划末尾继续出现“写脚本/跑脚本”步骤。
+        tool = str(step.get("tool", "") or "").replace("-", "_")
+        if tool not in {"write_file", "run_shell"}:
+            return False
+
+        text = cls._normalize_text(
+            " ".join(
+                [
+                    str(step.get("description", "") or ""),
+                    str(step.get("result", "") or ""),
+                    str(step.get("path", "") or ""),
+                ]
+            )
+        )
+        script_keywords = (
+            "脚本",
+            "python",
+            "data/temp",
+            "查询",
+            "搜索",
+            "抓取",
+            "爬取",
+            "wuxi_search",
+            "search_",
+        )
+        return any(word in text for word in script_keywords)
+
+    @classmethod
+    def _guard_research_plan_steps(cls, task_summary: str, steps: list[dict]) -> list[dict]:
+        """信息检索计划优先直连搜索工具，避免无故落到临时查询脚本。"""
+        if not isinstance(steps, list) or not cls._is_research_plan(task_summary, steps):
+            return steps
+
+        filtered: list[dict] = []
+        removed = 0
+        for step in steps:
+            if isinstance(step, dict) and cls._is_query_script_step(step):
+                removed += 1
+                continue
+            filtered.append(step)
+
+        if removed > 0:
+            logger.info(
+                "[Plan] Guarded research plan: removed %s query-script step(s), remaining=%s",
+                removed,
+                len(filtered),
+            )
+        return filtered
+
+    @classmethod
+    def _research_plan_guardrail(cls, task_summary: str, steps: list[dict]) -> str:
+        """给信息检索计划追加执行护栏，降低模型再次生成查询脚本的概率。"""
+        if not cls._is_research_plan(task_summary, steps):
+            return ""
+        return (
+            "IMPORTANT: For information-gathering/report tasks, use web_search/news_search/"
+            "browser_task directly. Do NOT write temporary Python search scripts with "
+            "write_file/run_shell under data/temp unless those direct search tools have already failed."
+        )
 
     async def _update_step(self, params: dict) -> str:
         """更新步骤状态"""
@@ -544,12 +703,27 @@ class PlanHandler:
             return "❌ 当前没有活动的计划"
 
         summary = params.get("summary", "")
+        steps = _plan["steps"]
+        pending_steps = [
+            step for step in steps if step.get("status") in {"pending", "in_progress"}
+        ]
+        if pending_steps:
+            pending_ids = [step.get("id", "?") for step in pending_steps[:3]]
+            logger.warning(
+                "[Plan] Reject complete_plan because steps are still pending: count=%s ids=%s",
+                len(pending_steps),
+                pending_ids,
+            )
+            return (
+                "❌ 当前计划仍有未完成步骤，不能直接 complete_plan。\n"
+                f"未完成步骤数：{len(pending_steps)}\n"
+                f"示例步骤：{pending_ids}"
+            )
 
         _plan["status"] = "completed"
         _plan["completed_at"] = datetime.now().isoformat()
         _plan["summary"] = summary
 
-        steps = _plan["steps"]
         completed = sum(1 for s in steps if s["status"] == "completed")
         failed = sum(1 for s in steps if s["status"] == "failed")
 
@@ -608,6 +782,10 @@ class PlanHandler:
             else:
                 message += f"{prefix} {i + 1}. {step['description']}\n"
 
+        guardrail = self._research_plan_guardrail(plan.get("task_summary", ""), steps)
+        if guardrail:
+            message += f"\n{guardrail}\n"
+
         message += "\n开始执行..."
 
         return message
@@ -660,6 +838,9 @@ class PlanHandler:
             "IMPORTANT: This plan already exists. Do NOT call create_plan again. "
             "Continue from the current step using update_plan_step."
         )
+        guardrail = self._research_plan_guardrail(plan.get("task_summary", ""), steps)
+        if guardrail:
+            lines.append(guardrail)
 
         return "\n".join(lines)
 

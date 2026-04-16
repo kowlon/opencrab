@@ -35,7 +35,6 @@ SYSTEM_PRESETS: list[AgentProfile] = [
             "en": "General-purpose assistant with all skills",
         },
     ),
-
     # ── 内容创作 ──────────────────────────────────────────────────────
     AgentProfile(
         id="content-creator",
@@ -43,10 +42,16 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="多平台内容策划与发布，擅长小红书/公众号/抖音文案",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@xiaohongshu-creator", "seeagent/skills@wechat-article", "seeagent/skills@chinese-writing",
-            "seeagent/skills@content-research-writer", "seeagent/skills@douyin-tool", "seeagent/skills@summarizer",
-            "jimliu/baoyu-skills@baoyu-image-gen", "jimliu/baoyu-skills@baoyu-cover-image",
-            "jimliu/baoyu-skills@baoyu-article-illustrator", "jimliu/baoyu-skills@baoyu-infographic",
+            "seeagent/skills@xiaohongshu-creator",
+            "seeagent/skills@wechat-article",
+            "seeagent/skills@chinese-writing",
+            "seeagent/skills@content-research-writer",
+            "seeagent/skills@douyin-tool",
+            "seeagent/skills@summarizer",
+            "jimliu/baoyu-skills@baoyu-image-gen",
+            "jimliu/baoyu-skills@baoyu-cover-image",
+            "jimliu/baoyu-skills@baoyu-article-illustrator",
+            "jimliu/baoyu-skills@baoyu-infographic",
             "jimliu/baoyu-skills@baoyu-format-markdown",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
@@ -72,9 +77,13 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="短视频/长视频脚本策划与分镜",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@douyin-tool", "seeagent/skills@bilibili-watcher", "seeagent/skills@youtube-summarizer",
-            "seeagent/skills@content-research-writer", "seeagent/skills@summarizer",
-            "jimliu/baoyu-skills@baoyu-image-gen", "jimliu/baoyu-skills@baoyu-slide-deck",
+            "seeagent/skills@douyin-tool",
+            "seeagent/skills@bilibili-watcher",
+            "seeagent/skills@youtube-summarizer",
+            "seeagent/skills@content-research-writer",
+            "seeagent/skills@summarizer",
+            "jimliu/baoyu-skills@baoyu-image-gen",
+            "jimliu/baoyu-skills@baoyu-slide-deck",
             "jimliu/baoyu-skills@baoyu-cover-image",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
@@ -99,9 +108,12 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="搜索引擎优化内容写作，提升搜索排名",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@content-research-writer", "seeagent/skills@chinese-writing",
-            "seeagent/skills@apify-scraper", "seeagent/skills@summarizer",
-            "jimliu/baoyu-skills@baoyu-url-to-markdown", "jimliu/baoyu-skills@baoyu-format-markdown",
+            "seeagent/skills@content-research-writer",
+            "seeagent/skills@chinese-writing",
+            "seeagent/skills@apify-scraper",
+            "seeagent/skills@summarizer",
+            "jimliu/baoyu-skills@baoyu-url-to-markdown",
+            "jimliu/baoyu-skills@baoyu-format-markdown",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -125,8 +137,10 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="中文长篇小说/故事创作，人物塑造与情节构建",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@chinese-novelist", "seeagent/skills@chinese-writing",
-            "jimliu/baoyu-skills@baoyu-comic", "jimliu/baoyu-skills@baoyu-image-gen",
+            "seeagent/skills@chinese-novelist",
+            "seeagent/skills@chinese-writing",
+            "jimliu/baoyu-skills@baoyu-comic",
+            "jimliu/baoyu-skills@baoyu-image-gen",
             "jimliu/baoyu-skills@baoyu-article-illustrator",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
@@ -145,7 +159,6 @@ SYSTEM_PRESETS: list[AgentProfile] = [
             "en": "Chinese novel and story writing",
         },
     ),
-
     # ── 企业办公 ──────────────────────────────────────────────────────
     AgentProfile(
         id="office-doc",
@@ -153,8 +166,12 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="办公文档处理专家，擅长 Word/PPT/Excel",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@docx", "seeagent/skills@pptx", "seeagent/skills@xlsx", "seeagent/skills@pdf",
-            "seeagent/skills@ppt-creator", "seeagent/skills@translate-pdf",
+            "seeagent/skills@docx",
+            "seeagent/skills@pptx",
+            "seeagent/skills@xlsx",
+            "seeagent/skills@pdf",
+            "seeagent/skills@ppt-creator",
+            "seeagent/skills@translate-pdf",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -178,8 +195,11 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="招聘/考勤/制度起草，企业人力资源管理",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@docx", "seeagent/skills@xlsx", "seeagent/skills@pdf",
-            "seeagent/skills@chinese-writing", "seeagent/skills@internal-comms",
+            "seeagent/skills@docx",
+            "seeagent/skills@xlsx",
+            "seeagent/skills@pdf",
+            "seeagent/skills@chinese-writing",
+            "seeagent/skills@internal-comms",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -203,8 +223,10 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="合同审查/合规分析/法规检索",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@docx", "seeagent/skills@pdf",
-            "seeagent/skills@translate-pdf", "seeagent/skills@chinese-writing",
+            "seeagent/skills@docx",
+            "seeagent/skills@pdf",
+            "seeagent/skills@translate-pdf",
+            "seeagent/skills@chinese-writing",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -229,11 +251,17 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="品牌推广/活动策划/市场分析",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@content-research-writer", "seeagent/skills@xiaohongshu-creator",
-            "seeagent/skills@docx", "seeagent/skills@pptx", "seeagent/skills@brand-guidelines",
-            "seeagent/skills@apify-scraper", "seeagent/skills@summarizer",
-            "jimliu/baoyu-skills@baoyu-image-gen", "jimliu/baoyu-skills@baoyu-infographic",
-            "jimliu/baoyu-skills@baoyu-cover-image", "jimliu/baoyu-skills@baoyu-slide-deck",
+            "seeagent/skills@content-research-writer",
+            "seeagent/skills@xiaohongshu-creator",
+            "seeagent/skills@docx",
+            "seeagent/skills@pptx",
+            "seeagent/skills@brand-guidelines",
+            "seeagent/skills@apify-scraper",
+            "seeagent/skills@summarizer",
+            "jimliu/baoyu-skills@baoyu-image-gen",
+            "jimliu/baoyu-skills@baoyu-infographic",
+            "jimliu/baoyu-skills@baoyu-cover-image",
+            "jimliu/baoyu-skills@baoyu-slide-deck",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -257,8 +285,10 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="智能客服/FAQ/工单处理",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@knowledge-capture", "seeagent/skills@chinese-writing",
-            "seeagent/skills@docx", "seeagent/skills@summarizer",
+            "seeagent/skills@knowledge-capture",
+            "seeagent/skills@chinese-writing",
+            "seeagent/skills@docx",
+            "seeagent/skills@summarizer",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -283,9 +313,13 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="项目计划/进度追踪/周报管理",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@xlsx", "seeagent/skills@docx", "seeagent/skills@pptx",
-            "seeagent/skills@todoist-task", "seeagent/skills@pretty-mermaid",
-            "seeagent/skills@github-automation", "jimliu/baoyu-skills@baoyu-infographic",
+            "seeagent/skills@xlsx",
+            "seeagent/skills@docx",
+            "seeagent/skills@pptx",
+            "seeagent/skills@todoist-task",
+            "seeagent/skills@pretty-mermaid",
+            "seeagent/skills@github-automation",
+            "jimliu/baoyu-skills@baoyu-infographic",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -303,7 +337,6 @@ SYSTEM_PRESETS: list[AgentProfile] = [
             "en": "Project planning, progress tracking, weekly reports",
         },
     ),
-
     # ── 教育辅助 ──────────────────────────────────────────────────────
     AgentProfile(
         id="language-tutor",
@@ -311,8 +344,10 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="外语学习/翻译/口语练习",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@translate-pdf", "seeagent/skills@chinese-writing",
-            "seeagent/skills@summarizer", "jimliu/baoyu-skills@baoyu-url-to-markdown",
+            "seeagent/skills@translate-pdf",
+            "seeagent/skills@chinese-writing",
+            "seeagent/skills@summarizer",
+            "jimliu/baoyu-skills@baoyu-url-to-markdown",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -337,9 +372,14 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="论文写作/文献综述/引用管理",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@content-research-writer", "seeagent/skills@pdf", "seeagent/skills@docx",
-            "seeagent/skills@chinese-writing", "seeagent/skills@translate-pdf", "seeagent/skills@summarizer",
-            "jimliu/baoyu-skills@baoyu-infographic", "jimliu/baoyu-skills@baoyu-format-markdown",
+            "seeagent/skills@content-research-writer",
+            "seeagent/skills@pdf",
+            "seeagent/skills@docx",
+            "seeagent/skills@chinese-writing",
+            "seeagent/skills@translate-pdf",
+            "seeagent/skills@summarizer",
+            "jimliu/baoyu-skills@baoyu-infographic",
+            "jimliu/baoyu-skills@baoyu-format-markdown",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -362,7 +402,11 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         name="数学辅导",
         description="数学解题/公式推导/概念讲解",
         type=AgentType.SYSTEM,
-        skills=["seeagent/skills@pretty-mermaid", "seeagent/skills@xlsx", "seeagent/skills@canvas-design"],
+        skills=[
+            "seeagent/skills@pretty-mermaid",
+            "seeagent/skills@xlsx",
+            "seeagent/skills@canvas-design",
+        ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
             "你是数学教学专家。擅长解题思路讲解、公式推导、概念图示。"
@@ -380,7 +424,6 @@ SYSTEM_PRESETS: list[AgentProfile] = [
             "en": "Math problem solving, formula derivation, concept explanation",
         },
     ),
-
     # ── 生活效率 ──────────────────────────────────────────────────────
     AgentProfile(
         id="schedule-manager",
@@ -388,9 +431,12 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="日程安排/提醒/会议纪要",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@todoist-task", "seeagent/skills@datetime-tool",
-            "seeagent/skills@google-calendar-automation", "seeagent/skills@gmail-automation",
-            "seeagent/skills@docx", "seeagent/skills@summarizer",
+            "seeagent/skills@todoist-task",
+            "seeagent/skills@datetime-tool",
+            "seeagent/skills@google-calendar-automation",
+            "seeagent/skills@gmail-automation",
+            "seeagent/skills@docx",
+            "seeagent/skills@summarizer",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -414,9 +460,14 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="读书笔记/知识库整理/Obsidian 管理",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@obsidian-skills", "seeagent/skills@notebooklm", "seeagent/skills@knowledge-capture",
-            "seeagent/skills@summarizer", "seeagent/skills@pdf", "seeagent/skills@translate-pdf",
-            "jimliu/baoyu-skills@baoyu-url-to-markdown", "jimliu/baoyu-skills@baoyu-format-markdown",
+            "seeagent/skills@obsidian-skills",
+            "seeagent/skills@notebooklm",
+            "seeagent/skills@knowledge-capture",
+            "seeagent/skills@summarizer",
+            "seeagent/skills@pdf",
+            "seeagent/skills@translate-pdf",
+            "jimliu/baoyu-skills@baoyu-url-to-markdown",
+            "jimliu/baoyu-skills@baoyu-format-markdown",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -440,14 +491,15 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="语雀文档/知识库/周报管理",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@yuque-skills", "seeagent/skills@chinese-writing",
-            "seeagent/skills@summarizer", "seeagent/skills@content-research-writer",
+            "seeagent/skills@yuque-skills",
+            "seeagent/skills@chinese-writing",
+            "seeagent/skills@summarizer",
+            "seeagent/skills@content-research-writer",
             "jimliu/baoyu-skills@baoyu-format-markdown",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
-            "你是语雀文档管理专家。帮助用户在语雀平台上创建文档、"
-            "整理知识库、生成周报和团队报告。"
+            "你是语雀文档管理专家。帮助用户在语雀平台上创建文档、整理知识库、生成周报和团队报告。"
         ),
         icon="📝",
         color="#00B96B",
@@ -460,7 +512,6 @@ SYSTEM_PRESETS: list[AgentProfile] = [
             "en": "Yuque docs, knowledge base, weekly reports",
         },
     ),
-
     # ── 开发运维 ──────────────────────────────────────────────────────
     AgentProfile(
         id="code-assistant",
@@ -468,14 +519,21 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="代码开发助手，擅长编码、调试和 Git 操作",
         type=AgentType.SYSTEM,
         skills=[
-            "obra/superpowers@using-superpowers", "obra/superpowers@brainstorming",
-            "obra/superpowers@writing-plans", "obra/superpowers@executing-plans",
-            "obra/superpowers@test-driven-development", "obra/superpowers@systematic-debugging",
-            "obra/superpowers@verification-before-completion", "obra/superpowers@finishing-a-development-branch",
-            "obra/superpowers@requesting-code-review", "obra/superpowers@receiving-code-review",
-            "obra/superpowers@using-git-worktrees", "obra/superpowers@subagent-driven-development",
+            "obra/superpowers@using-superpowers",
+            "obra/superpowers@brainstorming",
+            "obra/superpowers@writing-plans",
+            "obra/superpowers@executing-plans",
+            "obra/superpowers@test-driven-development",
+            "obra/superpowers@systematic-debugging",
+            "obra/superpowers@verification-before-completion",
+            "obra/superpowers@finishing-a-development-branch",
+            "obra/superpowers@requesting-code-review",
+            "obra/superpowers@receiving-code-review",
+            "obra/superpowers@using-git-worktrees",
+            "obra/superpowers@subagent-driven-development",
             "obra/superpowers@dispatching-parallel-agents",
-            "seeagent/skills@code-reviewer", "seeagent/skills@github-automation",
+            "seeagent/skills@code-reviewer",
+            "seeagent/skills@github-automation",
             "seeagent/skills@changelog-generator",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
@@ -502,19 +560,31 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         skills=[
             "bocha-web-search",
             "news-search",
-            "browser-click", "browser-get-content", "browser-list-tabs",
-            "browser-navigate", "browser-new-tab", "browser-open",
-            "browser-screenshot", "browser-status", "browser-switch-tab",
-            "browser-task", "browser-type",
+            "browser-click",
+            "browser-get-content",
+            "browser-list-tabs",
+            "browser-navigate",
+            "browser-new-tab",
+            "browser-open",
+            "browser-screenshot",
+            "browser-status",
+            "browser-switch-tab",
+            "browser-task",
+            "browser-type",
             "desktop-screenshot",
-            "seeagent/skills@apify-scraper", "seeagent/skills@summarizer",
+            "seeagent/skills@apify-scraper",
+            "seeagent/skills@summarizer",
             "jimliu/baoyu-skills@baoyu-url-to-markdown",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
             "你是网络浏览与信息采集专家。擅长搜索信息、浏览网页、截图取证。"
-            "当任务涉及网络信息查询时，优先使用 bocha-web-search-1.0.1（技能名 bocha-web-search）进行检索。"
-            "只有在 bocha-web-search 无法满足（不可用、报错、结果不足）时，才回退到现有网络查询能力（如 web_search/news_search/browser 工具）。"
+            "当任务涉及网络信息查询时，优先直接调用 web_search / news_search / browser_task 等现有工具。"
+            "其中 web_search 已内置优先走 Bocha API 的能力，不要先 get_skill_info 再用 run_shell 手写 curl 调 bocha。"
+            "只有在这些直接工具无法满足（不可用、报错、结果不足）时，才回退到其他技能或浏览器能力。"
+            "【重要】收集到内容后需要总结时，直接将原始内容传递给 summarizer 工具（见下方），不要先 write_file 再 read_file。"
+            "【重要】如果任务只是调研/攻略/报告整理，不要为了搜索而在 data/temp 下生成临时查询脚本。"
+            "summarizer 工具支持直接接收原始文本内容进行总结，无需文件路径。"
             "对于不需要网络操作的任务，建议切换到通用助手。"
         ),
         icon="🌐",
@@ -534,8 +604,10 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="数据分析师，擅长数据处理、可视化和统计",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@xlsx", "seeagent/skills@pdf",
-            "seeagent/skills@pretty-mermaid", "seeagent/skills@apify-scraper",
+            "seeagent/skills@xlsx",
+            "seeagent/skills@pdf",
+            "seeagent/skills@pretty-mermaid",
+            "seeagent/skills@apify-scraper",
             "seeagent/skills@canvas-design",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
@@ -560,11 +632,15 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="CI/CD 流水线、容器编排、监控告警",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@github-automation", "seeagent/skills@changelog-generator",
+            "seeagent/skills@github-automation",
+            "seeagent/skills@changelog-generator",
             "seeagent/skills@code-reviewer",
-            "obra/superpowers@systematic-debugging", "obra/superpowers@verification-before-completion",
-            "obra/superpowers@using-git-worktrees", "obra/superpowers@finishing-a-development-branch",
-            "obra/superpowers@writing-plans", "obra/superpowers@executing-plans",
+            "obra/superpowers@systematic-debugging",
+            "obra/superpowers@verification-before-completion",
+            "obra/superpowers@using-git-worktrees",
+            "obra/superpowers@finishing-a-development-branch",
+            "obra/superpowers@writing-plans",
+            "obra/superpowers@executing-plans",
         ],
         skills_mode=SkillsMode.INCLUSIVE,
         custom_prompt=(
@@ -588,9 +664,12 @@ SYSTEM_PRESETS: list[AgentProfile] = [
         description="系统设计/架构图/技术选型",
         type=AgentType.SYSTEM,
         skills=[
-            "seeagent/skills@pretty-mermaid", "seeagent/skills@ppt-creator",
-            "seeagent/skills@pptx", "seeagent/skills@docx",
-            "obra/superpowers@brainstorming", "obra/superpowers@writing-plans",
+            "seeagent/skills@pretty-mermaid",
+            "seeagent/skills@ppt-creator",
+            "seeagent/skills@pptx",
+            "seeagent/skills@docx",
+            "obra/superpowers@brainstorming",
+            "obra/superpowers@writing-plans",
             "obra/superpowers@executing-plans",
             "jimliu/baoyu-skills@baoyu-infographic",
         ],
@@ -634,10 +713,7 @@ def deploy_system_presets(store: ProfileStore) -> int:
             existing = store.get(preset.id)
             if existing and existing.is_system:
                 if existing.user_customized:
-                    logger.debug(
-                        f"Skipping customized preset: {preset.id} "
-                        f"(user_customized=True)"
-                    )
+                    logger.debug(f"Skipping customized preset: {preset.id} (user_customized=True)")
                     continue
                 needs_upgrade = (
                     sorted(existing.skills) != sorted(preset.skills)
@@ -652,10 +728,7 @@ def deploy_system_presets(store: ProfileStore) -> int:
                     store._cache[preset.id] = updated
                     store._persist(updated)
                     deployed += 1
-                    logger.info(
-                        f"Upgraded system preset: {preset.id} "
-                        f"(skills/category synced)"
-                    )
+                    logger.info(f"Upgraded system preset: {preset.id} (skills/category synced)")
     if deployed:
         logger.info(f"Deployed/upgraded {deployed} system preset profile(s)")
     return deployed
@@ -701,10 +774,7 @@ def cleanup_stale_dynamic_agents(agents_dir: str | Path, max_age_days: int = 7) 
             if created_ts < cutoff:
                 fp.unlink()
                 cleaned += 1
-                logger.info(
-                    f"Cleaned up stale dynamic agent: {fp.stem} "
-                    f"(created_at={created_at})"
-                )
+                logger.info(f"Cleaned up stale dynamic agent: {fp.stem} (created_at={created_at})")
         except Exception as e:
             logger.warning(f"Failed to check/clean dynamic agent {fp.name}: {e}")
 
@@ -727,12 +797,8 @@ def ensure_presets_on_mode_enable(agents_dir: str | Path) -> None:
     store = ProfileStore(agents_dir)
     deployed = deploy_system_presets(store)
     if deployed:
-        logger.info(
-            f"Multi-agent mode enabled: deployed {deployed} preset(s) to {agents_dir}"
-        )
+        logger.info(f"Multi-agent mode enabled: deployed {deployed} preset(s) to {agents_dir}")
 
     cleaned = cleanup_stale_dynamic_agents(agents_dir)
     if cleaned:
-        logger.info(
-            f"Multi-agent mode startup: cleaned {cleaned} stale dynamic profile(s)"
-        )
+        logger.info(f"Multi-agent mode startup: cleaned {cleaned} stale dynamic profile(s)")

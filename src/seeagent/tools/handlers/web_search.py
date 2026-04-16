@@ -115,16 +115,23 @@ class WebSearchHandler:
         max_results = min(max(1, params.get("max_results", 5)), 20)
         region = str(params.get("region", "us-en") or "us-en")
         safesearch = params.get("safesearch", "moderate")
+        logger.info("[SEARCH] tool=web_search query=%r max_results=%s", query[:120], max_results)
+
+        trace: list[str] = [f"- 请求: web_search(query={query[:60]!r}, max_results={max_results})"]
 
         # 优先使用 bocha-web-search-1.0.1 能力（Bocha API）
         bocha_result = await self._try_bocha_search(query=query, max_results=max_results)
         if bocha_result is not None:
-            return bocha_result
+            logger.info("[RESULT] tool=web_search provider=bocha")
+            trace.append("- 路径: bocha (命中)")
+            return self._with_trace(trace, bocha_result)
 
         # 国内免费搜索补充（无 API Key）
         cn_result = await self._try_cn_free_search(query=query, max_results=max_results)
         if cn_result is not None:
-            return cn_result
+            logger.info("[RESULT] tool=web_search provider=cn_free")
+            trace.append("- 路径: bocha -> cn_free (命中)")
+            return self._with_trace(trace, cn_result)
 
         try:
             from ddgs import DDGS  # noqa: F401
@@ -154,13 +161,16 @@ class WebSearchHandler:
                     timeout=timeout,
                     proxy=proxy,
                 )
-                return self._format_web_results(results)
+                logger.info("[RESULT] tool=web_search provider=ddgs region=%s", rg)
+                trace.append(f"- 路径: bocha -> cn_free -> ddgs(region={rg}) (命中)")
+                return self._with_trace(trace, self._format_web_results(results))
             except Exception as e:
                 errors.append(f"{rg}: {type(e).__name__}: {e}")
         tb = traceback.format_exc()
-        logger.error(f"Web search failed after region fallback: {' | '.join(errors)}\n{tb}")
+        logger.error(f"[SEARCH_FAIL] Web search failed after region fallback: {' | '.join(errors)}\n{tb}")
+        trace.append("- 路径: bocha -> cn_free -> ddgs (失败)")
         return (
-            "搜索失败：Bocha 与 DDGS 均不可用。\n"
+            self._with_trace(trace, "搜索失败：Bocha / CN free / DDGS 均不可用。") + "\n"
             f"尝试区域: {', '.join(regions)}\n"
             f"错误摘要: {errors[-1] if errors else '未知错误'}\n"
             "建议：切换网络/代理后重试，或改用 MCP 的 web-search 服务。"
@@ -176,6 +186,8 @@ class WebSearchHandler:
         region = str(params.get("region", "us-en") or "us-en")
         safesearch = params.get("safesearch", "moderate")
         timelimit = params.get("timelimit")
+        trace: list[str] = [f"- 请求: news_search(query={query[:60]!r}, max_results={max_results})"]
+        logger.info("[SEARCH] tool=news_search query=%r max_results=%s", query[:120], max_results)
 
         try:
             from ddgs import DDGS  # noqa: F401
@@ -206,13 +218,16 @@ class WebSearchHandler:
                     timeout=timeout,
                     proxy=proxy,
                 )
-                return self._format_news_results(results)
+                logger.info("[RESULT] tool=news_search provider=ddgs region=%s", rg)
+                trace.append(f"- 路径: ddgs(region={rg}) (命中)")
+                return self._with_trace(trace, self._format_news_results(results))
             except Exception as e:
                 errors.append(f"{rg}: {type(e).__name__}: {e}")
         tb = traceback.format_exc()
-        logger.error(f"News search failed after region fallback: {' | '.join(errors)}\n{tb}")
+        logger.error(f"[SEARCH_FAIL] News search failed after region fallback: {' | '.join(errors)}\n{tb}")
+        trace.append("- 路径: ddgs (失败)")
         return (
-            "新闻搜索失败：当前网络环境无法访问 DDGS 搜索引擎。\n"
+            self._with_trace(trace, "新闻搜索失败：当前网络环境无法访问 DDGS 搜索引擎。") + "\n"
             f"尝试区域: {', '.join(regions)}\n"
             f"错误摘要: {errors[-1] if errors else '未知错误'}\n"
             "建议：切换网络/代理后重试，或改用 MCP 的 web-search 服务。"
@@ -259,7 +274,7 @@ class WebSearchHandler:
         """尝试使用 Bocha API 搜索；成功返回格式化结果，失败返回 None。"""
         api_key = os.getenv("BOCHA_API_KEY", "").strip()
         if not api_key:
-            logger.info("[WebSearch] BOCHA_API_KEY not set, fallback to DDGS")
+            logger.warning("[SEARCH_FAIL] bocha unavailable: BOCHA_API_KEY not set, fallback to CN/DDGS")
             return None
 
         payload = {
@@ -280,12 +295,12 @@ class WebSearchHandler:
             data = resp.json() if resp.content else {}
             results = self._extract_bocha_results(data)
             if not results:
-                logger.warning("[WebSearch] Bocha returned empty results, fallback to DDGS")
+                logger.warning("[SEARCH_FAIL] bocha empty results, fallback to CN/DDGS")
                 return None
-            logger.info("[WebSearch] Using Bocha search results")
+            logger.info("[RESULT] tool=web_search provider=bocha")
             return self._format_web_results(results)
         except Exception as e:
-            logger.warning(f"[WebSearch] Bocha search failed, fallback to DDGS: {type(e).__name__}: {e}")
+            logger.warning(f"[SEARCH_FAIL] bocha failed, fallback to CN/DDGS: {type(e).__name__}: {e}")
             return None
 
     async def _try_cn_free_search(self, query: str, max_results: int) -> str | None:
@@ -299,13 +314,13 @@ class WebSearchHandler:
                     results = await self._search_so360(query, max_results)
 
                 if results:
-                    logger.info(f"[WebSearch] Using CN free engine: {engine}")
+                    logger.info("[RESULT] tool=web_search provider=%s", engine)
                     return self._format_web_results(results)
                 errors.append(f"{engine}: empty")
             except Exception as e:
                 errors.append(f"{engine}: {type(e).__name__}: {e}")
 
-        logger.warning(f"[WebSearch] CN free engines unavailable, fallback to DDGS: {' | '.join(errors)}")
+        logger.warning(f"[SEARCH_FAIL] CN free engines unavailable, fallback to DDGS: {' | '.join(errors)}")
         return None
 
     async def _search_sogou(self, query: str, max_results: int) -> list[dict[str, Any]]:
@@ -374,6 +389,11 @@ class WebSearchHandler:
             if len(items) >= max_results:
                 break
         return items
+
+    @staticmethod
+    def _with_trace(trace: list[str], content: str) -> str:
+        """在工具输出前追加简洁执行过程，便于委派过程卡片展示。"""
+        return "### 搜索执行过程\n" + "\n".join(trace) + "\n\n" + content
 
     @staticmethod
     def _extract_bocha_results(payload: dict[str, Any]) -> list[dict[str, Any]]:

@@ -171,6 +171,13 @@ class ResponseHandler:
             True 如果任务已完成
         """
         delivery_receipts = delivery_receipts or []
+        logger.info(
+            "[TaskVerify] start: tools=%s receipts=%s conversation_id=%s request_preview=%s",
+            len(executed_tools or []),
+            len(delivery_receipts),
+            conversation_id or "",
+            (user_request or "")[:80],
+        )
 
         # === Deterministic Validation (Agent Harness) ===
         try:
@@ -188,16 +195,20 @@ class ResponseHandler:
 
             if report.applicable_count > 0:
                 for output in report.outputs:
+                    if output.result == ValidationResult.FAIL and output.name in (
+                        "PlanValidator",
+                        "CompletePlanValidator",
+                        "ArtifactValidator",
+                    ):
+                        logger.info(f"[TaskVerify] Deterministic FAIL: {output.name} — {output.reason}")
+                        return False
+
+                for output in report.outputs:
                     if output.result == ValidationResult.PASS and output.name in (
                         "ArtifactValidator", "CompletePlanValidator",
                     ):
                         logger.info(f"[TaskVerify] Deterministic PASS: {output.name} — {output.reason}")
                         return True
-
-                for output in report.outputs:
-                    if output.result == ValidationResult.FAIL and output.name == "PlanValidator":
-                        logger.info(f"[TaskVerify] Deterministic FAIL: {output.name} — {output.reason}")
-                        return False
         except Exception as e:
             logger.debug(f"[TaskVerify] Deterministic validation skipped: {e}")
 
@@ -208,10 +219,31 @@ class ResponseHandler:
             logger.info("[TaskVerify] delivery claim without receipts, INCOMPLETE")
             return False
 
+        # 信息类任务的响应质量兜底：避免“任务已完成”但没有给出实质内容
+        req = user_request or ""
+        resp = (assistant_response or "").strip()
+        info_keywords = ("攻略", "方案", "报告", "总结", "分析", "对比", "推荐")
+        completion_phrases = ("任务已完成", "已完成", "全部整理完毕", "无需额外步骤")
+        looks_like_info_task = any(k in req for k in info_keywords)
+        is_too_short_completion = (
+            looks_like_info_task
+            and len(resp) < 180
+            and any(p in resp for p in completion_phrases)
+        )
+        if is_too_short_completion:
+            logger.info("[TaskVerify] short completion for info task, INCOMPLETE")
+            return False
+
         # LLM 判断
         from .tool_executor import smart_truncate
         user_display, _ = smart_truncate(user_request, 3000, save_full=False, label="verify_user")
         response_display, _ = smart_truncate(assistant_response, 8000, save_full=False, label="verify_response")
+        logger.info(
+            "[TaskVerify] escalate to llm: user_len=%s response_len=%s tools=%s",
+            len(user_display),
+            len(response_display),
+            ",".join(executed_tools) if executed_tools else "none",
+        )
 
         verify_prompt = f"""请判断以下交互是否已经**完成**用户的意图。
 

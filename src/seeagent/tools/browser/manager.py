@@ -11,6 +11,8 @@ import asyncio
 import logging
 import os
 import platform
+import shutil
+import sys
 import time
 from enum import Enum
 from pathlib import Path
@@ -203,6 +205,7 @@ class BrowserManager:
         self._is_server = _is_server_environment()
         self._fatal_unavailable_until: float = 0.0
         self._fatal_unavailable_reason: str = ""
+        self._chromium_repair_attempted: bool = False
 
         # Chrome 检测
         from .chrome_finder import detect_chrome_installation
@@ -481,9 +484,10 @@ class BrowserManager:
         """尝试连接已运行的 Chrome 调试端口。"""
         import httpx
 
-        async with httpx.AsyncClient() as client:
+        # localhost 探测必须绕过系统代理，否则可能被 HTTP_PROXY/HTTPS_PROXY 劫持导致超时
+        async with httpx.AsyncClient(trust_env=False) as client:
             response = await client.get(
-                f"http://localhost:{self._cdp_port}/json/version", timeout=2.0,
+                f"http://127.0.0.1:{self._cdp_port}/json/version", timeout=2.0,
             )
             if response.status_code != 200:
                 return False
@@ -492,7 +496,7 @@ class BrowserManager:
 
         self._browser = await asyncio.wait_for(
             self._playwright.chromium.connect_over_cdp(
-                f"http://localhost:{self._cdp_port}"
+                f"http://127.0.0.1:{self._cdp_port}"
             ),
             timeout=15,
         )
@@ -562,7 +566,7 @@ class BrowserManager:
         logger.info(f"Browser started with Chrome ({label}, visible={self.visible})")
         return True
 
-    def _preflight_chromium(self) -> str | None:
+    async def _preflight_chromium(self) -> str | None:
         """预检 Chromium 二进制是否可用，返回错误信息或 None。"""
         try:
             exe = self._playwright.chromium.executable_path
@@ -597,6 +601,7 @@ class BrowserManager:
         if file_size < 1_000_000:
             hint = f"Chromium 二进制文件异常（仅 {file_size} bytes），可能下载不完整: {exe}"
             logger.error(f"[Browser] {hint}")
+            await self._attempt_repair_corrupted_chromium(exe_path)
             return hint
 
         logger.info(f"[Browser] Chromium binary verified: {exe} ({file_size / 1024 / 1024:.1f} MB)")
@@ -614,7 +619,7 @@ class BrowserManager:
         if exe_path:
             logger.info(f"[Browser] Using bundled executable: {exe_path}")
         else:
-            preflight_err = self._preflight_chromium()
+            preflight_err = await self._preflight_chromium()
             if preflight_err:
                 raise RuntimeError(preflight_err)
 
@@ -655,6 +660,39 @@ class BrowserManager:
             await self._close_browser_silently()
 
         raise last_err or RuntimeError("Chromium launch failed")
+
+    async def _attempt_repair_corrupted_chromium(self, exe_path: Path) -> None:
+        """检测到损坏 Chromium 后尝试一次自愈安装。"""
+        if self._chromium_repair_attempted:
+            return
+        self._chromium_repair_attempted = True
+
+        try:
+            chromium_dir = exe_path.parents[2] if len(exe_path.parents) >= 3 else None
+            if chromium_dir and chromium_dir.name.startswith("chromium-") and chromium_dir.exists():
+                shutil.rmtree(chromium_dir, ignore_errors=True)
+                logger.warning(f"[Browser] Removed corrupted chromium directory: {chromium_dir}")
+        except Exception as e:
+            logger.warning(f"[Browser] Failed to cleanup corrupted chromium files: {e}")
+
+        cmd = [sys.executable, "-m", "playwright", "install", "chromium"]
+        logger.info(f"[Browser] Attempting chromium self-repair: {' '.join(cmd)}")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=180)
+            if proc.returncode == 0:
+                logger.info("[Browser] Chromium self-repair succeeded")
+            else:
+                err = (stderr or stdout or b"").decode("utf-8", errors="replace").strip()
+                logger.error(f"[Browser] Chromium self-repair failed (code={proc.returncode}): {err[:500]}")
+        except TimeoutError:
+            logger.error("[Browser] Chromium self-repair timed out (180s)")
+        except Exception as e:
+            logger.error(f"[Browser] Chromium self-repair error: {type(e).__name__}: {e}")
 
     async def _launch_persistent(
         self, exe_path: str | None, headless: bool,

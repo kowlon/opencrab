@@ -28,7 +28,22 @@ browser_task(
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | task | string | 是 | 任务描述，用自然语言描述你想完成的操作 |
-| max_steps | integer | 否 | 最大执行步骤数，默认 15 |
+| max_steps | integer | 否 | 最大执行步骤数，根据任务复杂度选择（见下方指导） |
+
+## max_steps 复杂度选择指南
+
+根据任务复杂度选择合适的 max_steps，避免过度搜索：
+
+| 任务类型 | 复杂度 | max_steps | 示例 |
+|---------|--------|-----------|------|
+| 简单搜索/导航 | 低 | 3-5 | "搜索五泄风景区门票价格"、"打开百度" |
+| 多步骤搜索+信息提取 | 中 | 5-8 | "搜索五泄风景区攻略，提取开放时间和门票信息" |
+| 复杂交互（登录、填表、多页面） | 高 | 10-15 | "登录淘宝，搜索机械键盘，按销量排序" |
+| 超复杂多页面操作 | 极高 | 15-20 | "在携程上完成酒店预订全流程" |
+
+**判断方法**：
+- 简单任务：1-2个页面即可完成，不需要翻页或多次筛选
+- 复杂任务：需要登录、多步筛选、翻页、填写表单等
 
 ## 何时使用（优先）
 
@@ -37,26 +52,44 @@ browser_task(
 - 不确定具体操作步骤时
 - 复杂的网页交互流程
 
+## 何时不用 browser_task（用 browser_navigate 代替）
+
+- **单次搜索或导航**：直接拼 URL 用 `browser_navigate` 更高效
+  - ✅ `browser_navigate(url="https://www.baidu.com/s?wd=五泄风景区")`
+  - ❌ `browser_task(task="用百度搜索五泄风景区")`
+- **只需获取单个页面内容**：直接 `browser_navigate` + `browser_get_content`
+- **已知 URL 的简单访问**：直接打开 URL，无需 AI 规划
+
 ## 示例
 
-### 搜索任务
+### 简单搜索任务（用 browser_navigate）
 ```python
-browser_task(task="打开百度搜索福建福州天气")
+# 简单搜索直接拼URL，更高效
+browser_navigate(url="https://www.baidu.com/s?wd=五泄风景区门票")
 ```
 
-### 表单填写
+### 信息提取任务（中等复杂度）
 ```python
-browser_task(task="打开 example.com 的注册页面，填写用户名 test123")
+browser_task(
+    task="搜索五泄风景区攻略，提取开放时间、门票价格、交通指南",
+    max_steps=5
+)
 ```
 
-### 信息提取
+### 复杂交互任务
 ```python
-browser_task(task="打开 GitHub 首页，获取今日热门项目的名称")
+browser_task(
+    task="登录携程，搜索北京到上海的机票，筛选晚上6-9点，截图保存结果",
+    max_steps=12
+)
 ```
 
 ### 截图任务
 ```python
-browser_task(task="打开百度搜索福建福州，截图保存")
+browser_task(
+    task="打开五泄风景区官网，截图保存首页",
+    max_steps=3
+)
 ```
 
 ## 浏览器工具选用指引

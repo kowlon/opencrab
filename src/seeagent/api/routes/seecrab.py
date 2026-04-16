@@ -1070,6 +1070,12 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 logger.warning(f"[BP] match phase failed: {e}", exc_info=True)
 
             brain = getattr(agent, "brain", None)
+            # 记录本次 SeeCrab 会话实际生效的 STEP_FILTER_DEBUG_ENABLED，
+            # 用于排查“为什么子 Agent 动作显示/不显示”这类问题。
+            logger.info(
+                "[SeeCrab] STEP_FILTER_DEBUG_ENABLED=%s",
+                cfg.settings.step_filter_debug_enabled,
+            )
             adapter = SeeCrabAdapter(brain=brain, user_messages=user_messages, debug_enabled=cfg.settings.step_filter_debug_enabled)
             event_bus = asyncio.Queue()
             if session and hasattr(session, "context"):

@@ -1,5 +1,6 @@
 # src/seeagent/api/adapters/seecrab_adapter.py
 """SeeCrabAdapter: translates raw Agent event stream → refined SSE events."""
+
 from __future__ import annotations
 
 import asyncio
@@ -7,7 +8,7 @@ import logging
 from collections.abc import AsyncIterator
 
 from .card_builder import CardBuilder
-from .seecrab_models import StepFilterConfig
+from .seecrab_models import FilterResult, StepFilterConfig
 from .step_aggregator import StepAggregator
 from .step_filter import StepFilter
 from .timer_tracker import TimerTracker
@@ -29,14 +30,40 @@ class SeeCrabAdapter:
         self.title_gen = TitleGenerator(brain, user_messages)
         self.card_builder = CardBuilder()
         self._title_queue: asyncio.Queue[dict] = asyncio.Queue()
+        self._show_subagent_actions = bool(self.step_filter.config.debug_enabled)
         self.aggregator = StepAggregator(
             title_gen=self.title_gen,
             card_builder=self.card_builder,
             timer=self.timer,
             title_update_queue=self._title_queue,
+            show_subagent_actions=self._show_subagent_actions,
         )
         self._aggregators: dict[str, StepAggregator] = {"main": self.aggregator}
         self._active_agent_id = "main"
+        self._delegation_step_ids: dict[str, str] = {}
+        # 仅在 STEP_FILTER_DEBUG_ENABLED=true 时，展示子 Agent 的细粒度执行动作。
+        # 关闭时仍保留“委派卡 + 执行计划”，但隐藏 run_shell/read_file 等细节步骤。
+        self._subagent_visible_tools = {
+            "web_search",
+            "news_search",
+            "browser_task",
+            "generate_image",
+            "list_skills",
+            "get_skill_info",
+            "run_skill_script",
+            "run_shell",
+            "write_file",
+            "read_file",
+            "list_directory",
+            # 把交付动作也显示出来，避免最后一个可见步骤已经结束，
+            # 但前端仍在等待 artifact 发送而看起来“卡住很久”。
+            "deliver_artifacts",
+        }
+        logger.info(
+            "[SeeCrab] adapter initialized: debug_enabled=%s show_subagent_actions=%s",
+            debug_enabled,
+            self._show_subagent_actions,
+        )
 
     async def transform(
         self,
@@ -83,6 +110,46 @@ class SeeCrabAdapter:
 
         if etype == "agent_header":
             return await self._handle_agent_switch(event)
+
+        # When debug visibility is disabled, hide delegated sub-agent execution traces.
+        # This keeps the UI focused on main-agent level progress only.
+        if (
+            not self._show_subagent_actions
+            and self._active_agent_id != "main"
+            and etype
+            in {
+                "thinking_start",
+                "thinking_delta",
+                "thinking_end",
+                "text_delta",
+                "tool_call_start",
+                "tool_call_end",
+                "ask_user",
+            }
+        ):
+            # 正式模式（STEP_FILTER_DEBUG_ENABLED=false）下，隐藏子 Agent 的细粒度执行流，
+            # 避免前端展示过多底层动作噪音。
+            logger.info(
+                "[SeeCrab] hide sub-agent event: agent=%s type=%s debug_enabled=%s",
+                self._active_agent_id,
+                etype,
+                self._show_subagent_actions,
+            )
+            return []
+
+        if (
+            not self._show_subagent_actions
+            and self._active_agent_id != "main"
+            and etype in {"plan_created", "plan_step_updated", "plan_completed", "step_card"}
+        ):
+            # 即使关闭调试展示，也要保留子 Agent 的“执行计划/计划步骤卡”，
+            # 这样用户仍能看到委派后的整体执行进度。
+            logger.info(
+                "[SeeCrab] keep sub-agent planning event: agent=%s type=%s debug_enabled=%s",
+                self._active_agent_id,
+                etype,
+                self._show_subagent_actions,
+            )
 
         if etype == "thinking_delta":
             return self._handle_thinking(event)
@@ -146,6 +213,15 @@ class SeeCrabAdapter:
 
         # Pre-built step_card from BP engine (delegate cards) — pass through
         if etype == "step_card":
+            # Track delegation card step_id per agent_id for parent linking
+            card_type = event.get("card_type", "")
+            if card_type == "delegate":
+                input_data = event.get("input", {})
+                delegated_agent = (
+                    input_data.get("agent_id", "") if isinstance(input_data, dict) else ""
+                )
+                if delegated_agent:
+                    self._delegation_step_ids[delegated_agent] = event.get("step_id", "")
             return [event]
 
         # BP events — unified passthrough for all bp_* event types
@@ -180,11 +256,13 @@ class SeeCrabAdapter:
         if ttft:
             events.append(ttft)
             events.append(self.timer.make_event("total", "running"))
-        events.append({
-            "type": "thinking",
-            "content": event.get("content", ""),
-            "agent_id": self._active_agent_id,
-        })
+        events.append(
+            {
+                "type": "thinking",
+                "content": event.get("content", ""),
+                "agent_id": self._active_agent_id,
+            }
+        )
         return events
 
     async def _handle_text_delta(self, event: dict) -> list[dict]:
@@ -195,11 +273,13 @@ class SeeCrabAdapter:
             events.append(self.timer.make_event("total", "running"))
         # Close any active aggregation
         events += await self.aggregator.on_text_delta()
-        events.append({
-            "type": "ai_text",
-            "content": event.get("content", ""),
-            "agent_id": self._active_agent_id,
-        })
+        events.append(
+            {
+                "type": "ai_text",
+                "content": event.get("content", ""),
+                "agent_id": self._active_agent_id,
+            }
+        )
         return events
 
     async def _handle_tool_call_start(self, event: dict) -> list[dict]:
@@ -207,16 +287,49 @@ class SeeCrabAdapter:
         args = event.get("args", {})
         tool_id = event.get("id", "")
         fr = self.step_filter.classify(tool_name, args)
-        return await self.aggregator.on_tool_call_start(tool_name, args, tool_id, fr)
+        # Sub-agent execution visibility:
+        # even when global debug is off, we still want to show key file/shell actions
+        # under delegated agents for better traceability.
+        if (
+            self._show_subagent_actions
+            and
+            self._active_agent_id != "main"
+            and fr == FilterResult.HIDDEN
+            and tool_name in self._subagent_visible_tools
+        ):
+            # 调试模式（STEP_FILTER_DEBUG_ENABLED=true）下，把原本会被隐藏的子 Agent 关键动作
+            # 提升为可见步骤卡，便于排查委派执行过程。
+            logger.info(
+                "[SeeCrab] promote hidden sub-agent tool to visible: agent=%s tool=%s",
+                self._active_agent_id,
+                tool_name,
+            )
+            fr = FilterResult.WHITELIST
+        events = await self.aggregator.on_tool_call_start(tool_name, args, tool_id, fr)
+        # Normal delegation cards are created by aggregator from tool_call_start
+        # (not raw "step_card" events), so we must also capture parent mapping here.
+        if fr == FilterResult.AGENT_TRIGGER:
+            delegated_agent = args.get("agent_id", "") if isinstance(args, dict) else ""
+            if delegated_agent:
+                for e in events:
+                    if e.get("type") == "step_card" and e.get("card_type") == "delegate":
+                        delegate_step_id = e.get("step_id", "")
+                        self._delegation_step_ids[delegated_agent] = delegate_step_id
+                        logger.info(
+                            "[SeeCrab] delegation map set: delegated_agent=%s parent_step_id=%s tool=%s",
+                            delegated_agent,
+                            delegate_step_id,
+                            tool_name,
+                        )
+                        break
+        return events
 
     async def _handle_tool_call_end(self, event: dict) -> list[dict]:
         tool_name = event.get("tool", "")
         tool_id = event.get("id", "")
         result = event.get("result", "")
         is_error = event.get("is_error", False)
-        events = await self.aggregator.on_tool_call_end(
-            tool_name, tool_id, result, is_error
-        )
+        events = await self.aggregator.on_tool_call_end(tool_name, tool_id, result, is_error)
         return events
 
     @staticmethod
@@ -224,8 +337,7 @@ class SeeCrabAdapter:
         """Map raw ask_user event (id→value)."""
         options = event.get("options", [])
         mapped = [
-            {"label": o.get("label", ""), "value": o.get("id", o.get("value", ""))}
-            for o in options
+            {"label": o.get("label", ""), "value": o.get("id", o.get("value", ""))} for o in options
         ]
         return {
             "type": "ask_user",
@@ -294,12 +406,20 @@ class SeeCrabAdapter:
     async def _handle_agent_switch(self, event: dict) -> list[dict]:
         """Handle agent switch: flush current aggregator, switch to new agent."""
         agent_id = event.get("agent_id", "main") or "sub_agent"
-        logger.debug(f"[SeeCrab] Agent switch: {self._active_agent_id} → {agent_id}")
+        logger.info("[SeeCrab] agent switch: from=%s to=%s", self._active_agent_id, agent_id)
         events: list[dict] = []
         # Flush current aggregator
         current_agg = self._aggregators.get(self._active_agent_id)
         if current_agg:
             events.extend(await current_agg.flush())
+        # Get parent_step_id before creating new aggregator
+        parent_step_id = self._delegation_step_ids.pop(agent_id, None) if agent_id != "main" else None
+        if agent_id != "main":
+            logger.info(
+                "[SeeCrab] resolve parent step: agent_id=%s parent_step_id=%s",
+                agent_id,
+                parent_step_id or "",
+            )
         # Switch aggregator (create if new)
         if agent_id not in self._aggregators:
             self._aggregators[agent_id] = StepAggregator(
@@ -308,14 +428,32 @@ class SeeCrabAdapter:
                 timer=self.timer,
                 title_update_queue=self._title_queue,
                 agent_id=agent_id,
+                parent_step_id=parent_step_id,
+                show_subagent_actions=self._show_subagent_actions,
             )
         self._active_agent_id = agent_id
         self.aggregator = self._aggregators[agent_id]
+        # Emit delegation_context before agent_header so frontend links sub-agent cards to parent
+        if parent_step_id:
+            logger.info(
+                "[SeeCrab] emit delegation_context: agent_id=%s parent_step_id=%s",
+                agent_id,
+                parent_step_id,
+            )
+            events.append(
+                {
+                    "type": "delegation_context",
+                    "parent_step_id": parent_step_id,
+                    "agent_id": agent_id,
+                }
+            )
         # Pass through agent_header to frontend
-        events.append({
-            "type": "agent_header",
-            "agent_id": agent_id,
-            "agent_name": event.get("agent_name", agent_id),
-            "agent_description": event.get("agent_description", ""),
-        })
+        events.append(
+            {
+                "type": "agent_header",
+                "agent_id": agent_id,
+                "agent_name": event.get("agent_name", agent_id),
+                "agent_description": event.get("agent_description", ""),
+            }
+        )
         return events

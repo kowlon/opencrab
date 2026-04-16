@@ -241,23 +241,38 @@ class CompletePlanValidator(BaseValidator):
         return "CompletePlanValidator"
 
     def validate(self, context: ValidationContext) -> ValidatorOutput:
+        try:
+            from ..tools.handlers.plan import get_plan_handler_for_session, has_active_plan
+
+            if context.conversation_id and has_active_plan(context.conversation_id):
+                handler = get_plan_handler_for_session(context.conversation_id)
+                plan = handler.get_plan_for(context.conversation_id) if handler else None
+                if plan:
+                    pending = [
+                        s.get("id", "?")
+                        for s in plan.get("steps", [])
+                        if s.get("status") in ("pending", "in_progress")
+                    ]
+                    if pending:
+                        return ValidatorOutput(
+                            name=self.name,
+                            result=ValidationResult.FAIL,
+                            reason=f"Active plan still has pending steps: {pending[:3]}",
+                        )
+                return ValidatorOutput(
+                    name=self.name,
+                    result=ValidationResult.FAIL,
+                    reason="Active plan exists but is not fully completed",
+                )
+        except Exception:
+            pass
+
         if "complete_plan" in context.executed_tools:
             return ValidatorOutput(
                 name=self.name,
                 result=ValidationResult.PASS,
-                reason="complete_plan was called",
+                reason="complete_plan was called after plan finished",
             )
-
-        try:
-            from ..tools.handlers.plan import has_active_plan
-            if context.conversation_id and has_active_plan(context.conversation_id):
-                return ValidatorOutput(
-                    name=self.name,
-                    result=ValidationResult.FAIL,
-                    reason="Active plan exists but complete_plan not called",
-                )
-        except Exception:
-            pass
 
         return ValidatorOutput(
             name=self.name,

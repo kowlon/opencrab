@@ -8,6 +8,8 @@ from seeagent.core.response_handler import (
     clean_llm_response,
     ResponseHandler,
 )
+from seeagent.core.validators import CompletePlanValidator, ValidationResult, ValidationContext
+from seeagent.tools.handlers.plan import register_active_plan, unregister_active_plan
 
 
 class TestStripThinkingTags:
@@ -68,3 +70,21 @@ class TestResponseHandlerStaticMethods:
     def test_get_last_user_request_empty(self):
         result = ResponseHandler.get_last_user_request([])
         assert isinstance(result, str)
+
+
+class TestDeterministicValidators:
+    def test_complete_plan_validator_fails_when_plan_still_active(self):
+        conversation_id = "validator-plan-active"
+        register_active_plan(conversation_id, "plan-validator-1")
+        try:
+            validator = CompletePlanValidator()
+            output = validator.validate(
+                ValidationContext(
+                    executed_tools=["complete_plan"],
+                    conversation_id=conversation_id,
+                )
+            )
+            assert output.result == ValidationResult.FAIL
+            assert "pending" in output.reason.lower() or "active" in output.reason.lower()
+        finally:
+            unregister_active_plan(conversation_id)

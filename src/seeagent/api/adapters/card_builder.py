@@ -1,4 +1,5 @@
 """CardBuilder: assembles step_card SSE events."""
+
 from __future__ import annotations
 
 from fnmatch import fnmatch
@@ -15,12 +16,13 @@ class CardBuilder:
         "python_execute": "code",
         "shell_execute": "code",
         "generate_report": "file",
-
         "export_*": "file",
         "analyze_data": "analysis",
         "chart_*": "analysis",
         "browser_*": "browser",
         "navigate_*": "browser",
+        "delegate_to_agent": "delegate",
+        "delegate_parallel": "delegate",
     }
 
     def build_step_card(
@@ -36,9 +38,10 @@ class CardBuilder:
         input_data: dict | None = None,
         output_data: str | None = None,
         absorbed_calls: list[dict] | None = None,
+        parent_step_id: str | None = None,
     ) -> dict:
         """Assemble a complete step_card event."""
-        return {
+        card = {
             "type": "step_card",
             "step_id": step_id,
             "title": title,
@@ -52,6 +55,9 @@ class CardBuilder:
             "output": output_data,
             "absorbed_calls": absorbed_calls or [],
         }
+        if parent_step_id:
+            card["parent_step_id"] = parent_step_id
+        return card
 
     def _get_card_type(self, tool_name: str) -> str:
         """Infer card_type from tool_name using exact + wildcard matching."""
