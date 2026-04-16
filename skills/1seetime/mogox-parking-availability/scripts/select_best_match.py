@@ -16,8 +16,8 @@ import requests
 
 DASHSCOPE_API_KEY_PATH = "/root/.dashscope_key"
 DASHSCOPE_ENDPOINT = "https://seeapi.zhidaoauto.com/v1/chat/completions"
-MODEL = "MiniMax-M2.5"
-DEFAULT_DASHSCOPE_API_KEY = "sk-sc86Gw7sG3g9VMyDtIOezDF2uuCN45igR7zHH05iSAUerH4f"
+MODEL = "MiniMax-M2.7"
+DEFAULT_DASHSCOPE_API_KEY = "sk-TsWw3XPhYCwRRqEgW7Rd28SKu4gFBfLJnUkK3RmSRfCbEsWg"
 
 OUTDATED_THRESHOLD_MINUTES = 20
 FORBIDDEN_OUTPUT_TOKENS = ("```", "seeclaw-json-park")
