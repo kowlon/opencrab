@@ -446,6 +446,12 @@ class Settings(BaseSettings):
     evaluation_enabled: bool = Field(default=False, description="是否启用每日自动评估")
     evaluation_output_dir: str = Field(default="data/evaluation", description="评估报告输出目录")
 
+    # === 调试执行配置 ===
+    step_filter_debug_enabled: bool = Field(
+        default=False,
+        description="是否启用 StepFilter 调试输出（本地调试时打开，正式部署时关闭）",
+    )
+
     @model_validator(mode="before")
     @classmethod
     def _strip_inline_comments(cls, values: dict) -> dict:  # type: ignore[override]

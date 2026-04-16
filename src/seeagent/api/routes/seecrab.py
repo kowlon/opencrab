@@ -20,6 +20,8 @@ from ..schemas_seecrab import (
     SeeCrabSessionUpdateRequest,
 )
 
+from seeagent import config as cfg
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/seecrab")
@@ -1068,7 +1070,7 @@ async def seecrab_chat(body: SeeCrabChatRequest, request: Request):
                 logger.warning(f"[BP] match phase failed: {e}", exc_info=True)
 
             brain = getattr(agent, "brain", None)
-            adapter = SeeCrabAdapter(brain=brain, user_messages=user_messages)
+            adapter = SeeCrabAdapter(brain=brain, user_messages=user_messages, debug_enabled=cfg.settings.step_filter_debug_enabled)
             event_bus = asyncio.Queue()
             if session and hasattr(session, "context"):
                 session.context._sse_event_bus = event_bus

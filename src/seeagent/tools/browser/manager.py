@@ -11,6 +11,7 @@ import asyncio
 import logging
 import os
 import platform
+import time
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -200,6 +201,8 @@ class BrowserManager:
         self._startup_errors: list[str] = []
         self._startup_lock = asyncio.Lock()
         self._is_server = _is_server_environment()
+        self._fatal_unavailable_until: float = 0.0
+        self._fatal_unavailable_reason: str = ""
 
         # Chrome 检测
         from .chrome_finder import detect_chrome_installation
@@ -237,6 +240,17 @@ class BrowserManager:
 
     async def start(self, visible: bool = True) -> bool:
         async with self._startup_lock:
+            if self._fatal_unavailable_until > time.time():
+                remaining = int(self._fatal_unavailable_until - time.time())
+                logger.warning(
+                    "[Browser] Skip startup during cooldown (%ss): %s",
+                    remaining,
+                    self._fatal_unavailable_reason,
+                )
+                self.state = BrowserState.ERROR
+                self._startup_errors = [self._fatal_unavailable_reason]
+                return False
+
             if self.state == BrowserState.READY:
                 if visible != self.visible:
                     logger.info(f"Browser mode change requested: visible={visible}, restarting...")
@@ -297,6 +311,11 @@ class BrowserManager:
                 f"[Browser] All strategies failed: {'; '.join(self._startup_errors)}"
             )
             self.state = BrowserState.ERROR
+            if any("Chromium 可执行文件不存在" in e for e in self._startup_errors):
+                self._fatal_unavailable_reason = (
+                    "Chromium 不可用（可执行文件缺失），请先安装后再重试。"
+                )
+                self._fatal_unavailable_until = time.time() + 60.0
             await self._cleanup_playwright()
             return False
 

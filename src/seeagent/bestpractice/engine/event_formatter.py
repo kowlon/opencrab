@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 
 from seeagent.api.adapters.card_builder import CardBuilder
+from seeagent.api.adapters.seecrab_models import StepFilterConfig
 from seeagent.api.adapters.step_aggregator import StepAggregator
 from seeagent.api.adapters.step_filter import StepFilter
 from seeagent.api.adapters.timer_tracker import TimerTracker
@@ -25,6 +26,7 @@ class BPEventFormatter:
         instance_id: str,
         subtask_id: str,
         delegate_step_id: str = "",
+        debug_enabled: bool = False,
     ) -> None:
         self._agent_profile = agent_profile
         self._subtask_name = subtask_name
@@ -37,7 +39,8 @@ class BPEventFormatter:
         self._display_agent_id = agent_profile
         self._sub_agent_id = agent_profile
 
-        step_filter = StepFilter()
+        filter_config = StepFilterConfig(debug_enabled=debug_enabled)
+        step_filter = StepFilter(filter_config)
         card_builder = CardBuilder()
         timer = TimerTracker()
         timer.start(f"bp_{instance_id}_{subtask_id}")

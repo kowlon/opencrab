@@ -11,6 +11,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_REGION_FALLBACKS = ("us-en", "wt-wt")
+
 
 def _sync_web_search(
     query: str,
@@ -73,7 +75,7 @@ class WebSearchHandler:
             return "错误：query 参数不能为空"
 
         max_results = min(max(1, params.get("max_results", 5)), 20)
-        region = params.get("region", "wt-wt")
+        region = str(params.get("region", "us-en") or "us-en")
         safesearch = params.get("safesearch", "moderate")
 
         try:
@@ -82,21 +84,28 @@ class WebSearchHandler:
             from seeagent.tools._import_helper import import_or_hint
             return f"错误：{import_or_hint('ddgs')}"
 
-        try:
-            results = await asyncio.to_thread(
-                _sync_web_search,
-                query=query,
-                max_results=max_results,
-                region=region,
-                safesearch=safesearch,
-            )
-            return self._format_web_results(results)
-        except Exception as e:
-            tb = traceback.format_exc()
-            logger.error(
-                f"Web search failed: {type(e).__name__}: {e}\n{tb}"
-            )
-            return f"搜索失败: {type(e).__name__}: {e}"
+        errors: list[str] = []
+        regions = [region] + [r for r in _REGION_FALLBACKS if r != region]
+        for rg in regions:
+            try:
+                results = await asyncio.to_thread(
+                    _sync_web_search,
+                    query=query,
+                    max_results=max_results,
+                    region=rg,
+                    safesearch=safesearch,
+                )
+                return self._format_web_results(results)
+            except Exception as e:
+                errors.append(f"{rg}: {type(e).__name__}: {e}")
+        tb = traceback.format_exc()
+        logger.error(f"Web search failed after region fallback: {' | '.join(errors)}\n{tb}")
+        return (
+            "搜索失败：当前网络环境无法访问 DDGS 搜索引擎。\n"
+            f"尝试区域: {', '.join(regions)}\n"
+            f"错误摘要: {errors[-1] if errors else '未知错误'}\n"
+            "建议：切换网络/代理后重试，或改用 MCP 的 web-search 服务。"
+        )
 
     async def _news_search(self, params: dict[str, Any]) -> str:
         """搜索新闻"""
@@ -105,7 +114,7 @@ class WebSearchHandler:
             return "错误：query 参数不能为空"
 
         max_results = min(max(1, params.get("max_results", 5)), 20)
-        region = params.get("region", "wt-wt")
+        region = str(params.get("region", "us-en") or "us-en")
         safesearch = params.get("safesearch", "moderate")
         timelimit = params.get("timelimit")
 
@@ -115,22 +124,29 @@ class WebSearchHandler:
             from seeagent.tools._import_helper import import_or_hint
             return f"错误：{import_or_hint('ddgs')}"
 
-        try:
-            results = await asyncio.to_thread(
-                _sync_news_search,
-                query=query,
-                max_results=max_results,
-                region=region,
-                safesearch=safesearch,
-                timelimit=timelimit,
-            )
-            return self._format_news_results(results)
-        except Exception as e:
-            tb = traceback.format_exc()
-            logger.error(
-                f"News search failed: {type(e).__name__}: {e}\n{tb}"
-            )
-            return f"新闻搜索失败: {type(e).__name__}: {e}"
+        errors: list[str] = []
+        regions = [region] + [r for r in _REGION_FALLBACKS if r != region]
+        for rg in regions:
+            try:
+                results = await asyncio.to_thread(
+                    _sync_news_search,
+                    query=query,
+                    max_results=max_results,
+                    region=rg,
+                    safesearch=safesearch,
+                    timelimit=timelimit,
+                )
+                return self._format_news_results(results)
+            except Exception as e:
+                errors.append(f"{rg}: {type(e).__name__}: {e}")
+        tb = traceback.format_exc()
+        logger.error(f"News search failed after region fallback: {' | '.join(errors)}\n{tb}")
+        return (
+            "新闻搜索失败：当前网络环境无法访问 DDGS 搜索引擎。\n"
+            f"尝试区域: {', '.join(regions)}\n"
+            f"错误摘要: {errors[-1] if errors else '未知错误'}\n"
+            "建议：切换网络/代理后重试，或改用 MCP 的 web-search 服务。"
+        )
 
     @staticmethod
     def _format_web_results(results: list) -> str:

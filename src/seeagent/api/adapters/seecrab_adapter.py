@@ -7,6 +7,7 @@ import logging
 from collections.abc import AsyncIterator
 
 from .card_builder import CardBuilder
+from .seecrab_models import StepFilterConfig
 from .step_aggregator import StepAggregator
 from .step_filter import StepFilter
 from .timer_tracker import TimerTracker
@@ -20,8 +21,9 @@ _STREAM_DONE = object()
 class SeeCrabAdapter:
     """Core translation layer: raw reason_stream events → refined SSE events."""
 
-    def __init__(self, brain: object | None, user_messages: list[str]):
-        self.step_filter = StepFilter()
+    def __init__(self, brain: object | None, user_messages: list[str], debug_enabled: bool = False):
+        filter_config = StepFilterConfig(debug_enabled=debug_enabled)
+        self.step_filter = StepFilter(filter_config)
         self.step_filter.set_user_messages(user_messages)
         self.timer = TimerTracker()
         self.title_gen = TitleGenerator(brain, user_messages)

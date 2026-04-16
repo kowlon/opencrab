@@ -1,4 +1,5 @@
 """SeeCrab data models — shared across all adapter sub-modules."""
+
 from __future__ import annotations
 
 import asyncio
@@ -30,22 +31,53 @@ class FilterResult(Enum):
 class StepFilterConfig:
     """Step filter configuration — runtime adjustable."""
 
-    whitelist: list[str] = field(default_factory=lambda: [
-        "web_search", "news_search", "browser_task",
-        "generate_image",
-    ])
-    skill_triggers: list[str] = field(default_factory=lambda: [
-        "load_skill", "run_skill_script",
-    ])
+    debug_enabled: bool = field(default=False)
+    internal_tools: list[str] = field(
+        default_factory=lambda: [
+            "list_skills",
+            "get_skill_info",
+            "run_skill_script",
+            "run_shell",
+            "write_file",
+            "read_file",
+            "list_directory",
+        ]
+    )
+    whitelist: list[str] = field(
+        default_factory=lambda: [
+            "web_search",
+            "news_search",
+            "browser_task",
+            "generate_image",
+            "list_skills",
+            "get_skill_info",
+            "run_skill_script",
+            "run_shell",
+            "write_file",
+            "read_file",
+            "list_directory",
+        ]
+    )
+    skill_triggers: list[str] = field(
+        default_factory=lambda: [
+            "load_skill",
+            "run_skill_script",
+        ]
+    )
     mcp_trigger: str = "call_mcp_tool"
-    agent_triggers: list[str] = field(default_factory=lambda: [
-        "delegate_to_agent", "delegate_parallel",
-    ])
-    user_mention_keywords: dict[str, list[str]] = field(default_factory=lambda: {
-        "read_file": ["读取", "读", "查看文件", "打开文件", "read"],
-        "write_file": ["写入", "写", "创建文件", "生成文件", "write"],
-        "run_shell": ["运行", "执行", "跑", "run", "execute"],
-    })
+    agent_triggers: list[str] = field(
+        default_factory=lambda: [
+            "delegate_to_agent",
+            "delegate_parallel",
+        ]
+    )
+    user_mention_keywords: dict[str, list[str]] = field(
+        default_factory=lambda: {
+            "read_file": ["读取", "读", "查看文件", "打开文件", "read"],
+            "write_file": ["写入", "写", "创建文件", "生成文件", "write"],
+            "run_shell": ["运行", "执行", "跑", "run", "execute"],
+        }
+    )
 
 
 @dataclass

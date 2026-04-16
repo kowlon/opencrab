@@ -245,6 +245,7 @@ class BrowserHandler:
             return {"success": True, "result": result_data}
         else:
             hints: list[str] = []
+            startup_errors = getattr(manager, "_startup_errors", []) or []
             try:
                 from ..browser.chrome_finder import (
                     check_mcp_chrome_extension,
@@ -273,6 +274,8 @@ class BrowserHandler:
                 )
             else:
                 error_msg = "无法启动浏览器。请安装: pip install playwright && playwright install chromium"
+            if startup_errors:
+                error_msg += "\n\n最近启动错误：\n- " + "\n- ".join(startup_errors[:3])
             if hints:
                 error_msg += "\n\n" + "\n".join(hints)
 

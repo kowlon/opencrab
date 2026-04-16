@@ -1,4 +1,5 @@
 """TitleGenerator: LLM-powered title generation + humanize fallback."""
+
 from __future__ import annotations
 
 import asyncio
@@ -64,10 +65,17 @@ AGENT_TITLE_PROMPT = """根据以下信息，生成一个简短、对用户友�
 - 只输出标题文本，不要任何额外内容"""
 
 HUMANIZE_MAP: dict[str, object] = {
-    "web_search": lambda args: f'搜索 "{args.get("query", "")}"',
-    "news_search": lambda args: f'搜索新闻 "{args.get("query", "")}"',
-    "browser_task": lambda _: "浏览网页获取内容",
-    "generate_image": lambda _: "生成插图",
+    "web_search": lambda args: f'web_search搜索 {args.get("query", "")}',
+    "news_search": lambda args: f'news_search搜索搜索新闻 {args.get("query", "")}"',
+    "browser_task": lambda _: "browser_task浏览网页获取内容",
+    "generate_image": lambda _: "generate_image生成插图",
+    "list_skills": lambda _: "list_skills查看已安装技能",
+    "get_skill_info": lambda args: f"get_skill_info查看技能详情",
+    "run_skill_script": lambda args: f"run_skill_script运行技能脚本",
+    "run_shell": lambda args: f"run_shell执行命令",
+    "write_file": lambda args: f"write_file写入文件",
+    "read_file": lambda args: f"read_file读取文件",
+    "list_directory": lambda args: f"list_directory浏览目录",
 }
 
 
@@ -102,9 +110,7 @@ class TitleGenerator:
         )
         return await self._call_llm(prompt, fallback=self._skill_fallback(skill_meta))
 
-    async def generate_mcp_title(
-        self, server_meta: dict, tool_meta: dict
-    ) -> str:
+    async def generate_mcp_title(self, server_meta: dict, tool_meta: dict) -> str:
         """Generate LLM title for an MCP step card."""
         if self.brain is None:
             return self._mcp_fallback(server_meta)
@@ -128,7 +134,9 @@ class TitleGenerator:
         return f"委派 {agent_id}: {desc}" if desc else f"委派 {agent_id} 处理"
 
     async def generate_delegation_title(
-        self, agent_meta: dict, task_meta: dict,
+        self,
+        agent_meta: dict,
+        task_meta: dict,
     ) -> str:
         """Generate LLM title for a delegation step card."""
         if self.brain is None:
@@ -141,7 +149,8 @@ class TitleGenerator:
             reason=task_meta.get("reason", ""),
         )
         return await self._call_llm(
-            prompt, fallback=self._delegation_fallback(agent_meta, task_meta),
+            prompt,
+            fallback=self._delegation_fallback(agent_meta, task_meta),
         )
 
     @staticmethod
@@ -161,7 +170,7 @@ class TitleGenerator:
                     self.brain.think_lightweight(prompt),
                     timeout=TITLE_TIMEOUT,
                 )
-                title = resp.content.strip().strip('"\'')
+                title = resp.content.strip().strip("\"'")
                 if not title:
                     return fallback
                 return title[:30]  # safety cap
