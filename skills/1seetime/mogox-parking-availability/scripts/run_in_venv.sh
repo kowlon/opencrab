@@ -12,7 +12,8 @@
 #
 # 说明:
 #   此脚本会自动激活 .venv 虚拟环境后执行传入的命令。
-#   如果虚拟环境不存在，会提示先运行 setup_venv.sh。
+#   优先使用现有虚拟环境，如果不存在则自动创建。
+#   如果执行失败，会自动重新安装依赖并重试。
 
 set -euo pipefail
 
@@ -23,20 +24,16 @@ VENV_DIR="${SKILL_DIR}/.venv"
 
 # ── 检查虚拟环境是否存在 ─────────────────────────────────────
 if [ ! -d "${VENV_DIR}" ]; then
-    echo "错误: 虚拟环境不存在: ${VENV_DIR}"
-    echo ""
-    echo "请先运行初始化脚本:"
-    echo "  bash scripts/setup_venv.sh"
-    exit 1
-fi
-
-if [ ! -f "${VENV_DIR}/bin/activate" ]; then
-    echo "错误: 虚拟环境损坏（缺少 activate 脚本）"
-    echo ""
-    echo "请删除后重新创建:"
-    echo "  rm -rf ${VENV_DIR}"
-    echo "  bash scripts/setup_venv.sh"
-    exit 1
+    echo "虚拟环境不存在: ${VENV_DIR}"
+    echo "→ 自动创建并安装依赖..."
+    bash "${SCRIPT_DIR}/setup_venv.sh"
+elif [ ! -f "${VENV_DIR}/bin/activate" ]; then
+    echo "虚拟环境损坏（缺少 activate 脚本）"
+    echo "→ 重新创建虚拟环境..."
+    rm -rf "${VENV_DIR}"
+    bash "${SCRIPT_DIR}/setup_venv.sh"
+else
+    echo "→ 使用现有虚拟环境: ${VENV_DIR}"
 fi
 
 # ── 检查是否传入了命令 ───────────────────────────────────────
@@ -56,4 +53,19 @@ source "${VENV_DIR}/bin/activate"
 # 固定在技能根目录执行，确保相对路径（如 ../../../data/skills_result）
 # 在不同调用环境下都能解析到同一目标目录。
 cd "${SKILL_DIR}"
-exec "$@"
+
+# ── 执行命令，失败时自动重新安装依赖并重试 ──────────────────
+exec "$@" 2>&1
+RESULT=$?
+
+if [ $RESULT -ne 0 ]; then
+    echo ""
+    echo "命令执行失败（退出码: ${RESULT}），尝试重新安装依赖..."
+    bash "${SCRIPT_DIR}/setup_venv.sh"
+    echo ""
+    echo "→ 重新执行命令..."
+    source "${VENV_DIR}/bin/activate"
+    exec "$@"
+fi
+
+exit $RESULT

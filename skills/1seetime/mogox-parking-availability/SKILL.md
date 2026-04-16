@@ -73,26 +73,26 @@ bash scripts/run_in_venv.sh python scripts/emit_seeclaw_output.py [args...]
 
 此包装脚本会：
 - 自动激活 `.venv` 虚拟环境
-- 检查虚拟环境是否存在（不存在时提示运行 `setup_venv.sh`）
-- 在虚拟环境中执行传入的命令
+- 优先使用现有虚拟环境（快速启动）
+- 虚拟环境不存在或损坏时自动创建/修复
+- 执行失败时自动重新安装依赖并重试
 
 **跨平台兼容**：Windows（Git Bash）、macOS、Linux 均使用相同命令。
 
-### 执行前环境检查（强制）
+### 执行前环境检查
 
-在执行 Python 脚本前，必须先满足以下条件：
+`run_in_venv.sh` 会自动处理虚拟环境的管理（创建、更新、重试），无需手动检查。
+
+用户只需确保：
 - 当前目录是 `mogox-parking-availability/` 技能根目录
-- 已运行 `bash scripts/setup_venv.sh` 创建虚拟环境
-- 所有 Python 命令必须通过 `bash scripts/run_in_venv.sh` 包装执行
+- 所有 Python 命令通过 `bash scripts/run_in_venv.sh` 包装执行
 
-**环境初始化**：
-- 首次使用时，运行 `bash scripts/setup_venv.sh` 创建虚拟环境并安装依赖
-- 如果 `.venv` 不存在，`run_in_venv.sh` 会报错并提示先运行 `setup_venv.sh`
+**环境初始化**（可选，仅首次使用）：
+- 运行 `bash scripts/setup_venv.sh` 创建虚拟环境并安装依赖
+- 或者直接运行 `bash scripts/run_in_venv.sh`，脚本会自动处理
 
 **错误处理**：
-- 如果虚拟环境不存在：脚本会提示运行 `setup_venv.sh`
-- 如果虚拟环境损坏：脚本会提示删除并重新创建
-- 如果依赖缺失：需要重新运行 `setup_venv.sh`
+- `run_in_venv.sh` 会自动处理虚拟环境不存在、损坏或依赖缺失的情况
 
 **重要**：不要直接使用系统 Python 或 `.venv/bin/python` 执行脚本，始终使用 `run_in_venv.sh` 包装。
 
