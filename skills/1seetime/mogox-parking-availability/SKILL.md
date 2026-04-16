@@ -100,6 +100,11 @@ bash scripts/run_in_venv.sh python scripts/emit_seeclaw_output.py [args...]
 
 所有产物输出到 `../../../data/skills_result/mogox-parking-availability/<任务时间>/`，任务时间格式为 `YYYYMMDD_HHMMSS`。
 
+**目录基准（强制）**：
+- 所有相对路径都以 `mogox-parking-availability/` 技能根目录为基准
+- `run_in_venv.sh` 会自动切换到技能根目录执行命令，避免因调用时 cwd 不同而把文件写到错误位置
+- 严禁使用 `data/...`（这会在技能目录下创建 `data/`）；必须使用 `../../../data/skills_result/...`
+
 **强制一致性约束（新增）**：
 - 单次任务必须先生成一次 `RUN_ID`，并在后续所有脚本命令中复用同一个 `OUTPUT_DIR`
 - 严禁在步骤 2/3/4 分别使用 `$(date +%Y%m%d_%H%M%S)` 重新生成目录（会导致 `api_response.json` 与 `final_output.json` 不在同一路径）
@@ -110,15 +115,22 @@ OUTPUT_DIR="../../../data/skills_result/mogox-parking-availability/${RUN_ID}"
 mkdir -p "${OUTPUT_DIR}"
 ```
 
+可选：为了便于排查，可将脚本 stdout/stderr 同步落盘到同一目录：
+
+```bash
+LOG_FILE="${OUTPUT_DIR}/execution.log"
+```
+
 ```
 ../../../data/skills_result/mogox-parking-availability/20260331_143000/
 
 ```
-data/skills_result/mogox-parking-availability/20260331_143000/
+../../../data/skills_result/mogox-parking-availability/20260331_143000/
 ├── query_params.json        # 查询参数
 ├── api_response.json        # API 原始响应
 ├── selected_match.json      # LLM 选择的最佳匹配
-└── final_output.json        # 最终标准化输出
+├── final_output.json        # 最终标准化输出
+└── execution.log            # 执行日志（可选）
 ```
 
 输出路径需要在调用脚本时通过 `--output` 参数显式指定。
@@ -184,7 +196,8 @@ bash scripts/run_in_venv.sh python scripts/query_parking.py --help
 bash scripts/run_in_venv.sh python scripts/query_parking.py \
   --query "提取的停车场名称" \
   --city-hint "城市名称（可选，如'绍兴市'）" \
-  --output "${OUTPUT_DIR}/api_response.json"
+  --output "${OUTPUT_DIR}/api_response.json" \
+  2>&1 | tee -a "${LOG_FILE}"
 ```
 
 #### 2B. 周边搜索模式
@@ -195,7 +208,8 @@ bash scripts/run_in_venv.sh python scripts/query_parking.py \
   --lng 120.2573191614 \
   --radius 2000 \
   --city-hint "诸暨市" \
-  --output "${OUTPUT_DIR}/api_response.json"
+  --output "${OUTPUT_DIR}/api_response.json" \
+  2>&1 | tee -a "${LOG_FILE}"
 ```
 
 脚本会：
@@ -216,7 +230,8 @@ bash scripts/run_in_venv.sh python scripts/select_best_match.py \
   --candidates "${OUTPUT_DIR}/api_response.json" \
   --user-query "原始用户查询" \
   --mode name \
-  --output "${OUTPUT_DIR}/final_output.json"
+  --output "${OUTPUT_DIR}/final_output.json" \
+  2>&1 | tee -a "${LOG_FILE}"
 ```
 
 此脚本使用 LLM 分析候选停车场，选择最符合用户询问的停车场，考虑因素包括：
@@ -240,7 +255,8 @@ bash scripts/run_in_venv.sh python scripts/select_best_match.py \
   --user-query "附近停车场" \
   --mode nearby \
   --lat 29.710166081 --lng 120.2573191614 \
-  --output "${OUTPUT_DIR}/final_output.json"
+  --output "${OUTPUT_DIR}/final_output.json" \
+  2>&1 | tee -a "${LOG_FILE}"
 ```
 
 - `--lat`/`--lng`：搜索中心坐标，用于距离计算
@@ -254,7 +270,8 @@ bash scripts/run_in_venv.sh python scripts/select_best_match.py \
 bash scripts/run_in_venv.sh python scripts/emit_seeclaw_output.py \
   --input "${OUTPUT_DIR}/final_output.json" \
   --user-query "原始用户查询" \
-  --mode nearby
+  --mode nearby \
+  2>&1 | tee -a "${LOG_FILE}"
 ```
 
 周边模式需要加 `--mode nearby` 参数，以确保 fallback 输出结构正确。名称模式可省略 `--mode`（默认 `name`）。
