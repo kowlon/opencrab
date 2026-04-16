@@ -157,4 +157,41 @@ def validate_bp_config(config: BestPracticeConfig) -> list[str]:
                             f"field '{field}' not found in branch properties"
                         )
 
+    # final_output_schema.upstream_from 校验 (方案 C)
+    final_schema = config.final_output_schema or {}
+    upstream_from = final_schema.get("upstream_from")
+    if upstream_from is not None:
+        if not isinstance(upstream_from, dict):
+            errors.append(
+                f"final_output_schema.upstream_from must be a dict "
+                f"({{field: source_subtask_id}}), got {type(upstream_from).__name__}"
+            )
+        elif config.subtasks:
+            final_props = set((final_schema.get("properties") or {}).keys())
+            last_subtask_id = config.subtasks[-1].id
+            for field, src_id in upstream_from.items():
+                # 1) source_subtask_id 必须是已知的 subtask
+                if src_id not in id_set:
+                    errors.append(
+                        f"final_output_schema.upstream_from['{field}'] references "
+                        f"unknown source subtask '{src_id}'"
+                    )
+                    continue
+                # 2) source_subtask_id 不能是最后一个子任务本身(自引用无意义)
+                if src_id == last_subtask_id:
+                    errors.append(
+                        f"final_output_schema.upstream_from['{field}']: source "
+                        f"subtask '{src_id}' is the last subtask itself; "
+                        f"upstream_from must point to an earlier subtask"
+                    )
+                    continue
+                # 3) field 必须在 final_output_schema.properties 里声明
+                #    (否则引擎聚合后没有 schema 描述,_schema_to_example 兜底会出问题)
+                if field not in final_props:
+                    errors.append(
+                        f"final_output_schema.upstream_from['{field}']: field "
+                        f"'{field}' not found in final_output_schema.properties; "
+                        f"declare the field schema before using upstream_from"
+                    )
+
     return errors

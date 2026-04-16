@@ -151,25 +151,32 @@ SKILLS_TOOLS = [
     {
         "name": "load_skill",
         "category": "Skills",
-        "description": "Load a newly created skill from skills/ directory. Use after creating a skill with skill-creator to make it immediately available.",
-        "detail": """加载新创建的技能到系统中。
+        "description": "Load a newly installed or created skill. Searches the user workspace (where install_skill writes) and the project skills/ directory, so install_skill → load_skill works in-process without restart.",
+        "detail": """加载新创建或新安装的技能到当前运行进程。
 
 **适用场景**：
+- 通过 `install_skill` 安装完成后，无需重启即可 `load_skill` 激活
 - 使用 skill-creator 创建技能后
 - 手动在 skills/ 目录创建技能后
 - 需要立即使用新技能时
 
+**查找范围**：按顺序在以下根目录下查找（扁平 `{root}/{name}/` 或分组 `{root}/<分组>/{name}/`）：
+1. 用户工作区 `~/.seeagent/workspaces/<当前工作区>/skills/`（`install_skill` 的默认落点）
+2. 项目级 `skills/`（开发模式）
+
 **使用流程**：
-1. 使用 skill-creator 创建 SKILL.md
-2. 保存到 skills/<skill-name>/SKILL.md
-3. 调用 load_skill 加载
-4. 技能立即可用
+1. 使用 skill-creator 创建 SKILL.md，或通过 `install_skill` 安装
+2. 调用 `load_skill` 加载
+3. 技能立即可用
 
 **注意**：技能目录必须包含有效的 SKILL.md 文件""",
         "input_schema": {
             "type": "object",
             "properties": {
-                "skill_name": {"type": "string", "description": "技能名称（即 skills/ 下的目录名）"}
+                "skill_name": {
+                    "type": "string",
+                    "description": "技能名称（install_skill 安装时使用的名称，或 skills/ 下的目录名）",
+                }
             },
             "required": ["skill_name"],
         },
