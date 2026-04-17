@@ -23,6 +23,7 @@ FRONTEND_PID_FILE="$PID_DIR/frontend.pid"
 
 BACKEND_PORT="${API_PORT:-18900}"
 FRONTEND_PORT=5174
+FRONTEND_BUILD_MODE="${FRONTEND_BUILD_MODE:-dev}"
 
 LOG_DIR="$PID_DIR"
 BACKEND_LOG="$LOG_DIR/backend.log"
@@ -121,26 +122,57 @@ stop_backend() {
 }
 
 # ---------- 前端 ----------
+needs_frontend_install() {
+    [[ ! -d "$FRONTEND_DIR/node_modules" ]]
+}
+
+needs_frontend_build() {
+    if [[ "$FRONTEND_BUILD_MODE" != "preview" ]]; then
+        return 1
+    fi
+    [[ ! -d "$FRONTEND_DIR/dist" ]] || \
+    [[ "$FRONTEND_DIR/package.json" -nt "$FRONTEND_DIR/dist" ]] || \
+    [[ "$FRONTEND_DIR/vite.config.ts" -nt "$FRONTEND_DIR/dist" ]]
+}
+
+install_frontend_deps() {
+    if [[ -f "$FRONTEND_DIR/package-lock.json" ]]; then
+        log_info "前端依赖未安装，执行 npm ci ..."
+        cd "$FRONTEND_DIR" && npm ci
+    else
+        log_info "前端依赖未安装，执行 npm install ..."
+        cd "$FRONTEND_DIR" && npm install
+    fi
+}
+
+build_frontend() {
+    log_info "构建前端 (mode: $FRONTEND_BUILD_MODE) ..."
+    cd "$FRONTEND_DIR"
+    npm run build
+}
+
 start_frontend() {
     if is_running "$FRONTEND_PID_FILE"; then
         log_warn "前端已在运行 (PID: $(cat "$FRONTEND_PID_FILE"))"
         return 0
     fi
 
-    if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
-        if [[ -f "$FRONTEND_DIR/package-lock.json" ]]; then
-            log_info "前端依赖未安装，执行 npm ci ..."
-            cd "$FRONTEND_DIR" && npm ci
-        else
-            log_info "前端依赖未安装，执行 npm install ..."
-            cd "$FRONTEND_DIR" && npm install
-        fi
+    if needs_frontend_install; then
+        install_frontend_deps
     fi
 
-    log_info "启动前端服务 (port: $FRONTEND_PORT) ..."
+    if needs_frontend_build; then
+        build_frontend
+    fi
+
+    log_info "启动前端服务 (port: $FRONTEND_PORT, mode: $FRONTEND_BUILD_MODE) ..."
     cd "$FRONTEND_DIR"
 
-    npx vite --port "$FRONTEND_PORT" > "$FRONTEND_LOG" 2>&1 &
+    if [[ "$FRONTEND_BUILD_MODE" == "preview" ]]; then
+        npx vite preview --port "$FRONTEND_PORT" > "$FRONTEND_LOG" 2>&1 &
+    else
+        npx vite --port "$FRONTEND_PORT" > "$FRONTEND_LOG" 2>&1 &
+    fi
     local pid=$!
     echo "$pid" > "$FRONTEND_PID_FILE"
 
@@ -222,6 +254,11 @@ usage() {
     cat <<EOF
 用法: $(basename "$0") <命令> [服务]
 
+环境变量:
+  FRONTEND_BUILD_MODE  前端构建模式: dev (默认) | preview
+    dev      - 使用 vite dev server (开发模式)
+    preview  - 先执行 npm run build，再使用 vite preview (生产预览)
+
 命令:
   start   [backend|frontend]   启动服务 (默认全部)
   stop    [backend|frontend]   停止服务 (默认全部)
@@ -229,11 +266,12 @@ usage() {
   status                       查看服务状态
 
 示例:
-  $(basename "$0") start             # 启动前后端
-  $(basename "$0") start backend     # 仅启动后端
-  $(basename "$0") stop frontend     # 仅停止前端
-  $(basename "$0") restart           # 重启全部
-  $(basename "$0") status            # 查看状态
+  $(basename "$0") start                          # 启动前后端 (dev 模式)
+  FRONTEND_BUILD_MODE=preview $(basename "$0") start  # 构建并预览生产版本
+  $(basename "$0") start backend                  # 仅启动后端
+  $(basename "$0") stop frontend                  # 仅停止前端
+  $(basename "$0") restart                        # 重启全部
+  $(basename "$0") status                         # 查看状态
 EOF
 }
 
