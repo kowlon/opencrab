@@ -183,6 +183,8 @@ class TestValidateConfig:
         assert any("base_url" in e for e in errors)
 
     def test_validate_missing_api_key_env(self, tmp_path):
+        """api_key_env 指向的环境变量缺失时，endpoint 在加载阶段被跳过，
+        validate_config 报告 'No endpoints configured'。"""
         config_file = tmp_path / "endpoints.json"
         config_file.write_text(json.dumps({
             "endpoints": [{
@@ -197,7 +199,7 @@ class TestValidateConfig:
         }), encoding="utf-8")
         os.environ.pop("NONEXISTENT_KEY_VAR", None)
         errors = validate_config(config_file)
-        assert any("NONEXISTENT_KEY_VAR" in e for e in errors)
+        assert any("No endpoints" in e for e in errors)
 
     def test_validate_invalid_json(self, tmp_path):
         config_file = tmp_path / "endpoints.json"

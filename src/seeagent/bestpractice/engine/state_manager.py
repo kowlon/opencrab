@@ -8,6 +8,7 @@ Key decisions:
 
 from __future__ import annotations
 
+import datetime as _dt
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -66,6 +67,8 @@ class BPStateManager:
             initial_input=dict(initial_input or {}),
             bp_config=bp_config,
         )
+        ts = _dt.datetime.fromtimestamp(snap.created_at)
+        snap.instance_title = f"{bp_config.name} · {ts.strftime('%-m/%d %H:%M')}"
         self._instances[instance_id] = snap
         logger.info(f"[BP] Created instance {instance_id} for '{bp_config.id}' in session {session_id}")
         return instance_id

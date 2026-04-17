@@ -14,6 +14,7 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
   function updateFromProgress(event: {
     instance_id: string
     bp_name: string
+    instance_title?: string
     statuses: Record<string, string>
     subtasks?: { id: string; name: string }[]
     current_subtask_index: number
@@ -35,6 +36,7 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
       instanceId: event.instance_id,
       bpId: existing?.bpId ?? '',
       bpName: event.bp_name,
+      instanceTitle: event.instance_title || existing?.instanceTitle || event.bp_name,
       status: event.status as BPInstanceState['status'],
       runMode: event.run_mode as BPRunMode,
       subtasks,
@@ -80,6 +82,7 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
     instance_id: string
     bp_id: string
     bp_name: string
+    instance_title?: string
     run_mode: string
     subtasks: { id: string; name: string }[]
   }) {
@@ -87,6 +90,7 @@ export const useBestPracticeStore = defineStore('bestpractice', () => {
       instanceId: event.instance_id,
       bpId: event.bp_id,
       bpName: event.bp_name,
+      instanceTitle: event.instance_title || event.bp_name,
       status: 'active',
       runMode: event.run_mode as BPRunMode,
       subtasks: event.subtasks.map((s) => ({

@@ -83,6 +83,7 @@ def _build_instance_item(
             "instance_id": snap.instance_id,
             "bp_id": bp_id,
             "bp_name": bp_name,
+            "instance_title": snap.instance_title or bp_name,
             "session_id": snap.session_id,
             "session_title": session_title_map.get(snap.session_id, snap.session_id),
             "status": snap.status.value,
@@ -114,6 +115,7 @@ def _build_instance_item(
             "instance_id": r["instance_id"],
             "bp_id": bp_id,
             "bp_name": bp_name,
+            "instance_title": r.get("instance_title", "") or bp_name,
             "session_id": r["session_id"],
             "session_title": session_title_map.get(r["session_id"], r["session_id"]),
             "status": r["status"],
@@ -419,6 +421,7 @@ async def bp_get_instance(instance_id: str, request: Request):
             "instance_id": snap.instance_id,
             "bp_id": snap.bp_id,
             "bp_name": snap.bp_config.name if snap.bp_config else snap.bp_id,
+            "instance_title": snap.instance_title or (snap.bp_config.name if snap.bp_config else snap.bp_id),
             "session_id": snap.session_id,
             "status": snap.status.value,
             "run_mode": snap.run_mode.value,
@@ -791,10 +794,16 @@ async def bp_start(request: Request):
     if not bp_config:
         return JSONResponse({"error": f"BP '{bp_id}' not found"}, status_code=404)
 
-    # 当前端未传 input_data 时，从 pending_offer 中提取用户原始 query 并用 LLM 解析
+    # 提取 user_query 用于 instance_title 生成 + input 解析
+    # 校验 pending_offer.bp_id 与请求的 bp_id 匹配，防止跨模板 offer 覆盖
+    pending_offer = sm.get_pending_offer(session_id)
+    if pending_offer and pending_offer.get("bp_id") == bp_id:
+        user_query = pending_offer.get("user_query", "")
+    else:
+        user_query = body.get("user_message", "")
+
+    # 当前端未传 input_data 时，从 user_query 用 LLM 解析
     if not input_data and bp_config.subtasks:
-        pending_offer = sm.get_pending_offer(session_id)
-        user_query = pending_offer.get("user_query", "") if pending_offer else ""
         combined_schema = _build_combined_user_schema(bp_config) if user_query else None
         if user_query and combined_schema:
             from seeagent.api.routes.seecrab import _extract_input_from_query
@@ -861,12 +870,12 @@ async def bp_start(request: Request):
         watcher = asyncio.create_task(_disconnect_watcher())
 
         try:
-            from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+            from seeagent.api.sse_utils import _HEARTBEAT_COMMENT, sse_heartbeat_stream
 
             yield _HEARTBEAT_COMMENT
 
             async for event in sse_heartbeat_stream(
-                engine.start(bp_config, session, input_data, run_mode)
+                engine.start(bp_config, session, input_data, run_mode, user_query=user_query)
             ):
                 if disconnect_event.is_set():
                     break
@@ -962,7 +971,7 @@ async def bp_next(request: Request):
         watcher = asyncio.create_task(_disconnect_watcher())
 
         try:
-            from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+            from seeagent.api.sse_utils import _HEARTBEAT_COMMENT, sse_heartbeat_stream
 
             yield _HEARTBEAT_COMMENT
 
@@ -1059,7 +1068,7 @@ async def bp_answer(request: Request):
         watcher = asyncio.create_task(_disconnect_watcher())
 
         try:
-            from seeagent.api.sse_utils import sse_heartbeat_stream, _HEARTBEAT_COMMENT
+            from seeagent.api.sse_utils import _HEARTBEAT_COMMENT, sse_heartbeat_stream
 
             yield _HEARTBEAT_COMMENT
 

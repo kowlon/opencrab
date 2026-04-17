@@ -4,6 +4,7 @@ defineProps<{
     instanceId: string
     bpId: string
     bpName: string
+    instanceTitle?: string
     runMode: string
     subtasks: { id: string; name: string }[]
   }
@@ -19,7 +20,7 @@ const emit = defineEmits<{
   <div class="bp-instance-created-block">
     <div class="bp-header">
       <span class="material-symbols-rounded header-icon">checklist</span>
-      <span class="title">已创建最佳实践「{{ bp.bpName }}」</span>
+      <span class="title">已创建最佳实践「{{ bp.instanceTitle || bp.bpName }}」</span>
       <span class="mode-tag">{{ bp.runMode === 'auto' ? '自动模式' : '手动模式' }}</span>
     </div>
     <div class="subtask-preview">

@@ -148,6 +148,7 @@ export const useChatStore = defineStore('chat', () => {
           instance_id: e.instance_id,
           bp_id: e.bp_id,
           bp_name: e.bp_name,
+          instance_title: e.instance_title,
           run_mode: e.run_mode,
           subtasks: e.subtasks ?? [],
         })
@@ -155,6 +156,7 @@ export const useChatStore = defineStore('chat', () => {
           instanceId: e.instance_id,
           bpId: e.bp_id,
           bpName: e.bp_name,
+          instanceTitle: e.instance_title || e.bp_name,
           runMode: e.run_mode,
           subtasks: e.subtasks,
         }
@@ -394,6 +396,7 @@ export const useChatStore = defineStore('chat', () => {
             instanceId: rs.bp_instance_created.instance_id,
             bpId: rs.bp_instance_created.bp_id,
             bpName: rs.bp_instance_created.bp_name ?? rs.bp_instance_created.bp_id ?? '',
+            instanceTitle: rs.bp_instance_created.instance_title || rs.bp_instance_created.bp_name || '',
             runMode: rs.bp_instance_created.run_mode ?? 'manual',
             subtasks: rs.bp_instance_created.subtasks ?? [],
           } : null,
@@ -428,6 +431,7 @@ export const useChatStore = defineStore('chat', () => {
       instanceId: raw.instance_id ?? '',
       bpId: raw.bp_id ?? '',
       bpName: raw.bp_name ?? '',
+      instanceTitle: raw.instance_title || raw.bp_name || '',
       status: raw.status ?? 'active',
       runMode: raw.run_mode ?? 'manual',
       subtasks: (raw.subtasks ?? []).map((s: any) => ({
@@ -473,6 +477,7 @@ export const useChatStore = defineStore('chat', () => {
           bpStore.updateFromProgress({
             instance_id: bp.instanceId,
             bp_name: bp.bpName,
+            instance_title: bp.instanceTitle,
             statuses: Object.fromEntries(
               bp.subtasks.map(s => [s.id, s.status])
             ),

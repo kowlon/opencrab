@@ -103,6 +103,7 @@ class BPEngine:
         session: Any,
         input_data: dict[str, Any] | None = None,
         run_mode: RunMode = RunMode.MANUAL,
+        user_query: str = "",
     ) -> AsyncIterator[dict]:
         """Create a BP instance, handle suspension of old, emit events, advance first subtask.
 
@@ -134,6 +135,24 @@ class BPEngine:
         # Pre-distribute initial_input fields to downstream subtasks
         self._distribute_initial_input(inst_id, bp_config)
 
+        snap = self.state_manager.get(inst_id)
+
+        # Upgrade fallback title: user_query > config.name
+        if snap and user_query:
+            import datetime as _dt
+            ts = _dt.datetime.fromtimestamp(snap.created_at)
+            time_suffix = ts.strftime("%-m/%d %H:%M")
+            # Extract last user message from multi-line history, truncate to 15 chars
+            lines = [
+                ln.replace("[用户]: ", "").strip()
+                for ln in user_query.strip().splitlines()
+                if ln.strip().startswith("[用户]:")
+            ]
+            query_text = (lines[-1] if lines else user_query.strip())[:15]
+            if query_text:
+                snap.instance_title = f"{query_text} · {time_suffix}"
+
+        # Emit bp_instance_created immediately with fallback title
         await self.state_manager.persist_instance(inst_id)
         self.state_manager.persist_to_session(inst_id, session)
 
@@ -142,15 +161,34 @@ class BPEngine:
             "instance_id": inst_id,
             "bp_id": bp_config.id,
             "bp_name": bp_config.name,
+            "instance_title": snap.instance_title if snap else "",
             "run_mode": run_mode.value,
             "subtasks": [
                 {"id": s.id, "name": s.name} for s in bp_config.subtasks
             ],
         }
 
+        # Generate instance_title via LLM in background — advance() starts immediately.
+        # LLM result updates snap.instance_title; subsequent bp_progress events pick it up.
+        async def _bg_title():
+            if not snap:
+                return
+            snap.instance_title = await self._generate_instance_title(
+                bp_config, input_data or {}, user_query, snap.created_at,
+            )
+            await self.state_manager.persist_instance(inst_id)
+
+        title_task = asyncio.create_task(_bg_title())
+
         async for event in self.advance(inst_id, session):
             yield event
 
+        # Ensure title task finishes before final persist
+        if not title_task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(title_task), timeout=5)
+            except Exception:
+                pass
         self.state_manager.persist_to_session(inst_id, session)
 
     async def request_suspend(
@@ -558,6 +596,7 @@ class BPEngine:
             "instance_id": instance_id,
             "bp_id": bp_config.id,
             "bp_name": bp_config.name,
+            "instance_title": snap.instance_title,
             "outputs": dict(snap.subtask_outputs),
         }
 
@@ -569,6 +608,7 @@ class BPEngine:
             "type": "bp_progress",
             "instance_id": instance_id,
             "bp_name": bp_config.name,
+            "instance_title": snap.instance_title,
             "statuses": dict(snap.subtask_statuses),
             "subtasks": [
                 {"id": st.id, "name": st.name}
@@ -1553,6 +1593,56 @@ class BPEngine:
                     if hasattr(agent, "brain"):
                         return agent.brain
         return None
+
+    async def _generate_instance_title(
+        self,
+        bp_config: BestPracticeConfig,
+        initial_input: dict[str, Any],
+        user_query: str,
+        created_at: float,
+    ) -> str:
+        """生成 instance_title: '{语义部分} · {M/D HH:MM}'。
+
+        语义部分回退链: LLM 生成 → user_query 截断 → config.name。
+        """
+        import datetime as _dt
+        ts = _dt.datetime.fromtimestamp(created_at)
+        time_suffix = ts.strftime("%-m/%d %H:%M")
+
+        # 回退链: user_query 截断 → config.name
+        if user_query:
+            lines = [
+                ln.replace("[用户]: ", "").strip()
+                for ln in user_query.strip().splitlines()
+                if ln.strip().startswith("[用户]:")
+            ]
+            semantic = (lines[-1] if lines else user_query.strip())[:15] or bp_config.name
+        else:
+            semantic = bp_config.name
+
+        brain = self._get_brain()
+        source_text = user_query or (
+            json.dumps(initial_input, ensure_ascii=False)[:300] if initial_input else ""
+        )
+        if brain and source_text:
+            prompt = (
+                f"为以下任务生成一个简短的名称（不超过15个字）：\n"
+                f"任务类型：{bp_config.name}\n"
+                f"用户需求：{source_text[:300]}\n\n"
+                f"要求：结合任务类型和用户需求的关键信息，简洁明了。"
+                f"只输出名称文本。"
+            )
+            try:
+                resp = await asyncio.wait_for(
+                    brain.think_lightweight(prompt, max_tokens=64), timeout=20,
+                )
+                text = resp.content.strip().strip('"\'') if hasattr(resp, "content") else ""
+                if text and len(text) <= 20:
+                    semantic = text
+            except Exception as e:
+                logger.warning(f"[BP] _generate_instance_title LLM failed: {type(e).__name__}: {e}")
+
+        return f"{semantic} · {time_suffix}"
 
     def _validate_output_soft(
         self, output: dict, subtask_id: str, bp_config: BestPracticeConfig,

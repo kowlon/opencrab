@@ -7,6 +7,7 @@ LLM 端点配置加载
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -14,6 +15,49 @@ from dotenv import load_dotenv
 from .types import ConfigurationError, EndpointConfig
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# 环境变量模板展开：${VAR} / ${VAR:-default}
+# ---------------------------------------------------------------------------
+
+class MissingEnvError(ConfigurationError):
+    """环境变量缺失且无默认值时抛出"""
+
+
+_ENV_PATTERN = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)(?::-([^}]*))?\}")
+
+
+def _expand_env(raw: str) -> str:
+    """展开字符串中的 ${VAR} / ${VAR:-default} 占位符。
+
+    - 不含 ``${`` 的字符串原样返回。
+    - 环境变量存在且非空时使用其值。
+    - 环境变量缺失或为空时：有 ``:-default`` 则用默认值，否则抛 MissingEnvError。
+    """
+    if "${" not in raw:
+        return raw
+
+    missing: list[str] = []
+
+    def _replacer(m: re.Match) -> str:
+        var_name, default = m.group(1), m.group(2)
+        value = os.environ.get(var_name)
+        if value:
+            return value
+        if default is not None:
+            return default
+        missing.append(var_name)
+        return m.group(0)  # 占位，下面会抛异常
+
+    result = _ENV_PATTERN.sub(_replacer, raw)
+
+    if missing:
+        raise MissingEnvError(
+            f"Environment variable(s) not set: {', '.join(missing)} "
+            f"(in template: {raw!r})"
+        )
+    return result
 
 
 def _safe_load_dotenv(env_path: Path) -> None:
@@ -223,14 +267,16 @@ def load_endpoints_config(
                 if not endpoint.enabled:
                     logger.info(f"Skipping disabled endpoint '{endpoint.name}'")
                     continue
-                if endpoint.api_key_env:
-                    api_key = os.environ.get(endpoint.api_key_env)
-                    if not api_key:
-                        logger.warning(
-                            f"API key not found for endpoint '{endpoint.name}': "
-                            f"env var '{endpoint.api_key_env}' is not set"
-                        )
+                if not endpoint.get_api_key():
+                    tpl = endpoint.api_key_raw or endpoint.api_key_env or "(未配置)"
+                    logger.warning(
+                        f"API key not found for endpoint '{endpoint.name}': "
+                        f"source={tpl}"
+                    )
                 result.append(endpoint)
+            except MissingEnvError as e:
+                logger.warning(f"Skipping endpoint ({key}): {e}")
+                continue
             except Exception as e:
                 logger.error(f"Failed to parse endpoint config ({key}): {e}")
                 continue
@@ -321,7 +367,7 @@ def create_default_config(config_path: Path | None = None):
             provider="anthropic",
             api_type="anthropic",
             base_url="https://api.anthropic.com",
-            api_key_env="ANTHROPIC_API_KEY",
+            api_key="${ANTHROPIC_API_KEY}",
             model="claude-sonnet-4-20250514",
             priority=1,
             max_tokens=0,
@@ -333,7 +379,7 @@ def create_default_config(config_path: Path | None = None):
             provider="dashscope",
             api_type="openai",
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-            api_key_env="DASHSCOPE_API_KEY",
+            api_key="${DASHSCOPE_API_KEY}",
             model="qwen-plus",
             priority=2,
             max_tokens=0,
@@ -367,12 +413,11 @@ def validate_config(config_path: Path | None = None) -> list[str]:
         prefix = f"[{label}] " if label else ""
         for ep in eps:
             # 检查 API Key
-            if ep.api_key_env:
-                api_key = os.environ.get(ep.api_key_env)
-                if not api_key:
-                    errors.append(
-                        f"{prefix}Endpoint '{ep.name}': API key env var '{ep.api_key_env}' not set"
-                    )
+            if not ep.get_api_key():
+                src = ep.api_key_raw or ep.api_key_env or "(未配置)"
+                errors.append(
+                    f"{prefix}Endpoint '{ep.name}': API key not available (source: {src})"
+                )
 
             # 检查 API 类型
             if ep.api_type not in ("anthropic", "openai"):
