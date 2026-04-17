@@ -12,9 +12,38 @@ final_output_schema:
       description: "frame-search 阶段写入的完整检索结果 JSON 文件路径（自动从 frame-search 传入）"
     visual_report_path: { type: string, description: "生成的可视化报告 PNG 绝对路径" }
     summary: { type: string, description: "执行结果的总结描述" }
+    frame_results:
+      type: array
+      description: "仅包含命中帧的摄像头结果列表（跳过无命中摄像头），由 frame-search 过滤后输出"
+      items:
+        type: object
+        properties:
+          camera_id: { type: string, description: "摄像头 ID" }
+          camera_name: { type: string, description: "摄像头名称" }
+          location: { type: string, description: "行政区划位置" }
+          latitude: { type: number }
+          longitude: { type: number }
+          frames:
+            type: array
+            items:
+              type: object
+              properties:
+                image_url: { type: string, description: "图像帧 URL" }
+                timestamp: { type: integer, description: "帧时间戳 (ms)" }
+                features:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      feature_bbox:
+                        type: array
+                        items: { type: number }
+                        description: "边界框坐标 [x1, y1, x2, y2]"
+                      feature_name: { type: string, description: "特征名称" }
   required: [title, frame_results_path, visual_report_path]
   upstream_from:
     frame_results_path: frame-search
+    frame_results: frame-search
 
 triggers:
   - type: command
@@ -96,5 +125,30 @@ subtasks:
         frame_results_path:
           type: string
           description: "上游 frame-search 写入的 frame_results JSON 文件路径（如 /tmp/seeagent_frame_results_latest.json）"
+        frame_results:
+          type: array
+          description: "frame-search 输出的完整检索结果（仅含命中帧的摄像头，跳过无命中条目）"
+          items:
+            type: object
+            properties:
+              camera_id: { type: string }
+              camera_name: { type: string }
+              location: { type: string }
+              latitude: { type: number }
+              longitude: { type: number }
+              frames:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    image_url: { type: string }
+                    timestamp: { type: integer }
+                    features:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          feature_bbox: { type: array, items: { type: number } }
+                          feature_name: { type: string }
       required: [frame_results_path]
-      upstream: [frame_results_path]
+      upstream: [frame_results_path, frame_results]

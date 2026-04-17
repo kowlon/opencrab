@@ -18,7 +18,7 @@
 
 - ❌ **严禁**自己手写 Markdown/HTML 表格作为 "可视化"(那是文本,不是图像)
 - ❌ **严禁**用 Pillow/PIL 代码自己重新实现图表渲染(应当调用现成 skill)
-- ❌ **严禁**在最终 JSON 响应里包含 `frame_results` 字段(数据在文件里,不需要复制)
+- ❌ **严禁**在最终 JSON 响应里包含 `frame_results` 字段(该字段由 frame-search 直接传入 final_output_schema,不需要复制)
 
 # 最终 JSON 输出(只 3 字段)
 

@@ -56,11 +56,11 @@
 
 # 输出要求
 
-## 🚨 重要：不要在回复文本里输出 frame_results 数据
+## 🚨 重要：不要在中间文本里回显原始 frame_results 数据
 
-frame_results 数据量大（数十 KB），直接输出会触发 token 截断死循环。
+frame_results 原始数据量大，在中间步骤直接打印会触发 token 截断死循环。
 
-正确做法：调用脚本 → 脚本自动把结果写入文件 → 你的文本回复只写 50 字以内的简短总结。
+正确做法：调用脚本 → 脚本自动把完整结果写入文件 → 中间文本回复只写 50 字以内的简短总结 → 最终结构化 JSON 里输出**过滤后**的 `frame_results`（仅含命中帧的摄像头，跳过 `frames: []` 的条目）。
 
 ## 推荐：直接调用现成脚本
 
@@ -82,23 +82,46 @@ python3 skills/1seetime/feature-extraction/scripts/run_feature_extraction.py \
 
 ## 子任务结束时必须输出的字段
 
-你的最终结构化 JSON 输出中**必须包含** `frame_results_path`（字符串，从 stdout 的 `frame_results_path` 字段直接复制），
-BP 引擎将用此字段把结果路径传给下一步"检索结果画图员"。
+你的最终结构化 JSON 输出中**必须包含**：
+
+1. `frame_results_path`（字符串，从 stdout 的 `frame_results_path` 字段直接复制）
+2. `frame_results`（数组，读取 `frame_results_path` 文件后**过滤**：只保留 `frames` 非空的摄像头，跳过 `"frames": []` 的条目）
 
 示例输出：
 ```json
 {
   "frame_results_path": "/tmp/seeagent_frame_results_91997360.json",
   "meta": {
-    "matched_cameras": 10,
-    "matched_frames": 56,
+    "matched_cameras": 1,
+    "matched_frames": 3,
     "total_time": 27.6
-  }
+  },
+  "frame_results": [
+    {
+      "camera_id": "11010156031310003192",
+      "camera_name": "安定门内大街 87 号",
+      "location": "北京市/北京市/东城区/安定门街道",
+      "latitude": 39.945369,
+      "longitude": 116.401933,
+      "frames": [
+        {
+          "image_url": "https://example.com/frame.jpg",
+          "timestamp": 1776237077742,
+          "features": [
+            {
+              "feature_bbox": [0.0, 339.46, 106.35, 456.22],
+              "feature_name": "black car"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
 ```
 
 文本回复示例（50字以内）：
-> "已完成。10个相机全部命中，共56帧，结果已写入文件。"
+> "已完成。1个相机命中，共3帧，结果已写入文件。"
 
 ## 字段映射与过滤规则（脚本自动处理，仅供参考）
 
@@ -118,5 +141,5 @@ BP 引擎将用此字段把结果路径传给下一步"检索结果画图员"。
 - ❌ 不要调用 `deliver_artifacts`、`render_feature_table.py` 或任何绘图工具
 - ❌ 不要尝试用 shell 命令（如 `seeagent bp next`）推进流程
 
-**你只需输出包含 `frame_results_path` 的 JSON，然后停止。**
-BP 引擎会自动把结果路径传给下一步，你不需要、也不应该关心后续步骤。
+**你只需输出包含 `frame_results_path` 和 `frame_results` 的 JSON，然后停止。**
+BP 引擎会自动把这两个字段传给下一步，你不需要、也不应该关心后续步骤。
