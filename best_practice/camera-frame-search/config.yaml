@@ -7,27 +7,14 @@ final_output_schema:
   type: object
   properties:
     title: { type: string, description: "最终报告的标题" }
-    frame_results:
-      type: array
-      description: "特征检索命中的图像帧列表(由引擎从 frame-search 自动聚合,LLM 无需产出)"
-      items:
-        type: object
-        properties:
-          camera_id: { type: string, description: "相机 ID" }
-          camera_name: { type: string, description: "相机名称" }
-          location: { type: string, description: "相机位置" }
-          image_url: { type: string, description: "帧图片 URL" }
-          timestamp: { type: integer, description: "帧时间戳（毫秒）" }
-          score: { type: number, description: "置信度" }
-          latitude: { type: number, description: "纬度" }
-          longitude: { type: number, description: "经度" }
-        required: [camera_id, camera_name, location, image_url, timestamp]
+    frame_results_path:
+      type: string
+      description: "frame-search 阶段写入的完整检索结果 JSON 文件路径（自动从 frame-search 传入）"
     visual_report_path: { type: string, description: "生成的可视化报告 PNG 绝对路径" }
     summary: { type: string, description: "执行结果的总结描述" }
-  required: [title, frame_results, visual_report_path]
-  # 引擎自动从 frame-search 的 output 聚合 frame_results 字段,LLM 不需要产出
+  required: [title, frame_results_path, visual_report_path]
   upstream_from:
-    frame_results: frame-search
+    frame_results_path: frame-search
 
 triggers:
   - type: command
@@ -89,13 +76,13 @@ subtasks:
           description: "从上一步获取的摄像头 ID 列表"
         start_time:
           type: string
-          description: "截帧开始时间 (ISO8601格式)"
+          description: "截帧开始时间 (ISO8601格式)，与 end_time 的间隔不能超过 1 天"
         end_time:
           type: string
-          description: "截帧结束时间 (ISO8601格式)"
+          description: "截帧结束时间 (ISO8601格式)，与 start_time 的间隔不能超过 1 天"
         feature_text:
           type: string
-          description: "要在帧中检索的自然语言特征描述，如'黄色小汽车|骑摩托车的人'"
+          description: "要在帧中检索的自然语言特征描述，如'黄色小汽车|骑摩托车的人'。agent 调用脚本时需翻译为英文 features"
       required: [camera_ids, start_time, end_time, feature_text]
       upstream: [camera_ids]
 
@@ -106,20 +93,8 @@ subtasks:
     input_schema:
       type: object
       properties:
-        frame_results:
-          type: array
-          description: "上游 frame-search 传入的图像帧检索结果数组"
-          items:
-            type: object
-            properties:
-              camera_id: { type: string, description: "相机 ID" }
-              camera_name: { type: string, description: "相机名称" }
-              location: { type: string, description: "相机位置" }
-              image_url: { type: string, description: "帧图片 URL" }
-              timestamp: { type: integer, description: "帧时间戳（毫秒）" }
-              score: { type: number, description: "置信度" }
-              latitude: { type: number, description: "纬度" }
-              longitude: { type: number, description: "经度" }
-            required: [camera_id, camera_name, location, image_url, timestamp]
-      required: [frame_results]
-      upstream: [frame_results]
+        frame_results_path:
+          type: string
+          description: "上游 frame-search 写入的 frame_results JSON 文件路径（如 /tmp/seeagent_frame_results_latest.json）"
+      required: [frame_results_path]
+      upstream: [frame_results_path]

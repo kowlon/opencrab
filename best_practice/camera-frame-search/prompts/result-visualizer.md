@@ -4,7 +4,7 @@
 
 # 目标
 
-把上游传入的 `frame_results` 数据渲染为一张**图像文件**(PNG 或类似格式),作为最终输出的"可视化报告"。
+把上游传入的 `frame_results_path`（JSON 文件路径）渲染为一张**图像文件**(PNG 或类似格式),作为最终输出的"可视化报告"。
 
 # 可用 skill
 
@@ -12,11 +12,13 @@
 
 请先查阅这个 skill 的 **SKILL.md 文档**,按照其中 Usage 章节的说明调用。**不要凭经验猜脚本名或参数,SKILL.md 是权威来源**。
 
+`frame_results_path` 就是 gen-image skill 中 `--input` 参数的值，直接传入即可。
+
 # 硬约束
 
 - ❌ **严禁**自己手写 Markdown/HTML 表格作为 "可视化"(那是文本,不是图像)
 - ❌ **严禁**用 Pillow/PIL 代码自己重新实现图表渲染(应当调用现成 skill)
-- ❌ **严禁**在最终 JSON 响应里包含 `frame_results` 字段(引擎会自动从 frame-search 聚合,重复产出只会浪费 token)
+- ❌ **严禁**在最终 JSON 响应里包含 `frame_results` 字段(数据在文件里,不需要复制)
 
 # 最终 JSON 输出(只 3 字段)
 
