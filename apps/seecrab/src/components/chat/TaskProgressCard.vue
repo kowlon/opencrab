@@ -48,7 +48,7 @@ function connectorClass(index: number) {
   <div class="task-card" @click="onCardClick">
     <div class="task-card-header">
       <span class="material-symbols-rounded task-icon">assignment</span>
-      <span class="task-name">{{ bp.bpName }}</span>
+      <span class="task-name">{{ bp.instanceTitle || bp.bpName }}</span>
       <div
         :class="['task-mode-toggle', { auto: bp.runMode === 'auto' }]"
         @click.stop="toggleMode"

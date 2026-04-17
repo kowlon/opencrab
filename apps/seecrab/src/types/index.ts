@@ -45,6 +45,7 @@ export interface ReplyState {
     instanceId: string
     bpId: string
     bpName: string
+    instanceTitle?: string
     runMode: string
     subtasks: { id: string; name: string }[]
   } | null
@@ -148,6 +149,7 @@ export interface BPInstanceState {
   instanceId: string
   bpId: string
   bpName: string
+  instanceTitle: string
   status: BPInstanceStatus
   runMode: BPRunMode
   subtasks: BPSubtaskInfo[]
@@ -158,6 +160,7 @@ export interface BPProgressEvent {
   type: 'bp_progress'
   instance_id: string
   bp_name: string
+  instance_title?: string
   statuses: Record<string, string>
   subtasks: { id: string; name: string }[]
   current_subtask_index: number
@@ -187,6 +190,7 @@ export interface BPInstanceCreatedEvent {
   instance_id: string
   bp_id: string
   bp_name: string
+  instance_title?: string
   run_mode: string
   subtasks: { id: string; name: string }[]
 }
@@ -257,6 +261,7 @@ export interface BPInstanceListItem {
   instance_id: string
   bp_id: string
   bp_name: string
+  instance_title: string
   session_id: string
   session_title: string
   status: BPInstanceStatus

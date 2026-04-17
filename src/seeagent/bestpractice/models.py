@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-
 # ── Enums ──────────────────────────────────────────────────────
 
 
@@ -285,6 +284,7 @@ class BPInstanceSnapshot:
     bp_id: str
     instance_id: str
     session_id: str
+    instance_title: str = ""
     status: BPStatus = BPStatus.ACTIVE
     created_at: float = field(default_factory=time.time)
     completed_at: float | None = None
@@ -309,6 +309,7 @@ class BPInstanceSnapshot:
         return {
             "bp_id": self.bp_id,
             "instance_id": self.instance_id,
+            "instance_title": self.instance_title,
             "session_id": self.session_id,
             "status": self.status.value if isinstance(self.status, BPStatus) else self.status,
             "created_at": self.created_at,
@@ -333,6 +334,7 @@ class BPInstanceSnapshot:
         return cls(
             bp_id=data["bp_id"],
             instance_id=data["instance_id"],
+            instance_title=data.get("instance_title", ""),
             session_id=data["session_id"],
             status=BPStatus(data.get("status", "active")),
             created_at=data.get("created_at", 0.0),

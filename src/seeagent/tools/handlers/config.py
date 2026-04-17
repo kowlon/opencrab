@@ -334,9 +334,10 @@ class ConfigHandler:
         lines = []
         for _i, ep in enumerate(endpoints, 1):
             key_info = ""
-            if ep.api_key_env:
-                has_key = bool(os.environ.get(ep.api_key_env))
-                key_info = f" | Key: {'✅' if has_key else '❌'}{ep.api_key_env}"
+            key_src = ep.api_key_raw or ep.api_key_env
+            if key_src:
+                has_key = bool(ep.get_api_key())
+                key_info = f" | Key: {'✅' if has_key else '❌'}{key_src}"
             lines.append(
                 f"- **{ep.name}** (P{ep.priority}): {ep.provider}/{ep.model}"
                 f" | {ep.api_type}{key_info}"
@@ -670,7 +671,7 @@ class ConfigHandler:
         if not api_key:
             return (
                 f"❌ 端点 \"{endpoint_name}\" 未配置 API Key。\n"
-                f"请设置环境变量 {target_ep.api_key_env or '(未指定)'} 或在端点配置中提供 api_key。"
+                f"请设置环境变量 {target_ep.api_key_raw or target_ep.api_key_env or '(未指定)'} 或在端点配置中提供 api_key。"
             )
 
         import httpx
